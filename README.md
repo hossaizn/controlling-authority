@@ -52,6 +52,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-3** | Statutory ground truth verified against ingested text, never asserted from recall | decided, verification pending |
 | **DL-4** | Scenario slice balance committed before any result is visible | decided |
 | **DL-5** | Every conflict case paired with a control case, so caution is not free | decided |
+| **DL-6** | New York supports only 6 of 90 scenarios and may not earn its ingestion cost | open, Phase 3 |
 
 ---
 

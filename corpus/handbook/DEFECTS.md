@@ -76,6 +76,22 @@
 
 ---
 
+## D-6: PTO forfeiture clause is below the California floor
+
+**Policy:** `LEAVE-008` Paid Time Off
+**Fault:** "Up to 5 unused days carry into the following year and must be used by 31 March. Days beyond that are forfeited."
+
+**Why it is a fault:** California treats accrued vacation as earned wages, which cannot be forfeited. A use-it-or-lose-it clause of this kind is unenforceable there. A cap on further accrual is permitted; retroactive forfeiture of already-accrued days is not.
+
+**Found rather than planned.** This clause was written to make the handbook read realistically, and the conflict was noticed afterwards. It is kept because it is the most realistic defect in the set: this is exactly how real multi-state handbooks break, by carrying a term that is lawful in one state and not in another without anyone noticing.
+
+**Correct resolution:** California employee, statute controls and accrued days cannot be forfeited. Ohio and New York employees, the handbook clause stands unless their state provides otherwise.
+
+- [ ] Verify California's treatment of accrued vacation as wages
+- [ ] Verify whether NY or OH restrict forfeiture, which would change the paired cases
+
+---
+
 ## Coverage check
 
 | Defect | Tests | Route |
@@ -85,5 +101,6 @@
 | D-3 | Effective dating and supersession | answer |
 | D-4 | Silence, plus jurisdiction-dependent opposite answers | answer |
 | D-5 | Clarification fires, and does not over-fire | clarify + answer |
+| D-6 | Same clause lawful in one state, not another | answer |
 
 Refusal and escalation are not exercised by handbook defects. They are covered by the out-of-scope and adversarial scenario slices instead.

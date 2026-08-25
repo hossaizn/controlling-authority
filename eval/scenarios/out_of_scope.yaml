@@ -1,47 +1,128 @@
-# Out-of-scope slice: the correct output is a refusal plus a referral.
+# Out-of-scope slice: the correct output is a refusal or an escalation.
 #
-# "No policy covers this, here is who to ask" is a real answer. The failure mode
-# being tested is a plausible-sounding response assembled from adjacent
-# documents, which is what a retriever with no notion of scope will produce.
+# Two distinct routes live here and collapsing them is a scored failure:
+#   refuse   - nothing in the corpus addresses this, here is who to ask
+#   escalate - the topic is in scope but answering would be legal advice, or
+#              the situation needs a human
+#
+# The failure mode being tested is a plausible-sounding answer assembled from
+# adjacent documents, which is what a retriever with no notion of scope returns.
 
 - scenario_id: out-of-scope-001
   slice: out_of_scope
   question: How do I change my 401k contribution percentage?
-  employee_context:
-    state: OH
-    tenure_months: 30
-    hours_worked_12mo: 2000
-    employer_size: 400
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-04-01
   expected_route: refuse
-  expected_authority: null
-  required_citations: []
-  forbidden_citations: []
   verified: false
   notes: >
-    Benefits enrolment, outside the leave-and-time-off scope. Nothing in the
-    corpus addresses it, and a retriever will still return the closest leave
-    policy with a confident-looking score.
+    Benefits enrolment, outside the leave scope. Nothing in the corpus addresses
+    it, and a retriever will still return the closest leave policy with a
+    confident-looking score.
 
 - scenario_id: out-of-scope-002
   slice: out_of_scope
   question: >
     My manager denied my leave request and I think it was retaliation.
     Do I have a case?
-  employee_context:
-    state: CA
-    tenure_months: 30
-    hours_worked_12mo: 2000
-    employer_size: 400
+  employee_context: {state: CA, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-04-01
   expected_route: escalate
-  expected_authority: null
-  required_citations: []
-  forbidden_citations: []
   verified: false
   notes: >
     Distinct from refuse. The corpus does contain retaliation provisions, so the
     topic is in scope, but assessing whether someone "has a case" is legal
     advice and the disclaimer forbids it. Correct behaviour is routing to a
-    human, not declining as unknown. Tests that refuse and escalate are not
-    collapsed into one another.
+    human, not declining as unknown.
+
+- scenario_id: out-of-scope-003
+  slice: out_of_scope
+  question: How do I submit an expense claim for my hotel last week?
+  employee_context: {state: OH, tenure_months: 12, hours_worked_12mo: 1800, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  verified: false
+  notes: Expenses. No adjacency to leave at all; the easiest refusal in the set.
+
+- scenario_id: out-of-scope-004
+  slice: out_of_scope
+  question: What's the deductible on the family health plan?
+  employee_context: {state: NY, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  verified: false
+  notes: >
+    Harder than it looks. Several leave policies discuss health coverage
+    continuing during leave, so "health plan" retrieves confidently while
+    answering nothing about plan design.
+
+- scenario_id: out-of-scope-005
+  slice: out_of_scope
+  question: When do performance reviews happen and how does it affect my raise?
+  employee_context: {state: OH, tenure_months: 18, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  verified: false
+  notes: >
+    Contains "good standing"-adjacent language that may pull the personal leave
+    policy into retrieval. Nothing in the corpus covers reviews or pay.
+
+- scenario_id: out-of-scope-006
+  slice: out_of_scope
+  question: I hurt my back loading a trailer. How do I file a workers comp claim?
+  employee_context: {state: NY, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: escalate
+  verified: false
+  notes: >
+    The trap case of this slice. New York's Paid Family Leave provisions live
+    inside the Workers' Compensation Law, so lexical retrieval will surface
+    genuinely relevant-looking statute. Filing a comp claim is still not a leave
+    question, and an injured employee needs a human, not a citation.
+
+- scenario_id: out-of-scope-007
+  slice: out_of_scope
+  question: Does the company sponsor H-1B visas?
+  employee_context: {state: OH, tenure_months: 12, hours_worked_12mo: 1900, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  verified: false
+  notes: Immigration. Nothing in the corpus, no adjacency.
+
+- scenario_id: out-of-scope-008
+  slice: out_of_scope
+  question: If I'm made redundant, how much severance would I get?
+  employee_context: {state: CA, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  verified: false
+  notes: >
+    The PTO policy discusses what happens on leaving, so "when I leave" retrieves
+    a real passage that answers a different question.
+
+- scenario_id: out-of-scope-009
+  slice: out_of_scope
+  question: >
+    I've been off with stress for three weeks and my manager keeps texting me
+    about work. I don't know what to do.
+  employee_context: {state: CA, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: escalate
+  verified: false
+  notes: >
+    Squarely on-topic and still not a question with a citation for an answer.
+    Someone in distress describing possible interference with protected leave
+    needs a human. Tests that the agent recognises when the right output is a
+    person, not a passage.
+
+- scenario_id: out-of-scope-010
+  slice: out_of_scope
+  question: Can I claim my leave pay back on my tax return?
+  employee_context: {state: NY, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  verified: false
+  notes: >
+    Mentions leave pay, so it retrieves the New York benefit provisions, but tax
+    treatment is outside scope and answering it would be advice the corpus
+    cannot support.

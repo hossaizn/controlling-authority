@@ -50,11 +50,11 @@ Entries are `DL-n`. Handbook defect identifiers are `D-n` and live in `corpus/ha
 
 **Status:** decided, Phase 1
 
-**Decision.** The scenario set is balanced across six slices with counts committed in advance: straightforward, ambiguous jurisdiction, control (answer identical across states), handbook conflict, superseded, out of scope, adversarial.
+**Decision.** The scenario set is balanced across seven slices with counts committed in advance: straightforward 15, ambiguous 15, control 10, conflict 20, superseded 10, out of scope 10, adversarial 10. Ninety total.
 
 **Why.** The headline comparison in this project is agent versus naive baseline. Conflict cases are exactly where the baseline fails and the agent wins, so a set weighted toward conflicts would inflate the delta without any engineering behind it. Committing the balance before any number is visible removes the temptation to discover, later, that a more favourable mix was the more "representative" one.
 
-**Enforced in code.** `tests/test_scenario_schema.py` asserts the balance, so drifting the mix breaks a test rather than quietly improving a metric.
+**Enforced in code.** `tests/test_scenario_balance.py` asserts the exact counts, so drifting the mix breaks a test rather than quietly improving a metric. The targets are written into the test file with the date they were committed.
 
 ---
 
@@ -71,3 +71,25 @@ Entries are `DL-n`. Handbook defect identifiers are `D-n` and live in `corpus/ha
 **Why.** Without pairing, an agent that always asks a clarifying question and always defers to statute scores well while being useless. Over-clarification is the failure mode users actually experience, and it is invisible unless the eval contains cases where asking is the wrong move.
 
 **This is the metric that most distinguishes the agent from the baseline**, and also the one most likely to make the agent look worse before it looks better.
+
+---
+
+## DL-6: New York is underrepresented, and may not earn its ingestion cost
+
+**Status:** open, decide before Phase 3
+
+**Observation.** With all 90 scenarios written, the jurisdiction distribution is Ohio 39, California 29, withheld 16, **New York 6**.
+
+**Why it happened.** The contrast that generates interesting cases is "state exceeds the federal floor" versus "state adds nothing." California and Ohio sit at the two extremes and produce clean pairs. New York is a third point that mostly differs in *mechanism*, an insurance-based benefit rather than a broader entitlement, which is genuinely interesting but harder to write pairs against.
+
+**The tension.** New York is the most expensive layer to ingest: it is the only source needing an API key, its own adapter, and a tree traversal, and it currently supports 6 scenarios. Ohio needed the least work and supports 39.
+
+**Options.**
+
+1. Write 8 to 10 more New York scenarios so the ingestion earns its place. Costs authoring time, and risks manufactured cases that exist to justify a corpus rather than to test behaviour.
+2. Drop New York and run with two contrasting states. Cheaper and defensible, since two states already make jurisdiction filtering load-bearing.
+3. Keep New York as-is and accept that one layer is thinly tested.
+
+**Leaning toward 1**, because the mechanism difference is real: an eligibility test based on weeks worked rather than months-plus-hours is exactly the kind of thing a system trained on federal shapes gets wrong. But that is an argument for a handful of targeted cases, not for parity.
+
+**Not decided.** Recorded now so the choice is visible rather than made by default when Phase 3 ingestion turns out to be tedious.
