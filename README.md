@@ -52,13 +52,14 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-3** | Statutory ground truth verified against ingested text, never asserted from recall | decided, verification pending |
 | **DL-4** | Scenario slice balance committed before any result is visible | decided |
 | **DL-5** | Every conflict case paired with a control case, so caution is not free | decided |
-| **DL-6** | New York supports only 6 of 90 scenarios and may not earn its ingestion cost | open, Phase 3 |
+| **DL-6** | New York supports only 6 of 92 scenarios and may not earn its ingestion cost | open, Phase 3 |
+| **DL-7** | Independent review found the ground truth partly unscoreable; three missing rules, not bad data | decided |
 
 ---
 
 ## Evaluation
 
-Roughly 90 hand-written scenarios, each carrying a question, employee context, an as-of date, and the labelled correct behaviour. Written **before** the retrieval pipeline, because they cannot be generated without destroying their own ground truth, and because they are what tells ingestion when to stop.
+Ninety-two hand-written scenarios, each carrying a question, employee context, an as-of date, and the labelled correct behaviour. Written **before** the retrieval pipeline, because they cannot be generated without destroying their own ground truth, and because they are what tells ingestion when to stop.
 
 Measured: route accuracy, precedence correctness, citation groundedness, forbidden-citation rate, refusal correctness, **over-clarification rate**, retrieval recall@k.
 

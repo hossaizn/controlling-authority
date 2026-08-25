@@ -9,6 +9,7 @@
 # with an ambiguous-slice case where the same missing fact does decide it.
 
 - scenario_id: control-001
+  pairs_with: ambiguous-002
   slice: control
   question: My father died on Tuesday. How much bereavement leave can I take?
   employee_context: {state: null, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
@@ -25,22 +26,26 @@
 
 - scenario_id: control-002
   slice: control
-  question: >
-    I'm on a reduced schedule at the moment. Does the company pay out unused
-    vacation days when someone leaves?
-  employee_context: {state: CA, tenure_months: 8, hours_worked_12mo: 900, employer_size: 400}
+  question: I'm on a reduced schedule at the moment. Do I still build up vacation?
+  employee_context: {state: null, tenure_months: 8, hours_worked_12mo: 900, employer_size: 400}
   as_of_date: 2026-07-01
   expected_route: answer
-  expected_authority: state
-  required_citations: ["Cal. Lab. Code 227.3"]
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  forbidden_citations: ["LEAVE-005"]
   verified: false
   notes: >
-    Mentions a reduced schedule, one of the undefined terms that makes personal
+    Rewritten during the 1.5 hardening pass. The original duplicated
+    conflict-009 and withheld nothing, which contradicted the premise of this
+    slice. "Reduced schedule" is one of the undefined terms that makes personal
     leave ambiguous, so a lexically driven agent may be pulled toward LEAVE-005
-    and start clarifying. The question is about payout on separation, which is
-    settled by California law regardless of schedule or tenure.
+    and start clarifying. The PTO policy answers directly: part-time employees
+    accrue pro rata. State is withheld and no statute in the corpus governs
+    accrual rates, so it changes nothing.
+
 
 - scenario_id: control-003
+  pairs_with: ambiguous-003
   slice: control
   question: Does the company pay me for jury service?
   employee_context: {state: null, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
@@ -75,11 +80,13 @@
   employee_context: {state: null, tenure_months: 12, hours_worked_12mo: 1800, employer_size: 400}
   as_of_date: 2026-04-01
   expected_route: answer
-  expected_authority: company
+  acceptable_authorities: [state, company]
   required_citations: ["LEAVE-004-v2"]
   verified: false
   notes: >
-    The accrual rate of one hour per 30 worked is uniform. The annual cap does
+    Authority is genuinely indeterminate here and the answer is not, which is
+    why acceptable_authorities exists. The accrual rate of one hour per 30
+    worked is uniform. The annual cap does
     vary in the corpus, so an agent must distinguish the rate being asked about
     from the cap that is not.
 
@@ -101,7 +108,7 @@
 
 - scenario_id: control-007
   slice: control
-  question: Is my brother-in-law covered by the bereavement policy?
+  question: Is my grandchild covered by the bereavement policy?
   employee_context: {state: null, tenure_months: null, hours_worked_12mo: null, employer_size: 400}
   as_of_date: 2026-05-10
   expected_route: answer
@@ -112,10 +119,14 @@
     Almost every fact is missing, which makes this the strongest temptation to
     clarify in the whole set. None of them matter: the policy has no service
     requirement, applies to all employees, and includes a catch-all for
-    relationships equivalent to family. An agent that asks anything here is
-    responding to the shape of the input rather than to the question.
+    relationships equivalent to family. Grandchild is named explicitly, so no
+    judgment about closeness is required: the original used brother-in-law,
+    which falls only under the conditional catch-all and made a clarifying
+    question defensible. An agent that asks anything here is responding to the
+    shape of the input rather than to the question.
 
 - scenario_id: control-008
+  pairs_with: ambiguous-005
   slice: control
   question: Do I get paid if I'm called as a witness for the company?
   employee_context: {state: null, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}

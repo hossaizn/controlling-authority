@@ -7,11 +7,19 @@
 #
 # Written in pairs on purpose. A single dated question can be answered correctly
 # by luck; a pair cannot.
+#
+# Jurisdiction is held constant at Ohio throughout, fixed during the 1.5
+# hardening pass. The first draft used California, where a statute compels the
+# sick-leave floor and would therefore control under precedence rule 5, making
+# the handbook version irrelevant and destroying the only variable this slice
+# exists to isolate. Ohio has no state sick-leave provision in the corpus, so
+# the handbook is the sole source and the date is the only thing that moves.
 
 - scenario_id: superseded-001
+  pairs_with: superseded-002
   slice: superseded
   question: How many paid sick days do I get per year?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2023-06-15
   expected_route: answer
   expected_authority: company
@@ -23,9 +31,10 @@
     Version 2 did not exist yet, so citing it is an anachronism.
 
 - scenario_id: superseded-002
+  pairs_with: superseded-001
   slice: superseded
   question: How many paid sick days do I get per year?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-06-15
   expected_route: answer
   expected_authority: company
@@ -37,26 +46,28 @@
     Only the date differs. The pair is the test.
 
 - scenario_id: superseded-003
+  pairs_with: superseded-004
   slice: superseded
   question: Can I use sick leave if I'm dealing with a stalking situation?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2023-09-01
   expected_route: answer
-  expected_authority: state
-  required_citations: ["Cal. Lab. Code 246"]
+  expected_authority: company
+  required_citations: ["LEAVE-004-v1"]
   forbidden_citations: ["LEAVE-004-v2"]
   verified: false
   notes: >
-    In 2023 the handbook version in force did not list this as a qualifying use,
-    so the handbook answers no and the state layer may still answer yes. Tests
-    that supersession and precedence interact rather than being handled
-    independently: the right version must be selected first, then the layers
-    compared.
+    The version in force in 2023 did not list this as a qualifying use, so the
+    answer is no. Its successor does, which makes this the sharpest pair in the
+    slice: the same question flips from no to yes purely on the date. The
+    California framing was dropped in the 1.5 pass because a state statute would
+    have controlled and masked the version selection entirely.
 
 - scenario_id: superseded-004
+  pairs_with: superseded-003
   slice: superseded
   question: Can I use sick leave if I'm dealing with a stalking situation?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-09-01
   expected_route: answer
   expected_authority: company
@@ -68,6 +79,7 @@
     so the company layer answers and no escalation to statute is needed.
 
 - scenario_id: superseded-005
+  pairs_with: superseded-006
   slice: superseded
   question: How much sick leave can I carry into next year?
   employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
@@ -83,6 +95,7 @@
     entire question.
 
 - scenario_id: superseded-006
+  pairs_with: superseded-005
   slice: superseded
   question: How much sick leave can I carry into next year?
   employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
@@ -98,7 +111,7 @@
   slice: superseded
   question: >
     I was told last year I only had three sick days. Has that changed?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-02-01
   expected_route: answer
   expected_authority: company
@@ -111,9 +124,10 @@
     treat every appearance of an old version as an error.
 
 - scenario_id: superseded-008
+  pairs_with: superseded-009
   slice: superseded
   question: How many paid sick days do I get?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2024-01-02
   expected_route: answer
   expected_authority: company
@@ -125,9 +139,10 @@
     off-by-one in the effective_from comparison surfaces here and nowhere else.
 
 - scenario_id: superseded-009
+  pairs_with: superseded-008
   slice: superseded
   question: How many paid sick days do I get?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2023-12-31
   expected_route: answer
   expected_authority: company
@@ -141,7 +156,7 @@
 - scenario_id: superseded-010
   slice: superseded
   question: What's the current sick leave policy?
-  employee_context: {state: NY, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-06-15
   expected_route: answer
   expected_authority: company

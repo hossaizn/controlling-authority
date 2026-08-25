@@ -92,6 +92,38 @@
 
 ---
 
+## D-7: FMLA coverage threshold restated as if it were the only one
+
+**Policy:** `LEAVE-001` Family and Medical Leave
+**Fault:** States eligibility requires a location where the company employs "50 or more employees within 75 miles", which is the federal coverage threshold presented as the universal rule.
+
+**Why it is a fault:** California's CFRA reaches smaller employers than the federal threshold. An employee at a small California site reads this clause and concludes she is not covered, when state law says otherwise.
+
+**Correct resolution:** For a California employee below the federal threshold, state law controls and the federal threshold is irrelevant rather than decisive. In Ohio the federal threshold is the whole story and the answer is genuinely no.
+
+**Found in review**, not planned. `conflict-010` and `ambiguous-008/009` already depended on it while it was undocumented, which is exactly the gap this file exists to close.
+
+- [ ] Verify the CFRA employer-size threshold against ingested CA text
+- [ ] Verify the federal 50-employee/75-mile threshold against ingested 29 CFR 825 text
+
+---
+
+## D-8: Family definitions and pregnancy leave are federal-shaped throughout
+
+**Policy:** `LEAVE-001`, and `LEAVE-002` by omission
+**Fault:** The handbook's covered-relative list is spouse, child and parent, mirroring federal scope. It is silent on grandparent and sibling. `LEAVE-002` also folds all pregnancy-related time into parental leave.
+
+**Why it is a fault:** California's family definition is broader, and California treats pregnancy disability leave as a separate entitlement from bonding leave. An employee reading `LEAVE-002` would conclude that time signed off before a birth consumes her bonding leave, which is both wrong and expensive for her.
+
+**Correct resolution:** State controls in California for grandparent care (`conflict-004`), sibling care (`ambiguous-010`) and pregnancy disability (`conflict-021`). In Ohio, federal scope governs and the answer is no.
+
+**Partly documented before, partly not.** D-4 covered grandparent only. Sibling and pregnancy disability were relied on by scenarios without appearing here.
+
+- [ ] Verify CFRA covered family members include sibling
+- [ ] Verify California pregnancy disability leave is separate from bonding leave
+
+---
+
 ## Coverage check
 
 | Defect | Tests | Route |
@@ -102,5 +134,7 @@
 | D-4 | Silence, plus jurisdiction-dependent opposite answers | answer |
 | D-5 | Clarification fires, and does not over-fire | clarify + answer |
 | D-6 | Same clause lawful in one state, not another | answer |
+| D-7 | Federal threshold presented as universal | answer |
+| D-8 | Federal-shaped family and pregnancy scope | answer |
 
 Refusal and escalation are not exercised by handbook defects. They are covered by the out-of-scope and adversarial scenario slices instead.

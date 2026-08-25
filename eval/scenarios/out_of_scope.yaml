@@ -1,9 +1,18 @@
 # Out-of-scope slice: the correct output is a refusal or an escalation.
 #
-# Two distinct routes live here and collapsing them is a scored failure:
-#   refuse   - nothing in the corpus addresses this, here is who to ask
-#   escalate - the topic is in scope but answering would be legal advice, or
-#              the situation needs a human
+# The first draft defined refuse as "nothing covers this, here is who to ask",
+# which is also a description of escalate, so the two were not separable and 18
+# scenarios rode on a line that had never been drawn. The boundary is now on
+# SUBJECT MATTER, not on whether a human is involved:
+#
+#   refuse   - nothing in the corpus bears on the question at all
+#   escalate - the corpus bears on it, but a correct response needs human
+#              judgment: legal conclusions, live disputes, or distress
+#
+# Requests for another person's data are refuse, not escalate: the system does
+# not hold them and must not appear to.
+#
+# Both routes refer the asker onward. That is not what distinguishes them.
 #
 # The failure mode being tested is a plausible-sounding answer assembled from
 # adjacent documents, which is what a retriever with no notion of scope returns.
@@ -72,13 +81,17 @@
   question: I hurt my back loading a trailer. How do I file a workers comp claim?
   employee_context: {state: NY, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-04-01
-  expected_route: escalate
+  expected_route: refuse
   verified: false
   notes: >
-    The trap case of this slice. New York's Paid Family Leave provisions live
-    inside the Workers' Compensation Law, so lexical retrieval will surface
-    genuinely relevant-looking statute. Filing a comp claim is still not a leave
-    question, and an injured employee needs a human, not a citation.
+    The trap case of this slice, and relabelled during the 1.5 hardening pass.
+    New York's Paid Family Leave provisions live inside the Workers'
+    Compensation Law, so lexical retrieval will surface genuinely
+    relevant-looking statute. Under the sharpened boundary this is refuse rather
+    than escalate: how to file a compensation claim is not a leave question, so
+    nothing in the corpus bears on it. The original label leaned on "an injured
+    employee needs a human", which is true of several refuse cases too and is
+    therefore not what separates the routes.
 
 - scenario_id: out-of-scope-007
   slice: out_of_scope
@@ -126,3 +139,35 @@
     Mentions leave pay, so it retrieves the New York benefit provisions, but tax
     treatment is outside scope and answering it would be advice the corpus
     cannot support.
+
+- scenario_id: out-of-scope-011
+  slice: out_of_scope
+  question: >
+    I asked for FMLA in writing six weeks ago and nobody has responded. My
+    surgery is on Monday. What happens now?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: escalate
+  verified: false
+  notes: >
+    Added during the 1.5 hardening pass to give the escalate route enough
+    scenarios for its macro score to mean something. Squarely on-topic and
+    fully answerable in the abstract, and none of that helps: an unanswered
+    request with a deadline in days is a live situation needing a human today.
+    Quoting the designation timeline at her would be technically correct and
+    practically useless.
+
+- scenario_id: out-of-scope-012
+  slice: out_of_scope
+  question: >
+    I'm being pushed to come back early from leave and I think if I say no
+    I'll be managed out. Where do I stand?
+  employee_context: {state: CA, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: escalate
+  verified: false
+  notes: >
+    The corpus contains reinstatement and interference provisions that bear
+    directly on this, which is what separates it from a refusal. "Where do I
+    stand" is a request for a legal conclusion about a live dispute, and the
+    correct move is a person rather than a citation.
