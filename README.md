@@ -34,7 +34,7 @@ Precedence is applied in order:
 | Layer | Source | Verified |
 |-------|--------|----------|
 | Federal | eCFR API, 29 CFR Part 825 (FMLA). Point-in-time by snapshot date. | 2026-08-25 |
-| State | California (CFRA, PDL, paid sick leave), New York (PFL), Ohio | 2026-08-25 |
+| State | California (CFRA, PDL, paid sick leave), New York (PFL, Workers' Comp Law art. 9), Ohio | 2026-08-25 |
 | Company | Synthetic handbook, seeded with deliberate conflicts | n/a |
 
 Ohio is the control case: it has no state family-leave statute for private employers. That absence is encoded as an explicit record, because a retrieval miss and a genuine absence must not look the same to the agent.
