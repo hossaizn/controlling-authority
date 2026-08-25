@@ -1,0 +1,27 @@
+# Secrets. Never commit.
+.env
+.env.*
+!.env.example
+
+# Raw source pulls. Regenerable from the ingest adapters, and large.
+# Parsed output is committed; raw is not.
+corpus/raw/
+
+# Eval run artifacts. The decision log is committed, individual runs are not.
+eval/runs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local vector store volume
+qdrant_storage/
+
+# macOS
+.DS_Store
