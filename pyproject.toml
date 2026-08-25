@@ -1,0 +1,57 @@
+[project]
+name = "controlling-authority"
+version = "0.1.0"
+description = "An agent that determines which authority controls an HR leave question, then answers from it with citations."
+requires-python = ">=3.12"
+
+dependencies = [
+    # service
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-dotenv>=1.0",
+    # corpus ingestion
+    "httpx>=0.27",
+    "lxml>=5.3",            # eCFR XML
+    "beautifulsoup4>=4.12",  # CA and OH server-rendered HTML
+    "pyyaml>=6.0",           # scenarios, absence records
+    # retrieval
+    "qdrant-client>=1.12",
+    # agent
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    # models. Multi-provider on purpose: verify must not share a family with compose.
+    "anthropic>=0.39",
+    "openai>=1.54",
+    "voyageai>=0.3",
+    # observability
+    "langfuse>=2.53",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",   # pin HTTP in tests; ingestion is never allowed to hit the network
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[tool.pytest.ini_options]
+# Application, not a distributable library, so packages resolve from the repo root.
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_return_any = true
