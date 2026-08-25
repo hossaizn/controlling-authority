@@ -21,6 +21,7 @@
     capped near 30 days. Tenure decides whether this is even a live option.
 
 - scenario_id: ambiguous-002
+  pairs_with: control-001
   slice: ambiguous
   question: How much parental leave am I entitled to?
   employee_context: {state: null, tenure_months: 20, hours_worked_12mo: 1900, employer_size: 400}
@@ -30,9 +31,11 @@
   verified: false
   notes: >
     Entitlement differs materially between California and Ohio for this
-    employee. Paired with control-002, where the answer is the same everywhere.
+    employee. Paired with control-001, where state is withheld in exactly the
+    same way and the answer does not move.
 
 - scenario_id: ambiguous-003
+  pairs_with: control-003
   slice: ambiguous
   question: My grandmother is ill and needs care. Can I take leave for her?
   employee_context: {state: null, tenure_months: 36, hours_worked_12mo: 2000, employer_size: 400}
@@ -43,7 +46,7 @@
   notes: >
     Defect D-4 with jurisdiction withheld. California says yes and Ohio says no,
     so this is the clearest case in the set where answering without asking is
-    a coin flip dressed as an answer.
+    a coin flip dressed as an answer. Paired with control-003.
 
 - scenario_id: ambiguous-004
   slice: ambiguous
@@ -58,6 +61,7 @@
     in Ohio. Paired directly against conflict-007 and conflict-008.
 
 - scenario_id: ambiguous-005
+  pairs_with: control-008
   slice: ambiguous
   question: How long do I get to go and vote on election day?
   employee_context: {state: null, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
@@ -71,6 +75,7 @@
     has ignored a document telling it to ask.
 
 - scenario_id: ambiguous-006
+  pairs_with: ambiguous-007
   slice: ambiguous
   question: Am I eligible for family and medical leave?
   employee_context: {state: OH, tenure_months: 18, hours_worked_12mo: null, employer_size: 400}
@@ -83,6 +88,7 @@
     at 18 months may well fail it, so the answer is genuinely undetermined.
 
 - scenario_id: ambiguous-007
+  pairs_with: ambiguous-006
   slice: ambiguous
   question: Am I eligible for family and medical leave?
   employee_context: {state: OH, tenure_months: null, hours_worked_12mo: 2000, employer_size: 400}
@@ -96,6 +102,7 @@
     generic "tell me more about your situation".
 
 - scenario_id: ambiguous-008
+  pairs_with: ambiguous-009
   slice: ambiguous
   question: >
     I work out of a small satellite depot. Does family leave apply to people
@@ -110,6 +117,7 @@
     threshold turns on the number, and she may be over or under it.
 
 - scenario_id: ambiguous-009
+  pairs_with: ambiguous-008
   slice: ambiguous
   question: >
     I work out of a small satellite depot. Does family leave apply to people
@@ -192,16 +200,16 @@
 
 - scenario_id: ambiguous-015
   slice: ambiguous
-  question: How many paid sick days do I have?
-  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
-  as_of_date: 2023-12-28
+  question: Do I qualify for the state paid family leave benefit?
+  employee_context: {state: NY, tenure_months: 9, hours_worked_12mo: 1400, weeks_worked_12mo: null, employer_size: 400}
+  as_of_date: 2026-05-01
   expected_route: clarify
-  missing_fact: tenure_months
+  missing_fact: weeks_worked_12mo
   verified: false
   notes: >
-    Asked four days before a policy change, about an entitlement that is stated
-    per year. Whether she means the year ending or the year starting changes the
-    answer from 3 days to 5. The ambiguity is temporal rather than jurisdictional,
-    and the missing fact is the closest available proxy for it. This case is
-    marked for review: if the harness cannot express "ambiguous period" cleanly,
-    it should move to superseded and be reframed.
+    Replaces a self-contradictory scenario found in review, which declared
+    tenure missing while supplying it. New York keys Paid Family Leave
+    eligibility on weeks worked rather than months of service plus hours, so
+    neither supplied fact settles it and the specific missing prong is weeks
+    worked. Tests that the agent knows which eligibility test the jurisdiction
+    actually uses instead of reaching for the federal shape.

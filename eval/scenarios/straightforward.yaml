@@ -171,3 +171,37 @@
   required_citations: ["LEAVE-007"]
   verified: false
   notes: As much as reasonable, in writing where possible, unless military necessity prevents it.
+
+- scenario_id: straightforward-016
+  slice: straightforward
+  question: >
+    My husband works here too. Can we both take the full parental leave, or do
+    we have to split it between us?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-02-10
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-002"]
+  verified: false
+  notes: >
+    Moved out of the conflict slice during the 1.5 hardening pass: the handbook
+    states each parent is separately eligible, which is at least as generous as
+    any floor in the corpus, so no cross-layer conflict arises. Retained because
+    federal FMLA has historically had a spousal aggregation rule for some
+    purposes, making this a plausible place to over-apply statute against the
+    employee's interest.
+
+- scenario_id: straightforward-017
+  slice: straightforward
+  question: I got a jury summons for a trial they say could run six weeks. Do I get paid for all of it?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-05
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-006"]
+  verified: false
+  notes: >
+    Moved out of the conflict slice during the 1.5 hardening pass: no statute in
+    the corpus compels jury duty pay, so the handbook is the only source and
+    nothing conflicts. The answer is partial, ten paid days then unpaid, which
+    requires reading past the first sentence of the policy.

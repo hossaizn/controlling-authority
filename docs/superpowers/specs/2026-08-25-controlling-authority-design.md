@@ -156,7 +156,28 @@ Applied by `resolve`, in order:
 3. **Effective dating.** Only provisions in force on the query date are eligible. Superseded text is retained for point-in-time queries and excluded otherwise.
 4. **Silence is not permission.** A layer that does not address the topic does not override one that does.
 
+5. **Tie-break when layers agree.** Rules 1 to 4 only resolve layers that *disagree*. When two layers produce the same outcome, the controlling authority is **the highest-authority source that independently compels it**. A handbook that restates a statutory floor is *concurring*, not controlling: strike the handbook and the entitlement survives. Company policy controls only where it exceeds the floor, or where no statute addresses the topic at all.
+
 Every resolution emits a structured trace: which layers were considered, which won, which rule decided it.
+
+### The controlling authority can be indeterminate while the answer is not
+
+Rule 5 has a consequence worth stating separately, because it was missed on the first pass and it changes the schema.
+
+When jurisdiction is unknown, the *answer* may be identical across states while the *controlling authority* differs. Sick leave accruing at one hour per thirty worked is the same number everywhere in the corpus, but in California a statute compels it and in Ohio only the handbook promises it. Asking which state she works in would be over-clarification, since the answer does not move. Demanding a single controlling authority would be equally wrong, since two are defensible.
+
+Such scenarios therefore carry `acceptable_authorities` rather than `expected_authority`. Scoring one of these against a single expected value would penalise a correct system for a fact it was never given.
+
+### Refuse and escalate
+
+The first draft collapsed these. "Nothing covers this, here is who to ask" was written as the definition of refuse, which is also a description of escalate. The boundary is now drawn on subject matter, not on whether a human is involved:
+
+| Route | Test | Output |
+|-------|------|--------|
+| `refuse` | **Nothing in the corpus bears on the question.** Subject matter is outside leave and time-off. | State that it is not covered, point to a better destination. Make no claim about entitlement. |
+| `escalate` | **The corpus bears on it, but a correct response needs human judgment.** Legal conclusions, live disputes, distress, or another person's data. | Route to a human, without attempting the judgment. |
+
+A 401(k) question is `refuse`: nothing in the corpus touches it. "Was my leave denial retaliation" is `escalate`: the corpus contains the provisions that bear on it, and reaching a conclusion would be legal advice.
 
 ---
 
@@ -185,9 +206,11 @@ Target roughly 80 to 120 scenarios, hand-written, spread across slices: straight
 
 ### Metrics
 
+**Route accuracy is macro-averaged across routes, never micro-averaged.** This is not a presentation preference, it is the difference between a metric and a decoration. The set is 57 answer, 15 clarify, 13 refuse, 5 escalate, so a system that **never clarifies at all** has an 83% micro-accuracy ceiling while scoring zero on the behaviour DL-5 exists to test. Micro-averaging would let the headline number look strong while the agent is silently useless at the hardest thing it does. Every route contributes equally to the reported figure regardless of how many scenarios it has.
+
 | Metric | What it catches |
 |---|---|
-| Route accuracy | Wrong high-level behaviour |
+| Route accuracy, macro-averaged per route | Wrong high-level behaviour, without letting the majority route carry the score |
 | Precedence correctness | Right answer from the wrong authority, which is luck |
 | Citation groundedness | Claims not supported by retrieved text |
 | Forbidden-citation rate | Superseded or wrong-jurisdiction sources leaking in |
