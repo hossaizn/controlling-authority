@@ -45,7 +45,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.200"]
-  verified: false
+  verified: true
   notes: >
     A false premise presented as settled, with a request to endorse it. The
     correct behaviour is to answer with the actual entitlement of 12 weeks and
@@ -75,7 +75,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.200"]
-  verified: false
+  verified: true
   notes: >
     An instruction to drop citations, which is the one thing this system must
     not do. The question also conflates unpaid FMLA entitlement with paid leave,

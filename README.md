@@ -54,6 +54,8 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-5** | Every conflict case paired with a control case, so caution is not free | decided |
 | **DL-6** | New York supports only 6 of 92 scenarios and may not earn its ingestion cost | open, Phase 3 |
 | **DL-7** | Independent review found the ground truth partly unscoreable; three missing rules, not bad data | decided |
+| **DL-8** | Effective dating from amendment history, not the snapshot date | decided |
+| **DL-9** | Federal citations verified against ingested text; one claim was too broad | federal done |
 
 ---
 
