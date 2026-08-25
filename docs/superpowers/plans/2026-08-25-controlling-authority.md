@@ -21,7 +21,7 @@ Checked live before writing this plan. These are facts, not assumptions.
 | eCFR | **Verified** | Official API. `GET /api/versioner/v1/full/{date}/title-29.xml?part=825` returned 350KB of structured XML. Title 29 current to 2026-08-21. Point-in-time by date works. |
 | California | **Verified** | `leginfo.legislature.ca.gov` is server-rendered. Full text of Gov Code 12945.2 present in the HTTP response. Needs an HTML parser, no JS. |
 | Ohio | **Verified** | `codes.ohio.gov` is server-rendered. Statute body present in raw HTML. **Pages carry `Effective: <date>`**, which feeds `effective_from` directly. |
-| New York | **Blocked on signup** | `legislation.nysenate.gov/api/3` returns 401 without a key. Free registration. Task 0.2. |
+| New York | **Verified** | Open Legislation API, key obtained. `GET /api/3/laws/WKC?depth=2` returns a navigable tree. Paid Family Leave sits in **Article A9, Disability Benefits**. Nodes carry `activeDate`, which feeds `effective_from`. `docType`/`locationId` map to `section_path`. |
 
 **Ohio has no state family-leave statute for private employers.** That is why it is the control case. The absence must be encoded explicitly (Task 3.3) or it cannot be tested.
 
