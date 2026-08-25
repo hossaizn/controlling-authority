@@ -1,0 +1,173 @@
+# Straightforward slice: one authority applies, nothing conflicts, all facts
+# supplied. These exist to prove the system is not merely complicated, and to
+# stop the agent treating every question as a trap. If accuracy here is not
+# near-perfect, nothing in the harder slices means anything.
+
+- scenario_id: straightforward-001
+  slice: straightforward
+  question: How many weeks of unpaid family and medical leave can I take in a year?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.200"]
+  verified: false
+  notes: Ohio adds nothing above the federal floor and the handbook restates it.
+
+- scenario_id: straightforward-002
+  slice: straightforward
+  question: How much notice do I have to give before taking family leave?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.302"]
+  verified: false
+  notes: Thirty days where foreseeable. Handbook and regulation agree.
+
+- scenario_id: straightforward-003
+  slice: straightforward
+  question: Do I keep my health insurance while I'm on family leave?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.209"]
+  verified: false
+  notes: Coverage continues on the same terms; employee share still owed.
+
+- scenario_id: straightforward-004
+  slice: straightforward
+  question: Am I guaranteed my job back after family leave?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.214"]
+  verified: false
+  notes: Same or equivalent position. Distinguish from personal leave, which carries no such guarantee.
+
+- scenario_id: straightforward-005
+  slice: straightforward
+  question: Does the company pay me while I'm on jury duty?
+  employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-006"]
+  verified: false
+  notes: Full base salary for the first 10 working days.
+
+- scenario_id: straightforward-006
+  slice: straightforward
+  question: How much vacation do I accrue? I've been here three years.
+  employee_context: {state: OH, tenure_months: 36, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  verified: false
+  notes: Twenty days in the 2-to-5-year band. Tests reading the right row of a table.
+
+- scenario_id: straightforward-007
+  slice: straightforward
+  question: I've been here seven years. How many vacation days do I get a year?
+  employee_context: {state: NY, tenure_months: 84, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  verified: false
+  notes: Twenty-five days, top band. Paired with straightforward-006 to catch off-by-one band selection.
+
+- scenario_id: straightforward-008
+  slice: straightforward
+  question: How quickly do I earn sick leave?
+  employee_context: {state: OH, tenure_months: 12, hours_worked_12mo: 1800, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: One hour per 30 worked. The accrual rate is identical across versions, but the current version must still be the one cited.
+
+- scenario_id: straightforward-009
+  slice: straightforward
+  question: Does bereavement leave cover my father-in-law?
+  employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-003"]
+  verified: false
+  notes: Parent-in-law is named explicitly in the policy.
+
+- scenario_id: straightforward-010
+  slice: straightforward
+  question: Do I get paid if I'm subpoenaed as a witness in someone else's case?
+  employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-006"]
+  verified: false
+  notes: >
+    Unpaid unless appearing on the company's behalf. The policy covers jury
+    duty, witness duty and voting in one document, so this tests retrieving the
+    correct clause from a multi-topic chunk rather than the whole policy.
+
+- scenario_id: straightforward-011
+  slice: straightforward
+  question: What counts as a reason I can take family and medical leave for?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.112"]
+  verified: false
+  notes: Enumerated qualifying reasons. A list answer rather than a single value.
+
+- scenario_id: straightforward-012
+  slice: straightforward
+  question: Can the company ask for a doctor's note when I request medical leave?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.305"]
+  verified: false
+  notes: Certification may be required. Handbook and regulation agree.
+
+- scenario_id: straightforward-013
+  slice: straightforward
+  question: How far in advance should I put in a vacation request?
+  employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  verified: false
+  notes: Two weeks where possible, subject to operational coverage. No statute involved.
+
+- scenario_id: straightforward-014
+  slice: straightforward
+  question: I'm sick today and couldn't give notice. Is that a problem?
+  employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: Notice as soon as practicable where the need is unforeseeable.
+
+- scenario_id: straightforward-015
+  slice: straightforward
+  question: How much notice do I need to give before military leave?
+  employee_context: {state: OH, tenure_months: 60, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-007"]
+  verified: false
+  notes: As much as reasonable, in writing where possible, unless military necessity prevents it.

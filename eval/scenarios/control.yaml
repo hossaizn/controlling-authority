@@ -1,0 +1,155 @@
+# Control slice: cases where caution is the failure.
+#
+# This slice exists because of DL-5. Without it, an agent that always asks
+# "which state do you work in?" scores perfectly on the ambiguous slice and is
+# unusable in practice. Over-clarification is the failure mode real users
+# experience, and it is invisible unless the eval punishes it.
+#
+# Every entry withholds a fact that looks decisive and is not. Each is paired
+# with an ambiguous-slice case where the same missing fact does decide it.
+
+- scenario_id: control-001
+  slice: control
+  question: My father died on Tuesday. How much bereavement leave can I take?
+  employee_context: {state: null, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-05-10
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-003"]
+  verified: false
+  notes: >
+    State is missing, exactly as in the ambiguous slice, but it does not matter:
+    the handbook grants 10 paid days everywhere with no service requirement,
+    exceeding any state floor in the corpus. Asking which state she works in is
+    a correct-looking question that wastes a grieving person's time.
+
+- scenario_id: control-002
+  slice: control
+  question: >
+    I'm on a reduced schedule at the moment. Does the company pay out unused
+    vacation days when someone leaves?
+  employee_context: {state: CA, tenure_months: 8, hours_worked_12mo: 900, employer_size: 400}
+  as_of_date: 2026-07-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Lab. Code 227.3"]
+  verified: false
+  notes: >
+    Mentions a reduced schedule, one of the undefined terms that makes personal
+    leave ambiguous, so a lexically driven agent may be pulled toward LEAVE-005
+    and start clarifying. The question is about payout on separation, which is
+    settled by California law regardless of schedule or tenure.
+
+- scenario_id: control-003
+  slice: control
+  question: Does the company pay me for jury service?
+  employee_context: {state: null, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-006"]
+  verified: false
+  notes: >
+    State withheld. The handbook pays the first 10 working days everywhere,
+    which is at or above any floor in the corpus, so jurisdiction changes
+    nothing. Paired against ambiguous-005, where voting leave under the same
+    policy genuinely does turn on the state.
+
+- scenario_id: control-004
+  slice: control
+  question: How much notice am I supposed to give before family leave?
+  employee_context: {state: null, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.302"]
+  verified: false
+  notes: >
+    Thirty days where foreseeable, uniform across the corpus. A procedural
+    question rather than an entitlement question, and procedure is where
+    over-clarification is most annoying and least justified.
+
+- scenario_id: control-005
+  slice: control
+  question: How fast do I accrue sick leave?
+  employee_context: {state: null, tenure_months: 12, hours_worked_12mo: 1800, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    The accrual rate of one hour per 30 worked is uniform. The annual cap does
+    vary in the corpus, so an agent must distinguish the rate being asked about
+    from the cap that is not.
+
+- scenario_id: control-006
+  slice: control
+  question: >
+    I've been called up for about 18 months. Do I keep my health cover the
+    whole time?
+  employee_context: {state: null, tenure_months: 60, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-01-15
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-007"]
+  verified: false
+  notes: >
+    Handbook offers up to 24 months of continuation, covering the period asked
+    about, and federal USERRA is the floor rather than the ceiling. No state in
+    the corpus exceeds it, so jurisdiction is irrelevant.
+
+- scenario_id: control-007
+  slice: control
+  question: Is my brother-in-law covered by the bereavement policy?
+  employee_context: {state: null, tenure_months: null, hours_worked_12mo: null, employer_size: 400}
+  as_of_date: 2026-05-10
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-003"]
+  verified: false
+  notes: >
+    Almost every fact is missing, which makes this the strongest temptation to
+    clarify in the whole set. None of them matter: the policy has no service
+    requirement, applies to all employees, and includes a catch-all for
+    relationships equivalent to family. An agent that asks anything here is
+    responding to the shape of the input rather than to the question.
+
+- scenario_id: control-008
+  slice: control
+  question: Do I get paid if I'm called as a witness for the company?
+  employee_context: {state: null, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-006"]
+  verified: false
+  notes: >
+    Paid when appearing on the company's behalf, uniform everywhere. Sits in the
+    same multi-topic policy as voting leave, which does vary by state, so this
+    tests clause-level rather than policy-level reasoning about jurisdiction.
+
+- scenario_id: control-009
+  slice: control
+  question: How much notice should I give for a vacation request?
+  employee_context: {state: null, tenure_months: null, hours_worked_12mo: null, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  verified: false
+  notes: Two weeks, uniform, no statute involved and no fact that could change it.
+
+- scenario_id: control-010
+  slice: control
+  question: I've been here four years. How much vacation do I accrue?
+  employee_context: {state: null, tenure_months: 48, hours_worked_12mo: 2000, employer_size: null}
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  verified: false
+  notes: >
+    Tenure is supplied and is the only fact the accrual table turns on. State
+    and employer size are both missing and both irrelevant. Tests that the agent
+    checks whether a missing fact is load-bearing before asking for it.

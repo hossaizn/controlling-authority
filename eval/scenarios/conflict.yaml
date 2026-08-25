@@ -1,0 +1,337 @@
+# Handbook conflict slice.
+#
+# The defining property: the correct answer contradicts the most semantically
+# relevant document. A naive top-k retriever finds the handbook policy, which
+# reads as a direct answer, and is wrong. These are where the agent earns its
+# existence, which is exactly why DL-4 caps how many of them the set contains.
+#
+# Cases are written in pairs wherever possible: the same clause under a state
+# that overrides it and a state that does not. That is what stops "statute
+# always wins" from scoring well.
+#
+# All entries verified: false until checked against ingested text (DL-3).
+
+- scenario_id: conflict-001
+  slice: conflict
+  question: >
+    I've been at the company 14 months and my baby is due in March.
+    Am I eligible for parental leave?
+  employee_context: {state: CA, tenure_months: 14, hours_worked_12mo: 1800, employer_size: 400}
+  as_of_date: 2026-03-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Gov. Code 12945.2"]
+  verified: false
+  notes: >
+    Defect D-1. The handbook (LEAVE-002) requires 18 months, so the most
+    relevant document says no. CFRA sets eligibility at 12 months plus 1,250
+    hours, which she meets, so the answer is yes and the handbook term is
+    unenforceable as to her. A correct answer should also mention the handbook
+    and why it does not control, since she has probably already read it.
+
+- scenario_id: conflict-002
+  slice: conflict
+  question: My grandmother died last week. How many days of bereavement leave do I get?
+  employee_context: {state: CA, tenure_months: 3, hours_worked_12mo: 400, employer_size: 400}
+  as_of_date: 2026-05-10
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-003"]
+  verified: false
+  notes: >
+    Defect D-2, the mirror of conflict-001 and the reason it exists. The
+    handbook grants 10 paid days with no service requirement, exceeding the
+    statutory floor, so the handbook controls. An agent that learned "statute
+    always wins" answers with the statutory minimum and is wrong. Short tenure
+    is deliberate: it would fail a service test if one applied.
+
+- scenario_id: conflict-003
+  slice: conflict
+  question: I've been here 14 months. Can I take parental leave when my son is born?
+  employee_context: {state: OH, tenure_months: 14, hours_worked_12mo: 1800, employer_size: 400}
+  as_of_date: 2026-03-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.110"]
+  verified: false
+  notes: >
+    Defect D-1 under a state that adds nothing. Ohio has no state provision, so
+    the federal floor governs and its 12-month test is met. Same outcome as
+    conflict-001, different controlling authority. Tests that the agent reports
+    which authority actually decided it rather than just landing on "yes".
+
+- scenario_id: conflict-004
+  slice: conflict
+  question: My grandfather has cancer and I'm his main carer. Can I take leave to look after him?
+  employee_context: {state: CA, tenure_months: 36, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Gov. Code 12945.2"]
+  verified: false
+  notes: >
+    Defect D-4, California half. The handbook lists spouse, child and parent,
+    mirroring federal scope, and is silent on grandparents. CFRA's family
+    definition is broader. Silence in the handbook is not a denial, and the
+    correct answer is available only from the state layer.
+
+- scenario_id: conflict-005
+  slice: conflict
+  question: My grandfather has cancer and I'm his main carer. Can I take leave to look after him?
+  employee_context: {state: OH, tenure_months: 36, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.122"]
+  verified: false
+  notes: >
+    Defect D-4, Ohio half, and the single most valuable case in the set. Word
+    for word identical to conflict-004, opposite correct answer. Federal FMLA
+    does not cover grandparents, Ohio adds nothing, handbook silent, so no
+    entitlement exists for this purpose. This is an answer of "no", not a
+    refusal: the system knows the answer. Collapsing the two is a scored failure.
+
+- scenario_id: conflict-006
+  slice: conflict
+  question: >
+    We're adopting and I want to take time off when the placement happens.
+    I've been here just under a year. What can I take?
+  employee_context: {state: NY, tenure_months: 11, hours_worked_12mo: 1700, employer_size: 400}
+  as_of_date: 2026-04-15
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["N.Y. Workers' Comp. Law 204"]
+  verified: false
+  notes: >
+    Under 12 months, so federal FMLA eligibility fails and the handbook's
+    18-month rule fails harder. New York Paid Family Leave uses a different
+    eligibility basis, weeks worked rather than months plus hours, so she may
+    qualify where both other layers say no. Tests that the agent does not apply
+    the federal eligibility test to a state benefit with its own test.
+
+- scenario_id: conflict-007
+  slice: conflict
+  question: >
+    I have 11 vacation days left over from last year and HR says I lose the
+    ones over 5 after March. Is that right?
+  employee_context: {state: CA, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-10
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Lab. Code 227.3"]
+  verified: false
+  notes: >
+    Defect D-6. The handbook forfeits carryover beyond 5 days. California treats
+    accrued vacation as earned wages that cannot be forfeited, so the clause is
+    unenforceable there. She is quoting the handbook back, which is exactly the
+    situation where retrieving it and agreeing is the confident wrong answer.
+
+- scenario_id: conflict-008
+  slice: conflict
+  question: >
+    I have 11 vacation days left over from last year and HR says I lose the
+    ones over 5 after March. Is that right?
+  employee_context: {state: OH, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-10
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
+  verified: false
+  notes: >
+    Defect D-6 paired. Identical question, Ohio employee. No state provision
+    restricts forfeiture, so the handbook clause stands and the answer is yes,
+    that is right. The pair is the test: same clause, opposite answers.
+
+- scenario_id: conflict-009
+  slice: conflict
+  question: Does the company have to pay out my unused vacation when I resign?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-08-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Lab. Code 227.3"]
+  verified: false
+  notes: >
+    The handbook defers to state law here rather than stating a rule, so the
+    retrieved passage is real but answers nothing. Tests that a deferral is
+    followed to the layer it defers to instead of being quoted back.
+
+- scenario_id: conflict-010
+  slice: conflict
+  question: >
+    I work at our depot which has about 20 people. Am I covered for family
+    leave, or are we too small?
+  employee_context: {state: CA, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 20}
+  as_of_date: 2026-05-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Gov. Code 12945.2"]
+  forbidden_citations: ["29 CFR 825.104"]
+  verified: false
+  notes: >
+    Federal FMLA requires 50 employees within 75 miles, so it does not apply at
+    all. CFRA reaches smaller employers. The correct answer comes from the state
+    layer, and citing the federal coverage threshold as if it settled the matter
+    is the failure being caught.
+
+- scenario_id: conflict-011
+  slice: conflict
+  question: >
+    I work at our depot which has about 20 people. Am I covered for family
+    leave, or are we too small?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 20}
+  as_of_date: 2026-05-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.104"]
+  verified: false
+  notes: >
+    Paired with conflict-010. In Ohio the federal threshold is the whole story
+    and the answer is no. Tests that employer size is actually reasoned about
+    rather than treated as decoration in the context object.
+
+- scenario_id: conflict-012
+  slice: conflict
+  question: >
+    I need surgery and about eight weeks to recover. I was going to ask for a
+    personal leave of absence. Is that the right one?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-03-20
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.112"]
+  forbidden_citations: ["LEAVE-005"]
+  verified: false
+  notes: >
+    She names the wrong policy. Personal leave is discretionary, capped near 30
+    days, and carries no reinstatement guarantee. Her situation is a serious
+    health condition, which is protected FMLA leave. Answering the question she
+    asked rather than the one she needs is the failure: personal leave is the
+    lexical match and the worse outcome for her.
+
+- scenario_id: conflict-013
+  slice: conflict
+  question: >
+    My husband works here too. Can we both take the full parental leave, or do
+    we have to split it between us?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-02-10
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-002"]
+  verified: false
+  notes: >
+    The handbook states each parent is separately eligible, which is at least as
+    generous as any floor in the corpus, so the handbook controls. Included
+    because federal FMLA has historically had a spousal aggregation rule for
+    some purposes, making this a plausible place for an agent to over-apply
+    statute against the employee's interest.
+
+- scenario_id: conflict-014
+  slice: conflict
+  question: >
+    I'm in the Reserve and I've been called up for about 18 months.
+    Will I still have my health insurance?
+  employee_context: {state: OH, tenure_months: 60, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-01-15
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-007"]
+  verified: false
+  notes: >
+    The handbook offers continuation for up to 24 months, which covers the
+    period asked about. USERRA is the floor here rather than the ceiling.
+    A routine case where the handbook is simply the right source.
+
+- scenario_id: conflict-015
+  slice: conflict
+  question: I got a jury summons for a trial they say could run six weeks. Do I get paid for all of it?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-05
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-006"]
+  verified: false
+  notes: >
+    Handbook pays the first 10 working days and leaves the rest unpaid with PTO
+    available. The correct answer is partial, which is harder to state than a
+    flat yes or no, and requires reading past the first sentence of the policy.
+
+- scenario_id: conflict-016
+  slice: conflict
+  question: Do I get paid time off to vote, and how much?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-11-02
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Elec. Code 14000"]
+  verified: false
+  notes: >
+    The handbook explicitly says the amount varies by state and refers the
+    reader onward, so it cannot answer. Another deferral case, and the one where
+    a naive system is most likely to quote the referral as if it were the answer.
+
+- scenario_id: conflict-017
+  slice: conflict
+  question: >
+    I hit exactly twelve months last week and I've worked full time the whole
+    year. Can I take bonding leave for my daughter?
+  employee_context: {state: CA, tenure_months: 12, hours_worked_12mo: 2080, employer_size: 400}
+  as_of_date: 2026-07-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Gov. Code 12945.2"]
+  verified: false
+  notes: >
+    Boundary case at exactly the eligibility threshold. Tests that "at least 12
+    months" is read inclusively rather than as strictly greater than.
+
+- scenario_id: conflict-018
+  slice: conflict
+  question: I've been here 11 months. Can I take parental leave for my newborn?
+  employee_context: {state: OH, tenure_months: 11, hours_worked_12mo: 1900, employer_size: 400}
+  as_of_date: 2026-07-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations: ["29 CFR 825.110"]
+  verified: false
+  notes: >
+    Genuinely not eligible anywhere: below the federal 12-month test, below the
+    handbook's 18 months, and Ohio adds nothing. The answer is no, and it is a
+    correct no rather than a failure to find anything. Paired against
+    conflict-006, where a sub-12-month employee does qualify under NY PFL.
+
+- scenario_id: conflict-019
+  slice: conflict
+  question: >
+    I need a few days off to deal with a restraining order and court dates.
+    Can I use sick leave for that?
+  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-05-20
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: >
+    Version 2 added domestic violence, sexual assault and stalking as qualifying
+    uses; version 1 did not mention them. Both versions are in the corpus and
+    are near-identical lexically, so this is a supersession trap sitting inside
+    the conflict slice. Citing v1 answers "no" to a question whose answer is yes.
+
+- scenario_id: conflict-020
+  slice: conflict
+  question: >
+    My daughter's school called and I need to pick her up. Can I take sick
+    leave to look after her, or is that only for me?
+  employee_context: {state: CA, tenure_months: 18, hours_worked_12mo: 1900, employer_size: 400}
+  as_of_date: 2026-09-15
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    The handbook covers care for a family member and matches the state floor, so
+    no conflict arises. Included in this slice deliberately as a negative
+    control: not every question that touches a defective policy is a conflict,
+    and an agent that flags one here is over-triggering.

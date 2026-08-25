@@ -1,0 +1,207 @@
+# Ambiguous slice: the correct output is a question, not an answer.
+#
+# Every entry names the missing_fact, so that asking the *right* question and
+# asking merely to be safe can be told apart. Each one is written so the answer
+# genuinely changes depending on the missing fact. If it does not change, the
+# case belongs in control.yaml instead (DL-5).
+
+- scenario_id: ambiguous-001
+  slice: ambiguous
+  question: >
+    I need to take about six weeks off to sort out a family situation that
+    isn't a medical thing. Can I do that?
+  employee_context: {state: CA, tenure_months: null, hours_worked_12mo: null, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: clarify
+  missing_fact: tenure_months
+  verified: false
+  notes: >
+    Defect D-5. Personal leave is available to "established employees in good
+    standing", which the handbook never defines, and it is discretionary and
+    capped near 30 days. Tenure decides whether this is even a live option.
+
+- scenario_id: ambiguous-002
+  slice: ambiguous
+  question: How much parental leave am I entitled to?
+  employee_context: {state: null, tenure_months: 20, hours_worked_12mo: 1900, employer_size: 400}
+  as_of_date: 2026-02-01
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    Entitlement differs materially between California and Ohio for this
+    employee. Paired with control-002, where the answer is the same everywhere.
+
+- scenario_id: ambiguous-003
+  slice: ambiguous
+  question: My grandmother is ill and needs care. Can I take leave for her?
+  employee_context: {state: null, tenure_months: 36, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-01
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    Defect D-4 with jurisdiction withheld. California says yes and Ohio says no,
+    so this is the clearest case in the set where answering without asking is
+    a coin flip dressed as an answer.
+
+- scenario_id: ambiguous-004
+  slice: ambiguous
+  question: HR says I lose my carried-over vacation at the end of March. Can they do that?
+  employee_context: {state: null, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-03-20
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    Defect D-6 with jurisdiction withheld. Unenforceable in California, stands
+    in Ohio. Paired directly against conflict-007 and conflict-008.
+
+- scenario_id: ambiguous-005
+  slice: ambiguous
+  question: How long do I get to go and vote on election day?
+  employee_context: {state: null, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-11-02
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    The handbook explicitly says the amount varies by state, so the corpus
+    itself signals that jurisdiction is required. An agent that answers anyway
+    has ignored a document telling it to ask.
+
+- scenario_id: ambiguous-006
+  slice: ambiguous
+  question: Am I eligible for family and medical leave?
+  employee_context: {state: OH, tenure_months: 18, hours_worked_12mo: null, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: clarify
+  missing_fact: hours_worked_12mo
+  verified: false
+  notes: >
+    Tenure is satisfied but the 1,250-hour test is unknown. A part-time employee
+    at 18 months may well fail it, so the answer is genuinely undetermined.
+
+- scenario_id: ambiguous-007
+  slice: ambiguous
+  question: Am I eligible for family and medical leave?
+  employee_context: {state: OH, tenure_months: null, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: clarify
+  missing_fact: tenure_months
+  verified: false
+  notes: >
+    The mirror of ambiguous-006. Hours are satisfied, tenure unknown. Tests that
+    the agent identifies which specific prong is missing rather than asking a
+    generic "tell me more about your situation".
+
+- scenario_id: ambiguous-008
+  slice: ambiguous
+  question: >
+    I work out of a small satellite depot. Does family leave apply to people
+    like me?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: 2000, employer_size: null}
+  as_of_date: 2026-05-01
+  expected_route: clarify
+  missing_fact: employer_size
+  verified: false
+  notes: >
+    "Small" is the employee's word, not a fact. The federal 50-employee
+    threshold turns on the number, and she may be over or under it.
+
+- scenario_id: ambiguous-009
+  slice: ambiguous
+  question: >
+    I work out of a small satellite depot. Does family leave apply to people
+    like me?
+  employee_context: {state: CA, tenure_months: 30, hours_worked_12mo: 2000, employer_size: null}
+  as_of_date: 2026-05-01
+  expected_route: clarify
+  missing_fact: employer_size
+  verified: false
+  notes: >
+    Same question in California, where the state threshold is lower than the
+    federal one. Still requires the number, but the threshold it is compared
+    against differs. Paired with ambiguous-008.
+
+- scenario_id: ambiguous-010
+  slice: ambiguous
+  question: My sister is having surgery and needs someone with her. Can I take leave?
+  employee_context: {state: null, tenure_months: 30, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-10
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    Federal FMLA does not cover siblings. California's family definition is
+    broader. Same structure as the grandparent case, different relation, so an
+    agent cannot pattern-match on the word "grandparent" alone.
+
+- scenario_id: ambiguous-011
+  slice: ambiguous
+  question: I'm expecting and want to know what paid leave I'd actually get.
+  employee_context: {state: null, tenure_months: 26, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-03-01
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    Paid is the operative word. New York provides a paid benefit through a
+    different mechanism than California, and Ohio provides none, so the answer
+    ranges from a state benefit to handbook pay only.
+
+- scenario_id: ambiguous-012
+  slice: ambiguous
+  question: Can I get more than 30 days of personal leave? I've been here a long time.
+  employee_context: {state: OH, tenure_months: null, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-04-01
+  expected_route: clarify
+  missing_fact: tenure_months
+  verified: false
+  notes: >
+    Defect D-5 again. "A long time" is a self-assessment against an undefined
+    standard. The policy calls extensions unusual and requires department head
+    approval, so tenure is the only lever that changes the answer.
+
+- scenario_id: ambiguous-013
+  slice: ambiguous
+  question: Do I qualify for the state paid family leave benefit?
+  employee_context: {state: null, tenure_months: 8, hours_worked_12mo: 1200, employer_size: 400}
+  as_of_date: 2026-05-01
+  expected_route: clarify
+  missing_fact: state
+  verified: false
+  notes: >
+    Explicitly asks about a state benefit without saying which state. Ohio has
+    none, so the answer is not merely different, it is a different kind of
+    answer. Under 12 months, so federal eligibility fails regardless.
+
+- scenario_id: ambiguous-014
+  slice: ambiguous
+  question: I've been off sick a lot this year. At what point do I run out of protected leave?
+  employee_context: {state: OH, tenure_months: 30, hours_worked_12mo: null, employer_size: 400}
+  as_of_date: 2026-07-01
+  expected_route: clarify
+  missing_fact: hours_worked_12mo
+  verified: false
+  notes: >
+    A subtle one. Heavy absence makes the 1,250-hour test genuinely uncertain,
+    and the hours question is the thing that decides whether she has FMLA
+    protection at all. Tests that the agent connects the stated situation to the
+    specific missing prong rather than answering with the generic 12 weeks.
+
+- scenario_id: ambiguous-015
+  slice: ambiguous
+  question: How many paid sick days do I have?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2023-12-28
+  expected_route: clarify
+  missing_fact: tenure_months
+  verified: false
+  notes: >
+    Asked four days before a policy change, about an entitlement that is stated
+    per year. Whether she means the year ending or the year starting changes the
+    answer from 3 days to 5. The ambiguity is temporal rather than jurisdictional,
+    and the missing fact is the closest available proxy for it. This case is
+    marked for review: if the harness cannot express "ambiguous period" cleanly,
+    it should move to superseded and be reframed.

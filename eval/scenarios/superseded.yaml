@@ -1,0 +1,155 @@
+# Supersession slice.
+#
+# Same question, same employee, different as_of_date, different correct answer.
+# A system that ignores effective dating answers one of each pair wrong while
+# looking equally confident on both. forbidden_citations is what catches it:
+# citing the version that was not in force is a scored failure, not a near miss.
+#
+# Written in pairs on purpose. A single dated question can be answered correctly
+# by luck; a pair cannot.
+
+- scenario_id: superseded-001
+  slice: superseded
+  question: How many paid sick days do I get per year?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2023-06-15
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v1"]
+  forbidden_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    Defect D-3, first half. As of mid-2023 the policy in force grants 3 days.
+    Version 2 did not exist yet, so citing it is an anachronism.
+
+- scenario_id: superseded-002
+  slice: superseded
+  question: How many paid sick days do I get per year?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-15
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: >
+    Defect D-3, second half. Identical question and employee to superseded-001.
+    Only the date differs. The pair is the test.
+
+- scenario_id: superseded-003
+  slice: superseded
+  question: Can I use sick leave if I'm dealing with a stalking situation?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2023-09-01
+  expected_route: answer
+  expected_authority: state
+  required_citations: ["Cal. Lab. Code 246"]
+  forbidden_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    In 2023 the handbook version in force did not list this as a qualifying use,
+    so the handbook answers no and the state layer may still answer yes. Tests
+    that supersession and precedence interact rather than being handled
+    independently: the right version must be selected first, then the layers
+    compared.
+
+- scenario_id: superseded-004
+  slice: superseded
+  question: Can I use sick leave if I'm dealing with a stalking situation?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-09-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: >
+    Paired with superseded-003. The current handbook version covers it outright,
+    so the company layer answers and no escalation to statute is needed.
+
+- scenario_id: superseded-005
+  slice: superseded
+  question: How much sick leave can I carry into next year?
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2023-11-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v1"]
+  forbidden_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    The accrual cap changed between versions, from 48 hours to 80. Ohio adds
+    nothing, so the handbook is the only source and version selection is the
+    entire question.
+
+- scenario_id: superseded-006
+  slice: superseded
+  question: How much sick leave can I carry into next year?
+  employee_context: {state: OH, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-11-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: Paired with superseded-005.
+
+- scenario_id: superseded-007
+  slice: superseded
+  question: >
+    I was told last year I only had three sick days. Has that changed?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-02-01
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    Explicitly asks about the change itself. Both versions are legitimately
+    relevant here, so the superseded one is not forbidden: a good answer
+    describes the move from 3 days to 5. Included so the agent is not trained to
+    treat every appearance of an old version as an error.
+
+- scenario_id: superseded-008
+  slice: superseded
+  question: How many paid sick days do I get?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2024-01-02
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: >
+    One day after the changeover. Boundary case for inclusive date handling: an
+    off-by-one in the effective_from comparison surfaces here and nowhere else.
+
+- scenario_id: superseded-009
+  slice: superseded
+  question: How many paid sick days do I get?
+  employee_context: {state: CA, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2023-12-31
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v1"]
+  forbidden_citations: ["LEAVE-004-v2"]
+  verified: false
+  notes: >
+    The last day version 1 was in force, and the mirror of superseded-008.
+    Together they pin both edges of the boundary.
+
+- scenario_id: superseded-010
+  slice: superseded
+  question: What's the current sick leave policy?
+  employee_context: {state: NY, tenure_months: 40, hours_worked_12mo: 2000, employer_size: 400}
+  as_of_date: 2026-06-15
+  expected_route: answer
+  expected_authority: company
+  required_citations: ["LEAVE-004-v2"]
+  forbidden_citations: ["LEAVE-004-v1"]
+  verified: false
+  notes: >
+    "Current" stated explicitly, with no date reasoning required from the
+    question itself. The easy case of the slice, and the one that proves the
+    superseded version is excluded by default rather than only when a past date
+    is supplied.
