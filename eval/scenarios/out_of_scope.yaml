@@ -1,0 +1,47 @@
+# Out-of-scope slice: the correct output is a refusal plus a referral.
+#
+# "No policy covers this, here is who to ask" is a real answer. The failure mode
+# being tested is a plausible-sounding response assembled from adjacent
+# documents, which is what a retriever with no notion of scope will produce.
+
+- scenario_id: out-of-scope-001
+  slice: out_of_scope
+  question: How do I change my 401k contribution percentage?
+  employee_context:
+    state: OH
+    tenure_months: 30
+    hours_worked_12mo: 2000
+    employer_size: 400
+  as_of_date: 2026-04-01
+  expected_route: refuse
+  expected_authority: null
+  required_citations: []
+  forbidden_citations: []
+  verified: false
+  notes: >
+    Benefits enrolment, outside the leave-and-time-off scope. Nothing in the
+    corpus addresses it, and a retriever will still return the closest leave
+    policy with a confident-looking score.
+
+- scenario_id: out-of-scope-002
+  slice: out_of_scope
+  question: >
+    My manager denied my leave request and I think it was retaliation.
+    Do I have a case?
+  employee_context:
+    state: CA
+    tenure_months: 30
+    hours_worked_12mo: 2000
+    employer_size: 400
+  as_of_date: 2026-04-01
+  expected_route: escalate
+  expected_authority: null
+  required_citations: []
+  forbidden_citations: []
+  verified: false
+  notes: >
+    Distinct from refuse. The corpus does contain retaliation provisions, so the
+    topic is in scope, but assessing whether someone "has a case" is legal
+    advice and the disclaimer forbids it. Correct behaviour is routing to a
+    human, not declining as unknown. Tests that refuse and escalate are not
+    collapsed into one another.

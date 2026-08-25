@@ -1,0 +1,55 @@
+# Handbook conflict slice.
+#
+# The defining property: the correct answer contradicts the most semantically
+# relevant document. A naive top-k retriever finds the handbook policy, which
+# reads as a direct answer, and is wrong. These are where the agent earns its
+# existence, which is exactly why DL-4 caps how many of them the set contains.
+#
+# All entries verified: false until checked against ingested text (DL-3).
+
+- scenario_id: conflict-001
+  slice: conflict
+  question: >
+    I've been at the company 14 months and my baby is due in March.
+    Am I eligible for parental leave?
+  employee_context:
+    state: CA
+    tenure_months: 14
+    hours_worked_12mo: 1800
+    employer_size: 400
+  as_of_date: 2026-03-01
+  expected_route: answer
+  expected_authority: state
+  required_citations:
+    - "Cal. Gov. Code 12945.2"
+  forbidden_citations: []
+  verified: false
+  notes: >
+    Defect D-1. The handbook (LEAVE-002) requires 18 months of service, so on
+    the most relevant document the answer is no. CFRA sets eligibility at 12
+    months plus 1,250 hours, which she meets, so the answer is yes and the
+    handbook term is unenforceable as to her. A correct answer should also
+    mention the handbook and explain why it does not control, since she has
+    probably already read it.
+
+- scenario_id: conflict-002
+  slice: conflict
+  question: My grandmother died last week. How many days of bereavement leave do I get?
+  employee_context:
+    state: CA
+    tenure_months: 3
+    hours_worked_12mo: 400
+    employer_size: 400
+  as_of_date: 2026-05-10
+  expected_route: answer
+  expected_authority: company
+  required_citations:
+    - "LEAVE-003"
+  forbidden_citations: []
+  verified: false
+  notes: >
+    Defect D-2, the mirror of conflict-001 and the reason it exists. Here the
+    handbook grants 10 paid days with no service requirement, which exceeds the
+    statutory floor, so the handbook controls. An agent that has learned
+    "statute always wins" answers with the statutory minimum and is wrong.
+    Short tenure is deliberate: it would fail a service test if one applied.

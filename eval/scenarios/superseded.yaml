@@ -1,0 +1,46 @@
+# Supersession slice.
+#
+# Same question, same employee, different as_of_date, different correct answer.
+# A system that ignores effective dating answers one of the pair wrong while
+# looking confident on both. The forbidden_citations field is what catches it:
+# citing the version that was not in force is a scored failure, not a near miss.
+
+- scenario_id: superseded-001
+  slice: superseded
+  question: How many paid sick days do I get per year?
+  employee_context:
+    state: CA
+    tenure_months: 40
+    hours_worked_12mo: 2000
+    employer_size: 400
+  as_of_date: 2023-06-15
+  expected_route: answer
+  expected_authority: company
+  required_citations:
+    - "LEAVE-004-v1"
+  forbidden_citations:
+    - "LEAVE-004-v2"
+  verified: false
+  notes: >
+    Defect D-3, first half. As of mid-2023 the policy in force grants 3 days /
+    24 hours. Version 2 did not exist yet, so citing it is an anachronism.
+
+- scenario_id: superseded-002
+  slice: superseded
+  question: How many paid sick days do I get per year?
+  employee_context:
+    state: CA
+    tenure_months: 40
+    hours_worked_12mo: 2000
+    employer_size: 400
+  as_of_date: 2026-06-15
+  expected_route: answer
+  expected_authority: company
+  required_citations:
+    - "LEAVE-004-v2"
+  forbidden_citations:
+    - "LEAVE-004-v1"
+  verified: false
+  notes: >
+    Defect D-3, second half. Identical question and employee to superseded-001.
+    Only the date differs. The pair is the test.

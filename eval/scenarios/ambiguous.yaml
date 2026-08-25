@@ -1,0 +1,50 @@
+# Ambiguous slice: the correct output is a question, not an answer.
+#
+# Every entry here names the missing_fact, so that asking the *right* question
+# and asking merely to be safe can be told apart. See control.yaml for the
+# paired cases where asking is wrong (DL-5).
+
+- scenario_id: ambiguous-001
+  slice: ambiguous
+  question: >
+    I need to take about six weeks off to sort out a family situation that
+    isn't a medical thing. Can I do that?
+  employee_context:
+    state: CA
+    tenure_months: null
+    hours_worked_12mo: null
+    employer_size: 400
+  as_of_date: 2026-04-01
+  expected_route: clarify
+  expected_authority: null
+  required_citations: []
+  forbidden_citations: []
+  missing_fact: tenure_months
+  verified: false
+  notes: >
+    Defect D-5. Personal leave (LEAVE-005) is available to "established
+    employees in good standing", which the handbook never defines, and it is
+    discretionary and capped near 30 days. Tenure is the fact that decides
+    whether this is even a live option, and it was not supplied. Answering
+    confidently either way is wrong.
+
+- scenario_id: ambiguous-002
+  slice: ambiguous
+  question: How much parental leave am I entitled to?
+  employee_context:
+    state: null
+    tenure_months: 20
+    hours_worked_12mo: 1900
+    employer_size: 400
+  as_of_date: 2026-02-01
+  expected_route: clarify
+  expected_authority: null
+  required_citations: []
+  forbidden_citations: []
+  missing_fact: state
+  verified: false
+  notes: >
+    Entitlement differs materially between California and Ohio for this
+    employee, so jurisdiction has to be established before answering. Paired
+    with control-002, where the answer is the same in every state and asking
+    is the failure.

@@ -1,0 +1,22 @@
+# Straightforward slice: one authority applies, nothing conflicts, all facts
+# supplied. These exist to prove the system is not simply complicated, and to
+# stop the agent treating every question as a trap.
+
+- scenario_id: straightforward-001
+  slice: straightforward
+  question: How many weeks of unpaid family and medical leave can I take in a year?
+  employee_context:
+    state: OH
+    tenure_months: 30
+    hours_worked_12mo: 2000
+    employer_size: 400
+  as_of_date: 2026-04-01
+  expected_route: answer
+  expected_authority: federal
+  required_citations:
+    - "29 CFR 825.200"
+  forbidden_citations: []
+  verified: false
+  notes: >
+    Ohio adds nothing above the federal floor and the handbook restates it, so
+    federal controls and the handbook agrees. Fully eligible employee.

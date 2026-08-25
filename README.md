@@ -43,15 +43,15 @@ Ohio is the control case: it has no state family-leave statute for private emplo
 
 ## Decision log
 
-Each entry is written as its own experiment runs. **Reverted experiments stay in.** A change that got killed by its own number is the evidence that this log is real.
+Written as each decision is made, not reconstructed afterwards. **Reverted experiments stay in.** Full entries with reasoning are in [`eval/decision_log.md`](eval/decision_log.md).
 
-### D1: Which embedding model for a regulatory corpus?
-
-**Hypothesis.** A legal-domain embedding model beats a general-purpose one on retrieval recall for statutory text, because the corpus is dense with terms of art.
-
-**Metric.** recall@10 across the full scenario set.
-
-**Result.** *pending, Phase 5*
+| | Decision | Status |
+|---|---|---|
+| **DL-1** | Legal-domain vs general-purpose embeddings, measured before either is adopted | open, Phase 5 |
+| **DL-2** | Ground truth authored before the pipeline exists, so the eval cannot be circular | decided |
+| **DL-3** | Statutory ground truth verified against ingested text, never asserted from recall | decided, verification pending |
+| **DL-4** | Scenario slice balance committed before any result is visible | decided |
+| **DL-5** | Every conflict case paired with a control case, so caution is not free | decided |
 
 ---
 

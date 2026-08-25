@@ -1,0 +1,56 @@
+# Control slice: cases where caution is the failure.
+#
+# This slice exists because of DL-5. Without it, an agent that always asks
+# "which state do you work in?" scores perfectly on the ambiguous slice and is
+# unusable in practice. Over-clarification is the failure mode real users
+# experience, and it is invisible unless the eval punishes it.
+#
+# Each entry here is deliberately paired with an ambiguous-slice entry that
+# looks similar and has the opposite correct route.
+
+- scenario_id: control-001
+  slice: control
+  question: My father died on Tuesday. How much bereavement leave can I take?
+  employee_context:
+    state: null
+    tenure_months: 30
+    hours_worked_12mo: 2000
+    employer_size: 400
+  as_of_date: 2026-05-10
+  expected_route: answer
+  expected_authority: company
+  required_citations:
+    - "LEAVE-003"
+  forbidden_citations: []
+  verified: false
+  notes: >
+    State is missing, exactly as in the ambiguous slice, but it does not matter:
+    the handbook grants 10 paid days everywhere with no service requirement,
+    which exceeds any state floor in the corpus. Asking which state she works in
+    is a correct-looking question that wastes a grieving person's time. Paired
+    with ambiguous-002.
+
+- scenario_id: control-002
+  slice: control
+  question: >
+    I'm on a reduced schedule at the moment. Does the company pay out unused
+    vacation days when someone leaves?
+  employee_context:
+    state: CA
+    tenure_months: 8
+    hours_worked_12mo: 900
+    employer_size: 400
+  as_of_date: 2026-07-01
+  expected_route: answer
+  expected_authority: company
+  required_citations:
+    - "LEAVE-008"
+  forbidden_citations:
+    - "LEAVE-005"
+  verified: false
+  notes: >
+    Mentions a reduced schedule, which is one of the undefined terms that makes
+    LEAVE-005 ambiguous, so a lexically driven agent may be pulled toward
+    personal leave and start clarifying. The question is about PTO payout, which
+    LEAVE-008 addresses directly. The ambiguity is present but irrelevant.
+    Paired with ambiguous-001.
