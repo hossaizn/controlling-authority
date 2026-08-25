@@ -17,7 +17,7 @@
 **Jurisdiction-dependent:** For an Ohio employee, no state provision applies and federal FMLA's 12-month/1,250-hour test governs, so the same fault exists against the federal floor.
 
 - [ ] Verify CFRA eligibility threshold against ingested CA text
-- [ ] Verify FMLA eligibility threshold against ingested 29 CFR 825 text
+- [x] Verify FMLA eligibility threshold against ingested 29 CFR 825 text — **verified 2026-08-25**. `29 CFR 825.110`: "at least 12 months" and "at least 1,250 hours of service". "At least" confirms the inclusive boundary reading in `conflict-017`.
 
 ---
 
@@ -56,12 +56,14 @@
 **Correct resolution, and it splits by jurisdiction:**
 
 - **California:** CFRA's family definition is broader than federal and is understood to include grandparent. State law controls and leave is available, despite handbook silence. This is the "silence is not permission" rule working in the employee's favour.
-- **Ohio:** No state provision. Federal FMLA does not cover grandparents. Handbook silent. The correct answer is that no entitlement exists for this purpose, plus a referral. **Not a refusal**, because the system does know the answer: it is "no".
+- **Ohio:** No state provision. Handbook silent. Federal FMLA's care-leave family definition (`29 CFR 825.122`) covers spouse, parent, and son or daughter, and expressly excludes parents-in-law; grandparent is not among them. The correct answer is that no entitlement exists for this purpose, plus a referral. **Not a refusal**, because the system does know the answer: it is "no".
+
+**Precision found during Phase 2 verification.** "Federal FMLA does not cover grandparents" is too broad and was wrong as originally written. `29 CFR 825.122` does mention grandparents, but only inside the definition of *next of kin of a covered servicemember*, where they appear in the priority order for **military caregiver leave**. Ordinary care leave for a sick grandparent remains uncovered, so `conflict-005` stands, but the claim now has to be stated narrowly. A scenario about caring for a wounded servicemember grandparent would have the opposite answer, and is not in the set.
 
 **Why this is the most valuable case in the set:** the same question has opposite correct answers in two states, and neither answer is retrievable from the most semantically relevant document.
 
 - [ ] Verify CFRA covered family members include grandparent
-- [ ] Verify federal FMLA family definition excludes grandparent
+- [x] Verify federal FMLA family definition excludes grandparent — **verified 2026-08-25** against ingested `29 CFR 825.122`. Care-leave definitions cover spouse, parent, son or daughter only. Grandparent appears solely in the military caregiver next-of-kin priority list.
 
 ---
 
@@ -104,7 +106,7 @@
 **Found in review**, not planned. `conflict-010` and `ambiguous-008/009` already depended on it while it was undocumented, which is exactly the gap this file exists to close.
 
 - [ ] Verify the CFRA employer-size threshold against ingested CA text
-- [ ] Verify the federal 50-employee/75-mile threshold against ingested 29 CFR 825 text
+- [x] Verify the federal 50-employee/75-mile threshold against ingested 29 CFR 825 text — **verified 2026-08-25**. `29 CFR 825.104`: "50 or more employees for each working day during each of 20 or more calendar workweeks".
 
 ---
 

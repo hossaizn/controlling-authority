@@ -56,7 +56,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.110"]
-  verified: false
+  verified: true
   notes: >
     Defect D-1 under a state that adds nothing. Ohio has no state provision, so
     the federal floor governs and its 12-month test is met. Same outcome as
@@ -197,7 +197,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.104"]
-  verified: false
+  verified: true
   notes: >
     Paired with conflict-010. In Ohio the federal threshold is the whole story
     and the answer is no. Tests that employer size is actually reasoned about
@@ -261,7 +261,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.110"]
-  verified: false
+  verified: true
   notes: >
     Genuinely not eligible anywhere: below the federal 12-month test, below the
     handbook's 18 months, and Ohio adds nothing. The answer is no, and it is a

@@ -68,7 +68,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.302"]
-  verified: false
+  verified: true
   notes: >
     Thirty days where foreseeable, uniform across the corpus. A procedural
     question rather than an entitlement question, and procedure is where

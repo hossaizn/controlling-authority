@@ -140,3 +140,44 @@ A balance change that makes the score harder to achieve is the opposite of the f
 ### Cost
 
 Roughly a day, before anything depended on the ground truth. The same defects surfacing in Phase 5 would have meant every metric in the project was measuring something other than what it claimed, with no way to detect it from inside the system.
+
+---
+
+## DL-8: Effective dating comes from amendment history, not from the snapshot date
+
+**Status:** decided and implemented, Phase 2
+
+**The trap.** The eCFR point-in-time endpoint returns the text of a part as it stood on a given day. The obvious implementation reads that snapshot and stamps every section with the date requested. It is also wrong in a way that is invisible until it matters.
+
+A snapshot answers *"what did this say on 1 August 2026"*. It cannot answer *"since when"*, because the text returned may have been unchanged since 2016. Stamping the snapshot date as `effective_from` would make every federal provision appear to have begun on the day we happened to fetch it, and any query asking what the rule was in 2020 would find nothing in force.
+
+**The fix.** A second endpoint, `/versioner/v1/versions/title-29.json`, carries per-section amendment history. For Part 825 it reports 132 version rows across 79 sections with 16 distinct amendment dates between 2016-12-01 and 2025-01-15. `effective_from` is the latest amendment at or before the snapshot; `effective_to` is the day before the earliest amendment after it, or `None` where none exists. The snapshot date is retained separately as `observed_on`.
+
+**Refusing to guess.** A section with no amendment record raises rather than defaulting. A fabricated date would silently corrupt every point-in-time answer touching that section, and nothing downstream could detect it.
+
+**Reserved sections are kept, not dropped.** Three sections in Part 825 are `[Reserved]`. They carry no text and are marked rather than filtered, so a gap in the numbering reads as a fact about the corpus rather than a parser failure. Same principle as the Ohio absence records.
+
+---
+
+## DL-9: First DL-3 verification sweep, and one claim was too broad
+
+**Status:** federal layer verified, Phase 2. State layers still pending.
+
+All nine federal citations used in the scenario set resolve against the ingested corpus, and each load-bearing claim was checked against the actual text rather than accepted from recall:
+
+| Claim | Source | Result |
+|---|---|---|
+| 12 workweeks of leave | `29 CFR 825.200` | Confirmed |
+| Eligibility: 12 months and 1,250 hours | `29 CFR 825.110` | Confirmed, wording is "at least", which settles the inclusive boundary in `conflict-017` |
+| Covered employer: 50 or more employees | `29 CFR 825.104` | Confirmed |
+| 30 days notice where foreseeable | `29 CFR 825.302` | Confirmed |
+| Group health coverage maintained | `29 CFR 825.209` | Confirmed |
+| Same or equivalent position on return | `29 CFR 825.214` | Confirmed |
+| Qualifying reasons enumerated | `29 CFR 825.112` | Confirmed |
+| Certification may be required | `29 CFR 825.305` | Confirmed |
+
+**One claim was wrong as written.** `DEFECTS.md` D-4 stated that federal FMLA "does not cover grandparents". Verification shows `29 CFR 825.122` *does* mention grandparents, but only inside the definition of **next of kin of a covered servicemember**, where they sit in the priority order for military caregiver leave. Ordinary care leave for a sick grandparent is genuinely uncovered, so `conflict-005` survives, but the blanket claim did not.
+
+This is exactly the failure mode DL-3 was written to catch: a statement that is *nearly* right, drafted from recall, that would have produced a defensible-looking metric while resting on an overbroad premise. It cost one line to fix here. Left in place, a scenario about a wounded servicemember grandparent would have been scored backwards with no way to notice.
+
+**12 of 92 scenarios are now marked verified.** The rest depend on state law or on the Ohio absence records and stay unverified until Phase 3. Nothing is scored while its dependencies are unchecked.
