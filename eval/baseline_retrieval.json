@@ -1,0 +1,45 @@
+{
+  "frozen_on": "2026-08-26",
+  "git_sha": "403c825",
+  "config": {
+    "provider": "voyage",
+    "model": "voyage-law-2",
+    "dimensions": 1024,
+    "strategy": "structure",
+    "limit": 10,
+    "corpus_snapshot": "2026-08-01"
+  },
+  "note": "Retrieval quality with the RAW question as the query. Phase 6 replaces that input with a triage-rewritten question, and this file exists to detect the rewrite degrading retrieval, which an end-to-end score can hide when better routing offsets worse retrieval.",
+  "by_slice": {
+    "adversarial": {
+      "n": 2,
+      "recall@10": 1.0,
+      "recall@3": 1.0
+    },
+    "conflict": {
+      "n": 18,
+      "recall@10": 0.7222,
+      "recall@3": 0.5556
+    },
+    "control": {
+      "n": 10,
+      "recall@10": 1.0,
+      "recall@3": 0.9
+    },
+    "straightforward": {
+      "n": 17,
+      "recall@10": 0.9412,
+      "recall@3": 0.9412
+    },
+    "superseded": {
+      "n": 10,
+      "recall@10": 1.0,
+      "recall@3": 1.0
+    }
+  },
+  "overall": {
+    "n": 57,
+    "recall@10": 0.8947,
+    "recall@3": 0.8246
+  }
+}
