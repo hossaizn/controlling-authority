@@ -29,8 +29,9 @@
 
 **Correct resolution:** The handbook controls, because policy may exceed a statutory floor. Answering with the statutory minimum here is wrong.
 
-- [ ] Verify CA bereavement leave entitlement and whether it is paid or unpaid
-- [ ] Verify NY and OH have no bereavement provision that exceeds 10 paid days
+- [x] Verify CA bereavement leave entitlement and whether it is paid or unpaid — **verified 2026-08-26** against newly ingested `Cal. Gov. Code 12945.7`: "up to five days of bereavement leave upon the death of a family member", and the section provides for it to be unpaid unless a policy says otherwise. The handbook's 10 **paid** days exceeds that floor on both count and pay, so the handbook controls and D-2 holds.
+- [x] **Ohio** — **verified 2026-08-26**. Searched ORC Title 41 and the chapters reached from it; no bereavement provision for private employers. Recorded as an absence, `bereavement_leave`, at the "searched, not found, scope stated" standard rather than the standard applied to positive claims.
+- [ ] **New York** — not searched. No scenario turns on NY bereavement, so this is unfunded by the eval and stays open rather than being closed on assumption.
 
 ---
 
@@ -43,8 +44,9 @@
 
 **Why this pairing:** California raised its paid sick leave minimum effective 2024-01-01, so the handbook revision tracks a real statutory change rather than an arbitrary one.
 
-- [ ] Verify the CA paid sick leave minimum before and after 2024-01-01
-- [ ] Confirm the pre-2024 minimum makes v1 lawful for its period, so the supersession case is about dates and not about a second conflict
+- [x] Verify the CA paid sick leave minimum, current — **verified 2026-08-26** against newly ingested `Cal. Lab. Code 246`: an employer may limit use to "40 hours or five days" per year, accruing at "not less than one hour per every 30 hours worked". The section reports an effective date of 2024-01-01. Handbook v2 grants exactly this, so under precedence rule 5 the statute compels the entitlement and the handbook concurs.
+- [ ] Verify the **pre-2024** minimum. The ingested text is the current version only; the eCFR-style point-in-time retrieval California offers is not available through leginfo, which serves current text alone. See the note below.
+- [x] Confirm the supersession case is about dates and not a second conflict — **resolved differently, and better.** The superseded slice was moved entirely to Ohio in Phase 3 precisely so a California statute could not control and mask the version selection. Ohio has no paid sick leave statute, so the handbook is the sole source and the date is the only variable. **The pre-2024 California minimum no longer matters to any scenario**, which is why the box above can stay open without blocking anything.
 
 ---
 
@@ -98,7 +100,8 @@ The lesson is narrower than "verify claims". It is that a sweep which checks onl
 **Correct resolution:** California employee, statute controls and accrued days cannot be forfeited. Ohio and New York employees, the handbook clause stands unless their state provides otherwise.
 
 - [x] Verify California's treatment of accrued vacation as wages — **verified 2026-08-26** against ingested `Cal. Lab. Code 227.3`: vested vacation "shall be paid to him as wages at his final rate", and a policy "shall not provide for forfeiture of vested vacation time upon termination". Scope is termination only.
-- [ ] Verify whether NY or OH restrict forfeiture, which would change the paired cases. Ohio recorded as an absence, itself unverified.
+- [x] **Ohio forfeiture** — **verified 2026-08-26**, and the original claim was wrong. `ORC 4113.15(D)(2)` defines "fringe benefits" to include vacation, separation and holiday pay, and `4113.15(C)` makes an employer party to an agreement to pay them a trustee of those funds. Ohio therefore *enforces the policy's own terms* rather than ignoring vacation. Where a policy forfeits days above a cap, no obligation arises and nothing is held in trust. `conflict-008` still resolves to the handbook, for a sharper reason than the record originally gave.
+- [ ] **New York forfeiture** — not searched. No scenario turns on it.
 
 ---
 
@@ -113,7 +116,7 @@ The lesson is narrower than "verify claims". It is that a sweep which checks onl
 
 **Found in review**, not planned. `conflict-010` and `ambiguous-008/009` already depended on it while it was undocumented, which is exactly the gap this file exists to close.
 
-- [ ] Verify the CFRA employer-size threshold against ingested CA text
+- [x] Verify the CFRA employer-size threshold — **verified 2026-08-25**, box left stale until now. `Cal. Gov. Code 12945.2(b)(4)(A)`: "Any person who directly employs five or more **persons**". An earlier grep searched for "five or more employees" and reported it missing, which is how a verified claim sat behind an open box.
 - [x] Verify the federal 50-employee threshold — **verified 2026-08-25**. `29 CFR 825.104`: "50 or more employees for each working day during each of 20 or more calendar workweeks".
 - [x] Verify the 75-mile component — **corrected 2026-08-26**. The phrase "75 miles" does **not** occur in `825.104`; it is in `825.110` and `825.111`. The original tick claimed a "50-employee/75-mile threshold" verified against 825.104, which overstated what that section says. The two-part test is split across sections and `conflict-010/011` must cite accordingly.
 

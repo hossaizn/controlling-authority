@@ -30,12 +30,20 @@
 - topic: parental_leave
   effect: federal_controls
   text: >
-    Ohio has no state parental or bonding leave entitlement for employees of
-    private employers, and no state paid family leave benefit. Leave for the
-    birth, adoption or foster placement of a child is governed by the federal
-    Family and Medical Leave Act, or by an employer's own policy where that
-    policy is more generous.
-  verified_on: null
+    Ohio has no state bonding leave entitlement for employees of private
+    employers and no state paid family leave benefit. Leave for the birth,
+    adoption or foster placement of a child is governed by the federal Family
+    and Medical Leave Act, or by an employer's own policy where that policy is
+    more generous.
+
+    Pregnancy is separately protected and is NOT an absence. Ohio Administrative
+    Code Rule 4112-5-05(G), under the Civil Rights Act, provides that where an
+    employee temporarily disabled by pregnancy or a related condition is
+    terminated because a policy makes insufficient or no maternity leave
+    available, that termination is unlawful sex discrimination. Leave for
+    pregnancy-related disability therefore has a state source in Ohio; leave for
+    bonding after a birth does not.
+  verified_on: 2026-08-26
 
 - topic: paid_sick_leave
   effect: employer_policy_controls
@@ -48,11 +56,20 @@
 - topic: vacation_forfeiture
   effect: employer_policy_controls
   text: >
-    Ohio has no state statute restricting the forfeiture of accrued vacation or
-    paid time off, and does not classify accrued vacation as wages that cannot
-    be forfeited. A use-it-or-lose-it provision in an employer's policy is not
+    Ohio has no state statute prohibiting the forfeiture of accrued vacation or
+    paid time off. A use-it-or-lose-it provision in an employer's policy is not
     displaced by Ohio law.
-  verified_on: null
+
+    Ohio does regulate vacation pay, and the distinction matters. Ohio Revised
+    Code 4113.15(D)(2) defines "fringe benefits" for wage-payment purposes to
+    include vacation, separation and holiday pay, and 4113.15(C) makes an
+    employer party to an agreement to pay them a trustee of the funds that
+    agreement requires. Ohio therefore ENFORCES the policy's own terms rather
+    than overriding them: where a policy provides that days above a cap are
+    forfeited, no obligation to pay arises and nothing is held in trust. This is
+    the opposite of California, where Cal. Lab. Code 227.3 voids the forfeiture
+    term itself.
+  verified_on: 2026-08-26
 
 - topic: bereavement_leave
   effect: employer_policy_controls
@@ -77,9 +94,14 @@
   text: >
     Ohio has no statute requiring a private employer to pay an employee for time
     spent on jury service. Whether jury service is paid, and for how long, is
-    governed by the employer's own policy. This record addresses payment only
-    and makes no claim about protection from discharge for serving.
-  verified_on: null
+    governed by the employer's own policy.
+
+    Scope is deliberate and load-bearing. Ohio Revised Code 2313.19, in Title 23
+    (Courts) rather than Title 41, prohibits discharging or disciplining an
+    employee summoned as a juror, and says nothing about payment. This record
+    addresses payment only, which is why it survived a search that turned up a
+    statute the original single-title sweep would have missed entirely.
+  verified_on: 2026-08-26
 
 - topic: witness_duty_pay
   effect: employer_policy_controls
@@ -92,12 +114,19 @@
 - topic: military_leave
   effect: employer_policy_controls
   text: >
-    Ohio has no statute governing military leave for employees of private
-    employers that adds to this corpus. Military leave and reemployment rights
-    for private-sector employees arise under the federal Uniformed Services
-    Employment and Reemployment Rights Act, which is NOT part of this corpus:
-    only 29 CFR Part 825 was ingested at the federal layer. Within the corpus,
-    therefore, the employer's own policy is the only source addressing military
-    leave, and it may exceed the federal floor without conflicting with anything
-    ingested.
-  verified_on: null
+    Ohio DOES have a military leave statute, and it adds nothing above the
+    federal floor. Ohio Revised Code 5903.02(B) provides that any person whose
+    absence from employment is necessitated by service in the uniformed services
+    has the same reinstatement and reemployment rights under Ohio law as under
+    the federal Uniformed Services Employment and Reemployment Rights Act. It
+    names no employer category, so it is not confined to public employment.
+
+    This is a state rule that deliberately tracks federal law rather than an
+    absence. The practical effect is the same, but the reason differs: "no Ohio
+    rule exists" and "Ohio's rule restates the federal one" are not the same
+    statement, and only the second is true.
+
+    USERRA itself is not in this corpus, which ingests only 29 CFR Part 825 at
+    the federal layer, so within the corpus an employer policy exceeding the
+    floor conflicts with nothing ingested.
+  verified_on: 2026-08-26

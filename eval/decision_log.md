@@ -598,3 +598,98 @@ Four slices are at or near perfect. Conflict is twenty points below everything e
 These are **oracle-filter numbers**: jurisdiction and as-of date come from scenario metadata, not from the question, because query rewriting is not built (DL-16). End-to-end performance will be lower by whatever that component costs.
 
 Only 6 of 57 scoreable scenarios are verified, and all six are conflict-slice. Verification since this run began has found **five ground-truth errors** (three Ohio absence records, one New York misattribution, one flaw in the search method itself). Those corrections will change some scenarios, and this table will need re-running afterwards. The embedding cache makes that nearly free.
+
+---
+
+## DL-19: Verification found five errors, and the pattern in them is the useful part
+
+**Status:** applied, Phase 5.5. Corpus 101 to 104 documents. Ohio absences 4 of 8 verified.
+
+Verification ran while the Phase 5 evaluation was in flight, deliberately read-only so ground truth could not shift under a measurement. It found five errors. None would have failed a plausibility check, and all five had survived at least one full independent review.
+
+### What was wrong
+
+**1. `parental_leave` claimed Ohio has no parental leave entitlement.** Ohio Administrative Code Rule 4112-5-05(G) makes it unlawful sex discrimination to terminate an employee disabled by pregnancy where policy leaves insufficient maternity leave available. Pregnancy leave has a state source in Ohio; bonding leave does not. The record now distinguishes them.
+
+**2. `vacation_forfeiture` claimed Ohio does not classify vacation as wages.** `ORC 4113.15(D)(2)` defines "fringe benefits" to include vacation pay, and `(C)` makes an employer a trustee of funds an agreement requires. Ohio *enforces the policy's terms* rather than ignoring vacation, which is a sharper reason for `conflict-008` than the one originally given, and the exact inverse of California voiding the term itself.
+
+**3. `military_leave` claimed Ohio has no military leave statute.** `ORC 5903.02(B)` grants USERRA-equivalent reinstatement rights under Ohio law, naming no employer category. This is not an absence: it is a state rule that deliberately tracks federal law. "No Ohio rule exists" and "Ohio's rule restates the federal one" reach the same answer for opposite reasons.
+
+**4. Two scenarios cited `N.Y. Workers' Comp. Law 204` for a weeks-worked eligibility test that is not in it.** 204 sets benefit amounts and duration and defines no eligibility. The rule is in **203**, "Employees eligible for benefits under section two hundred four". The claim about New York was correct throughout; the citation named the provision the rule points to rather than the rule.
+
+**5. My search method was structurally wrong.** Step one enumerated Title 41, Labor and Industry, on the reasoning that a private-employer leave obligation would live there. **All three contrary Ohio provisions were outside it**: one in the Administrative Code, one in Title 23 (Courts, for jury duty), one in Title 59 (Soldiers and Sailors). A single-title sweep would have cleared every one of them confidently.
+
+### The pattern
+
+Errors 1 to 3 are claims about **absent** law. Error 4 is a claim about **present** law aimed at the wrong provision. They arrive at the same conclusion from opposite directions: **nothing automated catches either.**
+
+Throughout, every check passed. The adapters parsed correctly. The loader confirmed citations resolved. Retrieval returned the cited sections. The tests were green. A corpus can be faithfully, verifiably, and completely wrong, and the only thing that catches it is reading the source against the claim.
+
+That is also why the scoping rule needed qualifying. DL-11 credited "ingest what the scenarios cite" with eliminating an entire Ohio adapter, and it remains right. But **it inherits the accuracy of the citations it reads.**
+
+### What the corrections cost, and what they revealed
+
+Three sections were added because a claim needed text that was not there: `Cal. Lab. Code 246`, `Cal. Gov. Code 12945.7`, `N.Y. Workers' Comp. Law 203`.
+
+Two claims then verified cleanly. California bereavement is five days and unpaid, so the handbook's ten paid days genuinely exceeds it. WCL 203 confirms the twenty-six-week test.
+
+The third exposed a further problem. `Cal. Lab. Code 246` caps use at "40 hours or five days", exactly what handbook v2 grants, so under precedence rule 5 the statute controls and the handbook concurs. But whether the statute compels the specific *use* those scenarios turn on depends on `246.5`, another section.
+
+**That chain was stopped rather than followed.** `conflict-019` now carries `acceptable_authorities: [state, company]`: the answer is determinate, the controlling layer is not, and the corpus cannot resolve it. This is the third time ingesting one section revealed a dependency on another, and following it indefinitely would make the corpus grow without the eval ever asking for it.
+
+### Standing honestly
+
+**Ohio is 4 of 8 verified.** The four that remain are marked "searched, not found, scope stated", which is a weaker standard and is labelled as such. Two open boxes concern New York provisions no scenario turns on; they stay open rather than being closed on assumption. One concerns California's pre-2024 sick leave minimum, which stopped mattering when the superseded slice moved to Ohio.
+
+**`codes.ohio.gov` has no programmatically reachable search**, so a full-code keyword sweep is unavailable. Every finding above came from guessing the right chapter. The fourth contrary provision may sit in one nobody guessed.
+
+---
+
+## DL-20: The corrections changed the answer, and two pre-registered rules collided
+
+**Status:** decided, Phase 5.5. Supersedes the DL-14 and DL-16 conclusions in DL-18.
+
+Re-running the four configurations against the corrected corpus moved two decisions. The ground-truth errors were not cosmetic: they were changing what the experiment concluded.
+
+| config | recall@10 | recall@3 | headroom |
+|---|---|---|---|
+| `voyage-law-2` / structure | **0.895** | **0.825** | 7.0 pts |
+| `voyage-law-2` / fixed | 0.877 | 0.763 | **11.4 pts** |
+| `voyage-2` / structure | 0.877 | 0.702 | 17.5 pts |
+| `voyage-2` / fixed | 0.842 | 0.675 | 16.7 pts |
+
+**DL-1 is unaffected and stands.** The legal model wins in both chunking arms, by +1.8 and +3.5 points of recall@10 and by +12.3 and +8.8 of recall@3. Its advantage is if anything clearer than before.
+
+### What moved
+
+**DL-14 no longer gives one answer.** Before the corrections both models put structure ahead by exactly 1.8 points, and the 2-point tie-break selected fixed in both. Now `voyage-law` shows +1.8, still inside the tie-break, while `voyage-2` shows +3.5, outside it and selecting structure. The rule points two ways depending on a variable it was not written to consider.
+
+**DL-16 flipped for the configuration DL-14 selects.** Headroom under `voyage-law` with fixed chunking was 9.6 points and is now **11.4, above the 10-point threshold**. Under structure it is 7.0 and below.
+
+### The collision
+
+Applying both rules mechanically to the adopted model gives: **adopt fixed-size** (gap 1.8, inside tie-break), then **build a reranker** (headroom 11.4, above threshold).
+
+That outcome contradicts the reason the tie-break exists. DL-14 preferred fixed on the explicit grounds that structure-aware is the more complex implementation and *complexity has to be paid for in measured benefit*. Following the rules produces a system carrying a reranker, which is a second model, a second call per query, and additional latency and cost, in order to recover headroom that choosing the other chunker removes for free.
+
+**Fixed plus a reranker is strictly more complex than structure alone, and scores worse before the reranker is built** (0.877 against 0.895).
+
+### Resolution: adopt structure-aware
+
+This is not moving a threshold after seeing data, which is the failure pre-registration exists to prevent. The threshold stands: 1.8 points of recall@10 is one scenario and does not, on its own, justify a subdivision regex and a packing heuristic.
+
+**The tie-break assumed the two options were otherwise equivalent, and they are not.** Choosing fixed triggers a second pre-registered rule that mandates strictly more complexity than the thing the tie-break was avoiding. Both rules were written to serve one principle: buy complexity only where it is measured to pay. Read together rather than in sequence, that principle selects structure-aware.
+
+Recorded plainly so it can be judged: **a rule I wrote in advance pointed at fixed, and I am not following it.** The justification is the interaction, not the number, and if that reasoning is wrong the record shows exactly what was overridden and why.
+
+### Consequences
+
+- **Chunking: structure-aware.** Best measured configuration at 0.895, and the one that leaves headroom below the reranking threshold.
+- **Reranking: still not built.** At 7.0 points under the adopted configuration the DL-16 rule does not fire.
+- **Embedding: `voyage-law-2`**, unchanged.
+
+### What this says about the verification work
+
+Before the corrections, the two models agreed at +1.8 and the decision looked settled. After, they disagree and the reranking rule flips. **Five ground-truth errors were quietly steering the experiment**, and the corrections were the difference between a clean-looking wrong answer and a messy correct one.
+
+`mrr` fell across every configuration, from 0.723 to 0.674 at the best. That is expected and correct: `conflict-006` now requires `N.Y. Workers' Comp. Law 203`, a section added to the corpus hours ago and one the system has to find rather than being handed the more prominent 204 it was previously credited for.
