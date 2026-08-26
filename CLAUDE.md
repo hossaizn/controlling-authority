@@ -26,8 +26,14 @@ observability) is next, then 8 (API), 9 (demo) and 10 (ship).
 
 **End to end, DL-25 and DL-26:** fully correct **0.620** across all 92
 scenarios, meaning right route, right authority, required citations present,
-nothing forbidden and grounded, all at once. Verification 0.621 over the 58 that
-reach it. Weakest slice is conflict at 0.278.
+nothing forbidden and grounded, all at once. Verification 0.672 over the 58 that
+reach it, precedence 0.789. Weakest slice is conflict at 0.278.
+
+**The bottleneck is verification strictness (DL-27).** A third of answers
+are replaced by a referral, taking their citations with them, and most of
+those failures are entailment self-grading on the model that wrote the
+answer. DL-24's open-weights arm is the pre-registered test for it and is
+now the highest-value work left.
 
 **Every eval scorer is now tested.** A Phase 6 review found they could all be
 mutated to return True with the suite still green (DL-26). Treat

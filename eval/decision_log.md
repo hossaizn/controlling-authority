@@ -1077,3 +1077,66 @@ DL-23 says a flat zero is the one value too suspicious to accept, and it was rig
 The precedence rules match the spec, including rule 5's ordering above rule 2 and its deliberate refusal to order federal against state; the reviewer traced eight configurations by hand. The `denies` versus `grants` integrity check is exactly sufficient. **`DEFECTS.md` remains unreachable through both guards and through a rename attack.** 26 of 30 mutants in `agent/` were already killed. Every figure quoted in DL-21 through DL-25 reproduces exactly against the saved runs.
 
 **Final Phase 6 numbers:** fully correct **0.620**, precedence 0.772 end to end and 0.877 isolated, verification 0.621 over the 58 that reach it, route accuracy 0.815 macro, one forbidden-citation leak in 92.
+
+---
+
+## DL-27: The beaten-source gap was three different bugs, and only one of them was in `compose`
+
+**Status:** decided, Phase 6.9. `named the beaten source` 0.000 to **0.250**. Side effects across three other metrics.
+
+The requirement: when the answer overrides the handbook, it has to say so. A reader holding the handbook cannot reconcile an answer that silently contradicts it, however correct that answer is. Eight scenarios carry `must_address` and the system scored **zero**.
+
+The obvious reading was that `compose` ignored its instruction. That was wrong, and it was wrong three separate ways.
+
+### 1. `resolve` was naming the wrong source
+
+`precedence.py` builds `non_controlling_to_address` from "layers that spoke and lost", which is usually a **federal section**. `must_address` in the ground truth is always a handbook policy. So the system was diligently telling readers about CFR provisions they never opened, while omitting the handbook they had.
+
+Worse, one case was unreachable by construction. `conflict-005` asks about a sick grandparent: federal denies, Ohio adds nothing, and **the handbook is silent**. A silent layer never enters the comparison, so it can never be a loser, and yet "the handbook does not cover this" is exactly what the reader is trying to establish.
+
+Fixed by reading the retrieved passages directly rather than the findings. Handbook policies come first, ahead of any statute that merely lost.
+
+### 2. Three scenarios had no handbook passage retrieved at all
+
+`conflict-004`, `-005` and `-010` failed for the plain reason that no company chunk was in the top ten. **A source that was never retrieved cannot be addressed**, and no amount of prompting fixes that.
+
+`retrieve` now searches deeper than it returns and tops up with a handbook passage when none ranked. **Appended, never substituted**, so nothing statutory is displaced and the ranking the regression gate watches is untouched. The gate confirms it: recall@10 held at 0.9123, no slice regressed.
+
+The principle is worth stating on its own: **the handbook is always relevant to an employee leave question, whether or not it controls**, because it is the document they have already read.
+
+### 3. Only then was there anything for `compose` to do
+
+Any source the model omits now gets a deterministic note built from the citation and the rule that defeated it, both of which the resolution already holds. No new claim is asserted. Same reasoning as appending the disclaimer rather than trusting the model to write one: **a requirement that can be forgotten will be.**
+
+The trace records `addressed_by_model` and `addressed_by_fallback` separately, so enforcing the requirement does not destroy the measurement of whether the model met it unaided. It did, 8 times out of 9.
+
+### Where it actually stands, counted honestly
+
+| | of 8 |
+|---|---|
+| named in the final answer | **2** |
+| named in the draft, then wiped when verification replaced the answer | 2 |
+| a different handbook policy surfaced, or none | 4 |
+
+So the ceiling is no longer `compose`. It is two other things:
+
+**Verification strictness.** A third of answers are replaced by a referral, taking their citations with them. Nothing downstream of `compose` can be improved while that holds, and 20-odd of those failures come from entailment self-grading on the model that wrote the answer. **DL-24's open-weights arm is the pre-registered test for exactly this**, which is now the highest-value thing left in the project.
+
+**Which handbook policy is the right one.** The top-up fetches *a* handbook policy, not necessarily the one the reader would have opened. That is a retrieval relevance problem, not a composition one, and it is not worth solving before the verification bottleneck is understood.
+
+### Side effects, all measured
+
+| metric | before | after |
+|---|---|---|
+| named the beaten source | 0.000 | **0.250** |
+| precedence correct, end to end | 0.772 | **0.789** |
+| required citations present | 0.491 | **0.544** |
+| passed verification | 0.621 | **0.672** |
+| fully correct | 0.620 | 0.620 |
+| recall@10, regression gate | 0.9123 | 0.9123 |
+
+`fully_correct` did not move, which is the expected shape: it is a five-way conjunction and the scenarios that gained on one clause were already failing another.
+
+### A structural note
+
+Fixing this created a circular import, `compose` needing the citation matcher from `verify` while `verify` reads the disclaimer from `compose`. That is the usual sign a helper belongs in neither, so `agent/citations.py` now owns citation matching. Both rules it encodes, the prefix trap and the subsection allowance, have been got wrong once each in this project, in opposite directions, and are now written down in one place.

@@ -21,9 +21,9 @@ from datetime import datetime
 from pathlib import Path
 
 from agent.build import build_agent
+from agent.citations import mentions
 from agent.models import HAIKU, StructuredCaller, Usage
 from agent.nodes.compose import PROMPT_VERSION as COMPOSE_VERSION
-from agent.nodes.verify import mentions
 from agent.state import initial_state, nodes_visited
 from eval.run_precedence import ADOPTED_MODEL, ADOPTED_STRATEGY, acceptable_set
 from eval.run_routes import score as score_routes

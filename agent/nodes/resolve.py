@@ -20,6 +20,7 @@ from overriding a layer that does speak.
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 
 from agent.models import HAIKU, StructuredCaller
 from agent.precedence import PrecedenceError, resolve_precedence
@@ -263,6 +264,46 @@ def _to_findings(raw: list[dict], valid_citations: set[str]) -> list[LayerFindin
     return findings
 
 
+# At most two, so the answer stays readable. Ordered by retrieval rank, so the
+# closest match to the question comes first.
+MAX_HANDBOOK_NOTES = 2
+
+
+def handbook_to_address(state: AgentState, resolution: Resolution) -> list[str]:
+    """The handbook policies the answer has to acknowledge.
+
+    **Not the same thing as "layers that lost".** `precedence.py` collects any
+    speaking layer that did not control, which is usually a federal section, and
+    a reader does not need told about a CFR provision they never opened. What
+    they need is the handbook, because they have probably already read it and the
+    answer is about to contradict it.
+
+    Two cases the loser-based list could not reach:
+
+    - The controlling layer beats the handbook and `precedence` names the losing
+      *statute* instead, which is true and useless.
+    - **The handbook is silent.** `conflict-005` asks about a sick grandparent:
+      federal denies, Ohio adds nothing, the handbook says nothing at all. A
+      silent layer never enters the comparison, so it can never be a loser, and
+      yet "the handbook does not cover this" is precisely what the reader is
+      trying to find out.
+
+    So this reads the retrieved passages directly rather than the findings.
+    """
+    if "company" in resolution.defensible:
+        return []
+
+    seen: list[str] = []
+    for hit in state.get("retrieved", []):
+        if hit.authority_layer != "company":
+            continue
+        if hit.citation not in seen:
+            seen.append(hit.citation)
+        if len(seen) == MAX_HANDBOOK_NOTES:
+            break
+    return seen
+
+
 def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
     caller = caller or StructuredCaller()
 
@@ -296,6 +337,15 @@ def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
 
         try:
             resolution = resolve_precedence(findings)
+            # Handbook policies the reader has probably already opened come
+            # first, ahead of any statute that merely lost the comparison.
+            handbook = handbook_to_address(state, resolution)
+            others = [
+                c for c in resolution.non_controlling_to_address if c not in handbook
+            ]
+            resolution = replace(
+                resolution, non_controlling_to_address=handbook + others
+            )
             summary = _summarise(resolution)
         except PrecedenceError as exc:
             # Inconsistent evidence is not resolved on a best guess. The answer
