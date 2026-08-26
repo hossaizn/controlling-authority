@@ -74,6 +74,31 @@ Retrieval by slice: adversarial 1.000, control 1.000, superseded 1.000,
 straightforward 0.941, **conflict 0.722**. The conflict gap is by design and is
 what Phase 6 exists to close.
 
+## Blocked, as of 2026-08-26
+
+**The Anthropic account is out of API credits.** Calls return
+`invalid_request_error: credit balance is too low`. Note the Console's "Usage
+credits" panel (plan overage) is a different balance from prepaid API credits; a
+promotional credit may sit in one and not the other.
+
+Consequences: cached decisions still serve, so the retrieval gate and any run
+whose prompts are unchanged still work. Anything that changed a prompt or a
+candidate set needs credits to reproduce.
+
+**DL-24's open-weights arm is now the unblocking move, not just the interesting
+one.** `agent/models.py` speaks Anthropic and any OpenAI-compatible endpoint;
+set `OPEN_MODEL_API_KEY`, `OPEN_MODEL_ID` and `OPEN_MODEL_BASE_URL`, then:
+
+```bash
+uv run python -m eval.run_triage      "$OPEN_MODEL_ID"
+uv run python -m eval.run_precedence  "$OPEN_MODEL_ID"
+uv run python -m eval.run_end_to_end  "$OPEN_MODEL_ID"
+```
+
+The provider must honour `tool_choice`. Forced structured output is the contract
+every node depends on, and a provider that answers in prose fails loudly rather
+than being parsed.
+
 ## Non-negotiables
 
 **`corpus/handbook/DEFECTS.md` must never be ingested.** It states which handbook

@@ -15,6 +15,7 @@ correct routing and lower end to end tells you exactly where the next week goes.
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -122,12 +123,14 @@ class EndToEnd:
         )
 
 
-def run(limit: int | None = None) -> dict:
+def run(limit: int | None = None, model: str = HAIKU) -> dict:
     scenarios = load_all()[:limit]
     usage = Usage()
     caller = StructuredCaller(usage=usage)
     store = ChunkStore(get_provider(ADOPTED_MODEL), strategy=ADOPTED_STRATEGY)
-    agent = build_agent(store, caller)
+    # One model across every node, which is what DL-24 compares. Mixing
+    # providers per node would measure a blend rather than a model.
+    agent = build_agent(store, caller, model=model, verify_model=model)
 
     results: list[EndToEnd] = []
     for i, s in enumerate(scenarios, 1):
@@ -136,14 +139,14 @@ def run(limit: int | None = None) -> dict:
         if i % 20 == 0 or i == len(scenarios):
             print(f"  {i}/{len(scenarios)}  {usage.summary()}", flush=True)
 
-    return report(results, usage)
+    return report(results, usage, model)
 
 
 def _rate(items, attr: str) -> float:
     return sum(getattr(i, attr) for i in items) / len(items) if items else 0.0
 
 
-def report(results: list[EndToEnd], usage: Usage) -> dict:
+def report(results: list[EndToEnd], usage: Usage, model: str = HAIKU) -> dict:
     routes = score_routes(
         [r.scenario for r in results],
         {r.scenario.scenario_id: r.final for r in results},
@@ -197,7 +200,7 @@ def report(results: list[EndToEnd], usage: Usage) -> dict:
 
     return {
         "run_at": datetime.now().isoformat(timespec="seconds"),
-        "model": HAIKU,
+        "model": model,
         "compose_prompt": COMPOSE_VERSION,
         "n": len(results),
         "route_accuracy_macro": routes.macro_accuracy,
@@ -247,8 +250,10 @@ def report(results: list[EndToEnd], usage: Usage) -> dict:
 
 
 def main() -> int:
-    result = run()
-    path = Path(__file__).resolve().parent / "runs" / "end_to_end.json"
+    model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
+    result = run(model=model)
+    slug = model.replace('/', '_')
+    path = Path(__file__).resolve().parent / "runs" / f"end_to_end_{slug}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2))
     print(f"saved {path}")

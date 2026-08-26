@@ -27,6 +27,7 @@ separately rather than folded in.
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -88,15 +89,15 @@ class PrecedenceOutcome:
         return set(self.must_address) <= named
 
 
-def run() -> dict:
+def run(model: str = HAIKU) -> dict:
     scenarios = [s for s in load_all() if s.expected_route == "answer"]
     usage = Usage()
     caller = StructuredCaller(usage=usage)
 
     store = ChunkStore(get_provider(ADOPTED_MODEL), strategy=ADOPTED_STRATEGY)
-    triage = make_triage(caller)
+    triage = make_triage(caller, model)
     retrieve = make_retrieve(store)
-    resolve = make_resolve(caller)
+    resolve = make_resolve(caller, model)
 
     outcomes: list[PrecedenceOutcome] = []
     for i, s in enumerate(scenarios, 1):
@@ -122,10 +123,10 @@ def run() -> dict:
         if i % 15 == 0 or i == len(scenarios):
             print(f"  {i}/{len(scenarios)}  {usage.summary()}", flush=True)
 
-    return report(outcomes, usage)
+    return report(outcomes, usage, model)
 
 
-def report(outcomes: list[PrecedenceOutcome], usage: Usage) -> dict:
+def report(outcomes: list[PrecedenceOutcome], usage: Usage, model: str = HAIKU) -> dict:
     n = len(outcomes)
     correct = sum(o.correct for o in outcomes)
 
@@ -182,7 +183,7 @@ def report(outcomes: list[PrecedenceOutcome], usage: Usage) -> dict:
 
     return {
         "prompt_version": PROMPT_VERSION,
-        "model": HAIKU,
+        "model": model,
         "run_at": datetime.now().isoformat(timespec="seconds"),
         "precedence_accuracy": correct / n,
         "naive_baseline_accuracy": naive / n,
@@ -219,8 +220,10 @@ def report(outcomes: list[PrecedenceOutcome], usage: Usage) -> dict:
 
 
 def main() -> int:
-    result = run()
-    path = Path(RUNS_DIR) / f"precedence_{PROMPT_VERSION}.json"
+    model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
+    result = run(model)
+    slug = model.replace('/', '_')
+    path = Path(RUNS_DIR) / f"precedence_{PROMPT_VERSION}_{slug}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2))
     print(f"saved {path}")
