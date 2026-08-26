@@ -894,3 +894,114 @@ Reporting 0.877 as the result of three rounds of tuning would be dishonest. **Th
 **Clarify needs no model.** Triage has already named the missing fact, so turning `tenure_months` into a sentence is a five-way lookup. A model there would add cost, latency and a way for the question asked to drift from the fact recorded, which nothing downstream would catch.
 
 **Cost:** four precedence runs and three triage runs, about **$2.31** in total. The naive baseline is computed on the same pass from the same retrieval, so it costs nothing and cannot drift from the agent it is compared against.
+
+---
+
+## DL-24: Pre-registered comparison against an open-weights model
+
+**Status:** open, written 2026-08-26 before any open-model result exists. Resolves after Phase 7.
+
+Written now, while the answer is unknown, for the same reason as DL-1 and DL-14. A comparison designed after seeing which side won is not a comparison.
+
+### The question
+
+Every enterprise buyer of an HCM system eventually asks whether it can run on cheaper or self-hosted infrastructure. This project has a 92-scenario harness and a frozen baseline, so the question is measurable rather than a matter of opinion.
+
+**Does an open-weights model reach the same precedence correctness and route accuracy as Haiku 4.5 on this task?**
+
+### Why the answer is not obvious in either direction
+
+The two model calls in this system are deliberately narrow. `triage` classifies into four routes and rewrites a query; `resolve` reads passages and reports what each layer says. Neither is asked to reason about precedence, because that is code. **Narrow extraction tasks are where smaller models are most competitive**, so the split this project already made is the thing that gives an open model a real chance.
+
+Against that: all seven remaining precedence failures are **generosity comparisons**, which is the single hardest judgment in the pipeline and the one most likely to degrade first.
+
+### Fixed in advance
+
+**Adopt the open model if, on the same scenario set and the same retrieval:**
+- precedence correctness is within **2 scenarios** (3.5 points at n=57) of Haiku's, **and**
+- macro route accuracy stays at or above the **0.80** threshold already fixed in DL-22.
+
+Two scenarios rather than one because DL-23 established that the measurement's precision here is about one scenario, and a threshold inside the noise would decide on nothing.
+
+**Otherwise keep Haiku and report the gap as the finding.** An open model that costs nothing and loses five points is a legitimate answer to the buyer's question, not a failed experiment.
+
+### What is not on trial
+
+Retrieval, chunking, embeddings and the precedence rules are all held constant. The embedding model stays `voyage-law-2` regardless: DL-1 measured that separately and it is a different decision.
+
+### Cost of running it
+
+Zero in dollars, on a free hosted tier. Not zero in time: every cached decision is keyed by model, so both arms re-run in full.
+
+### Sequencing decision
+
+Phase 6 finishes on Haiku first, and this runs afterwards. Switching mid-build would invalidate DL-22 and DL-23, including the naive-versus-agent comparison that is the project's headline result, and re-establishing them is more expensive than the experiment is worth at this point.
+
+---
+
+## DL-25: End to end, and two metric bugs that made the system look half as good as it is
+
+**Status:** decided, Phases 6.5 to 6.7. Fully correct **0.587**, up from 0.293 once the measurement was fixed.
+
+### The result
+
+All 92 scenarios through the whole graph, nothing held at its correct value.
+
+| metric | value |
+|---|---|
+| route accuracy, macro | 0.815 |
+| precedence correct (n=57) | 0.772 |
+| passed verification | 0.717 |
+| forbidden citation leaked | 0.011 |
+| required citations present | 0.491 |
+| named the beaten source (n=8) | 0.125 |
+| **fully correct** | **0.587** |
+
+| slice | n | route | fully correct |
+|---|---|---|---|
+| out_of_scope | 12 | 1.000 | **1.000** |
+| superseded | 10 | 1.000 | 0.900 |
+| straightforward | 17 | 1.000 | 0.706 |
+| adversarial | 10 | 0.800 | 0.700 |
+| ambiguous | 15 | 0.533 | 0.533 |
+| control | 10 | 0.500 | 0.300 |
+| **conflict** | 18 | 1.000 | **0.167** |
+
+**Fully correct means all of it at once:** right route, right controlling authority, required citations present, nothing forbidden, and grounded. It is the only number a user would recognise, and it is far below every component score, which is the honest shape of an end-to-end measurement.
+
+Precedence drops from 0.877 isolated to 0.772 end to end. The difference is the six answer scenarios triage routes elsewhere, which never reach the resolver at all.
+
+### Two metric bugs, and the first one halved the headline
+
+**`verify` never runs on a refusal, and I scored that as failing verification.** 34 of 92 scenarios correctly route to clarify, refuse or escalate. None reach `verify`, because none assert an entitlement and there is nothing to ground. `verification is None` was read as "did not pass", so **every correct refusal counted against the system**.
+
+The tell was a slice reporting route 1.000 and fully-correct 0.000 in the same row. `out_of_scope` got every routing decision right and scored zero. That combination is not a result, it is a contradiction, and it went from 0.000 to 1.000 the moment "did not run" stopped meaning "failed". Fully correct went 0.293 to 0.587 on this one fix.
+
+**The figures check failed valid answers two ways.** It flags numbers in the answer that do not appear in the sources, and both false positives were found by it rejecting correct answers rather than by reasoning about it.
+
+- Stripping the cited string is not enough. An answer citing `[29 CFR 825.201]` that then refers to "section 825.201" leaves a bare number behind, which was reported as an unsupported figure. Numbers appearing inside any known citation are now excluded.
+- **Statutes spell numbers out.** The corpus says "twenty-six weeks" where the answer says "26 weeks", so a literal digit search called a correct figure unsupported. Word forms are converted before comparison.
+
+Both bugs share a shape with DL-12 and DL-23: nothing raised, every artifact agreed, and the only signal was a number too extreme to be true.
+
+### What the remaining failures actually are
+
+**29 scenarios are missing a required citation, and 22 of those are a cascade.** Verification failed, the answer was replaced with a referral, and the citation went with it. Of the 7 genuine misses, 6 also had the wrong controlling authority, so the citation is absent because the agent chose the wrong layer rather than because composition forgot to cite.
+
+So **`required citations present` is not measuring `compose`. It is measuring how strict `verify` is**, and reporting it as a composition score would be wrong.
+
+**Verification strictness is dominated by self-grading.** 20 of 26 verification failures are the entailment check, which currently runs on the same model that wrote the answer. That is precisely the self-grading the spec warns against, kept deliberately (see the `verify` module docstring) because DL-24's open-weights arm supplies a cross-family verifier for free. Whether a different model is less trigger-happy is now a measurable question rather than an assumption.
+
+**Conflict is 1.000 on routing and 0.167 fully correct**, the widest gap in the set. Every conflict scenario reaches the resolver and most get the authority right; they fail at grounding. This is the slice the whole project is about, so it is also where the next work goes.
+
+**`named the beaten source` is 1 of 8.** `resolve` names the losing citation and `compose` is instructed to address it, and it still mostly does not survive to the answer. An answer that silently overrides the handbook is unusable to the person holding the handbook, and this remains the weakest requirement in the system.
+
+**One forbidden citation leaked, `conflict-012` citing `LEAVE-005`.** A rate of 0.011 across 92. The store filters superseded and wrong-jurisdiction text before retrieval, so this is a provision that was legitimately retrieved and should not have been relied on.
+
+### The pieces that need no model
+
+`clarify`, `refuse` and `escalate` are all deterministic. Triage has already decided the route and written the sentence explaining it; passing that through a second model would add cost and let the explanation drift from the decision it explains. Four of `verify`'s five checks are functions for a stronger reason: **code cannot share a blind spot with the model that wrote the answer.**
+
+`agent/build.py` assembles the graph in one place, and `build_baseline` is the same graph with precedence swapped for "trust the top-ranked passage". Phase 9's comparison is therefore one code path with one component changed, not two implementations that could differ for reasons nobody intended.
+
+**Cost:** the full end-to-end run is about $0.57 cold and $0.13 warm. Total project spend to here is roughly **$3.00**.
