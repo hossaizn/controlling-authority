@@ -27,16 +27,15 @@ statute (`out-of-scope-006`).
 from __future__ import annotations
 
 import json
-import os
 import re
-import urllib.request
 from datetime import date
 from pathlib import Path
 
+from ingest.http import fetch as http_fetch
 from ingest.models import SourceDocument
+from ingest.settings import require
 
 API_ROOT = "https://legislation.nysenate.gov/api/3/laws"
-USER_AGENT = "controlling-authority/0.1 (portfolio project; contact via GitHub)"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "ny"
 
 # Citation strings the scenario ground truth was written against.
@@ -118,21 +117,14 @@ def fetch_section(
 ) -> SourceDocument:
     """Fetch one section. Network, cached on disk."""
     observed_on = observed_on or date.today()
-    key = os.environ.get("NY_SENATE_API_KEY")
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cached = CACHE_DIR / f"{law_id.lower()}_{location}.json"
 
     if cached.exists():
         payload = json.loads(cached.read_text())
     else:
-        if not key:
-            raise RuntimeError("NY_SENATE_API_KEY is not set")
-        request = urllib.request.Request(
-            f"{API_ROOT}/{law_id}/{location}?key={key}",
-            headers={"User-Agent": USER_AGENT},
-        )
-        with urllib.request.urlopen(request, timeout=60) as response:
-            payload = json.loads(response.read())
+        key = require("NY_SENATE_API_KEY")
+        payload = json.loads(http_fetch(f"{API_ROOT}/{law_id}/{location}?key={key}"))
         # The key must never reach disk with the cached body.
         if key in json.dumps(payload):
             raise RuntimeError("API key present in response body; refusing to cache")

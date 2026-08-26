@@ -17,7 +17,8 @@ dependencies = [
     "beautifulsoup4>=4.12",  # CA and OH server-rendered HTML
     "pyyaml>=6.0",           # scenarios, absence records
     # retrieval
-    "qdrant-client>=1.12",
+    # Kept in step with the server image pinned in docker-compose.yml.
+    "qdrant-client>=1.15,<1.16",
     # agent
     "langgraph>=0.2",
     "langchain-core>=0.3",
@@ -27,6 +28,7 @@ dependencies = [
     "voyageai>=0.3",
     # observability
     "langfuse>=2.53",
+    "certifi>=2026.7.22",
 ]
 
 [dependency-groups]

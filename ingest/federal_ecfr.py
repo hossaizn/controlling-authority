@@ -24,16 +24,15 @@ from __future__ import annotations
 
 import json
 import re
-import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
 from lxml import etree
 
+from ingest.http import fetch as http_fetch
 from ingest.models import SourceDocument
 
 API_ROOT = "https://www.ecfr.gov/api/versioner/v1"
-USER_AGENT = "controlling-authority/0.1 (portfolio project; contact via GitHub)"
 
 # Cached raw pulls. Gitignored: regenerable, and large.
 CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "ecfr"
@@ -238,9 +237,7 @@ def _get(url: str, cache_name: str) -> bytes:
     cached = CACHE_DIR / cache_name
     if cached.exists():
         return cached.read_bytes()
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        payload = response.read()
+    payload = http_fetch(url, timeout=120)
     cached.write_bytes(payload)
     return payload
 

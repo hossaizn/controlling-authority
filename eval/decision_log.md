@@ -325,3 +325,25 @@ Six `must_address` values were written as `[\"LEAVE-002\"]` by an f-string escap
 **The absence sentinel leaked semantics.** Absences were dated 1900-01-01 with `effective_from_is_floor=True`, overloading a flag documented as "the earliest date the source can attest to" and implying the FMLA governed in 1900. `in_force_on` now short-circuits on `content_status`, so the sentinel is never compared against a query date.
 
 **Contract drift between adapters.** Federal documents carried a real section heading while California and New York repeated their citation, leaving a chunker with no context for state documents. New York had a real title and was discarding it into `source_note`. California genuinely has none, since its sections are untitled, and that is now documented rather than left looking like an oversight.
+
+---
+
+## DL-13: Two more choices left open, and one that could not be
+
+**Status:** Phase 4. DL-1 and the chunking comparison resolve in Phase 5.
+
+**Chunking is now a measured question, not an assumption.** Structure-aware splitting and a fixed-size window are both implemented behind one interface. The baseline overlaps, because beating a straw man proves nothing about the strategy that wins. On the real corpus, structure produces 299 chunks averaging 1,190 characters and fixed produces 313 averaging 1,276. Which is better is a Phase 5 number.
+
+**Embedding likewise.** Both DL-1 candidates are implemented, neither is a default, and `get_provider()` has no fallback, so a choice cannot be made by omission. Both pin a model version rather than a floating alias: an index built against a silently updated model is not comparable with the numbers that justified adopting it.
+
+**What could not stay open: what gets embedded.** A bare subdivision such as "(b) The determination is made under the principles of the FLSA" is close to meaningless alone, and this corpus is largely made of them. Chunks therefore carry their heading and nearest hierarchy level into the embedding while the stored text stays clean. Without it an FMLA chunk and a CFRA chunk read almost identically, which would make the state-versus-federal distinction unretrievable regardless of which model wins.
+
+### Things found only by running it
+
+**A dedup check that looked equivalent and was not.** The fixed-size chunker dropped its final window when that window appeared inside the previous one. On repetitive text any short tail is a substring of what precedes it, and statutory text repeats constantly, so real content vanished from the end of uniform documents. Redundancy is now decided by position.
+
+**Certificates.** Assembling the corpus end to end failed on every HTTPS fetch with `CERTIFICATE_VERIFY_FAILED`. The project pins Python through uv, and that interpreter does not see the macOS trust store; earlier fetches had run under system Python and hid it. `ingest/http.py` now makes the trust store explicit, which also matters for anyone else cloning this.
+
+**Payload indexes are silently inert in local mode.** Qdrant's in-memory client warns that payload indexes have no effect. The tests were therefore never exercising the production path, so indexing was run against the live container: 299 chunks, all six indexes created, no jurisdiction leaks. Same failure shape as the compose healthcheck that had never been executed.
+
+**Client and server versions were mismatched**, 1.19 against 1.12.4, far enough apart for the client to warn. Both are now pinned in step, in `pyproject.toml` and `docker-compose.yml`, with a comment in each pointing at the other.
