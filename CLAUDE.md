@@ -21,8 +21,15 @@ Public repo: `github.com/hossaizn/controlling-authority`
 
 ## Status
 
-**Phase 6 is complete.** Phases 0 through 6 merged. Phase 7 (Langfuse
-observability) is next, then 8 (API), 9 (demo) and 10 (ship).
+**Phases 0 through 7 merged.** Phase 8 (API + protection layer) is next, then
+9 (demo) and 10 (ship).
+
+**Tracing is exported, not instrumented (Phase 7).** Nodes stay unaware of
+Langfuse; `agent/tracing.py` walks the finished state trace and mirrors it.
+A second instrumentation path would be a second description of one run.
+`export` never raises, and **evals deliberately do not trace** because they
+run almost entirely from cache and would bury real traces in spans for
+decisions that never called a model. `run_traced` is the request boundary.
 
 **End to end, DL-25 and DL-26:** fully correct **0.620** across all 92
 scenarios, meaning right route, right authority, required citations present,
