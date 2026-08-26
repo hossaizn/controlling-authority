@@ -119,6 +119,10 @@ Solid, not the research focus. Decisions to be validated by eval rather than ass
 
 **Effective-date filtering** at query time, defaulting to today and overridable to demonstrate point-in-time answers.
 
+**Query rewriting happens before retrieval, in the agent's `triage` node.** Two of the filters below are hard constraints that cannot be applied to a raw question: jurisdiction has to be extracted before it can be filtered on, and a relative date such as "last year" has to be resolved before the effective-date filter means anything. Relation and topic normalisation ("grandma" to "grandparent", "time off" to "family care and medical leave") also happens here. See DL-16.
+
+**Reranking is conditional and not yet committed.** Whether it is built depends on the gap between `recall@10` and `recall@3` measured in Phase 5, against a threshold fixed in advance in DL-16.
+
 **Structure-aware chunking**, splitting on the regulatory hierarchy rather than fixed token windows, with the section path preserved. To be compared against a naive fixed-size baseline in the eval, with the winner recorded in the decision log.
 
 ---

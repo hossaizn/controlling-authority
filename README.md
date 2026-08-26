@@ -62,6 +62,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-13** | Chunking and embedding both left open for Phase 5 to measure | open |
 | **DL-14** | Pre-registered prediction, falsifier and tie-break for the chunking comparison | open |
 | **DL-15** | Spec required hybrid retrieval; Phase 4 skipped it without recording the deviation | decided |
+| **DL-16** | Query rewriting committed; reranking gated on a pre-registered recall gap | open |
 
 ---
 
