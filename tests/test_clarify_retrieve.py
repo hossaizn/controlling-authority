@@ -73,7 +73,7 @@ class FakeStore:
         self.calls.append(
             {"query": query, "jurisdiction": jurisdiction, "as_of": as_of, "limit": limit}
         )
-        return self.hits
+        return self.hits[:limit]
 
 
 def hit(citation, layer="federal", status="substantive"):
@@ -158,3 +158,27 @@ def test_an_empty_result_is_recorded_rather_than_swallowed() -> None:
     out = run_retrieve(FakeStore([]), rewritten_query="q")
     assert out["retrieved"] == []
     assert "0 passages" in out["trace"][0].summary
+
+
+def test_a_handbook_passage_is_topped_up_when_none_ranked_high_enough() -> None:
+    """The employee has probably already read the handbook, and the answer has to
+    reconcile itself with what they read. Three `must_address` scenarios failed
+    for the plain reason that no company passage was in the top ten."""
+    store = FakeStore([hit(f"29 CFR 825.{i}") for i in range(10)] + [hit("LEAVE-001", "company")])
+    out = run_retrieve(store, rewritten_query="q")
+    assert "LEAVE-001" in [h.citation for h in out["retrieved"]]
+
+
+def test_the_top_ranked_passages_are_not_displaced_by_the_top_up() -> None:
+    """Appended, not substituted. Displacing a statutory passage to make room
+    would change the ranking the regression gate measures."""
+    ranked = [hit(f"29 CFR 825.{i}") for i in range(10)]
+    store = FakeStore(ranked + [hit("LEAVE-001", "company")])
+    out = run_retrieve(store, rewritten_query="q")
+    assert [h.citation for h in out["retrieved"]][:10] == [h.citation for h in ranked]
+
+
+def test_no_top_up_happens_when_the_handbook_already_ranked() -> None:
+    store = FakeStore([hit("LEAVE-008", "company")] + [hit(f"29 CFR 825.{i}") for i in range(9)])
+    out = run_retrieve(store, rewritten_query="q")
+    assert sum(h.authority_layer == "company" for h in out["retrieved"]) == 1

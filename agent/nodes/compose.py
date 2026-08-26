@@ -19,6 +19,7 @@ citation 3 times in 8, which is the floor this node starts from.
 
 from __future__ import annotations
 
+from agent.citations import mentions
 from agent.models import HAIKU, StructuredCaller
 from agent.state import AgentState, Resolution, TraceEvent
 
@@ -126,6 +127,30 @@ def _resolution_block(resolution: Resolution) -> str:
     return "\n".join(lines)
 
 
+# Why a named source does not control, keyed by the rule that decided it. Every
+# one of these is a fact the resolution already holds, so the note adds no claim
+# the system has not already made and checked.
+_WHY_NOT_CONTROLLING = {
+    "policy_below_floor": (
+        "it promises less than the law requires, so the law governs instead"
+    ),
+    "policy_may_exceed": "the more generous term above governs",
+    "statutory_floor": "a more generous provision governs",
+    "concurrence_tie_break": (
+        "it says the same thing, so the entitlement rests on the law rather than "
+        "on the policy"
+    ),
+    "indeterminate": "it does not independently decide this",
+    "silence_is_not_permission": "it does not address this question",
+}
+
+_DEFAULT_WHY = "it does not control here"
+
+
+def address_note(citation: str, rule: str) -> str:
+    return f"On {citation}: {_WHY_NOT_CONTROLLING.get(rule, _DEFAULT_WHY)}."
+
+
 def make_compose(caller: StructuredCaller | None = None, model: str = HAIKU):
     caller = caller or StructuredCaller()
 
@@ -179,8 +204,24 @@ def make_compose(caller: StructuredCaller | None = None, model: str = HAIKU):
         claimed = [c for c in result.get("citations", []) if c in retrieved]
         invented = [c for c in result.get("citations", []) if c not in retrieved]
 
+        # Naming the source the answer overrides is the requirement most likely
+        # to be dropped, and asking harder in the prompt did not fix it. Any that
+        # the model omitted get a deterministic note built from the citation and
+        # the precedence rule, both of which the resolution already holds, so
+        # nothing is asserted that has not already been decided and checked.
+        #
+        # Same reasoning as appending the disclaimer rather than trusting the
+        # model to write one: a requirement that can be forgotten will be.
+        body = result["answer"].strip()
+        missing = [
+            c for c in resolution.non_controlling_to_address if not mentions(body, c)
+        ]
+        notes = [address_note(c, resolution.rule) for c in missing]
+        if notes:
+            body = body + "\n\n" + " ".join(notes)
+
         return {
-            "answer": f"{result['answer'].strip()}\n\n{DISCLAIMER}",
+            "answer": f"{body}\n\n{DISCLAIMER}",
             "citations": claimed,
             "trace": [
                 TraceEvent(
@@ -193,6 +234,16 @@ def make_compose(caller: StructuredCaller | None = None, model: str = HAIKU):
                         "citations": claimed,
                         "citations_not_retrieved": invented,
                         "asked_to_address": resolution.non_controlling_to_address,
+                        # Kept apart so the metric does not stop being a
+                        # measurement. Once a requirement is enforced in code it
+                        # scores 1.000 by construction, and the interesting
+                        # number is how often the model did it unprompted.
+                        "addressed_by_model": [
+                            c
+                            for c in resolution.non_controlling_to_address
+                            if c not in missing
+                        ],
+                        "addressed_by_fallback": missing,
                         "model": model,
                     },
                 )

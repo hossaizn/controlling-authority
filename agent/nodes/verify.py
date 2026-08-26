@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import re
 
+from agent.citations import mentions, resolves_to_retrieved
 from agent.models import HAIKU, StructuredCaller
 from agent.nodes.compose import DISCLAIMER
 from agent.state import AgentState, TraceEvent, VerificationResult
@@ -98,43 +99,6 @@ different words.
 Ignore the closing disclaimer. Ignore statements about who to contact. Ignore
 the answer telling the reader what a source says and why it does not apply,
 provided the passages support what that source says."""
-
-
-def mentions(text: str, citation: str) -> bool:
-    """Whether `text` names this exact citation, and not a longer one containing it.
-
-    A bare `citation in text` reintroduces DL-12's prefix trap:
-    `Cal. Gov. Code 12945` is a prefix of `Cal. Gov. Code 12945.2`, they are
-    different statutes, and both are in this corpus.
-
-    Requiring square brackets was the first fix and it was too strict in the
-    other direction: `compose` brackets the controlling provision but mentions
-    the beaten handbook in prose, so a scorer demanding brackets reported naming
-    the beaten source as a flat zero. A trailing boundary handles both without
-    dictating how the answer is written.
-    """
-    return re.search(re.escape(citation) + r"(?![\w.\-])", text) is not None
-
-
-def _resolves_to_retrieved(citation: str, retrieved: set[str]) -> bool:
-    """Whether a cited string points at text that was actually retrieved.
-
-    An exact match, or a **subsection** of a retrieved provision. The model
-    writes `Cal. Gov. Code 12945.2(b)(13)` where `Cal. Gov. Code 12945.2` was
-    retrieved, which is a more precise pointer into the same passage, not an
-    invented source. Failing those accounted for 14 of 30 verification failures
-    and wiped correct answers.
-
-    The extension has to open with `(`, so this cannot quietly accept
-    `Cal. Gov. Code 12945.2` on the strength of having retrieved
-    `Cal. Gov. Code 12945`, which is a different statute (DL-12).
-    """
-    if citation in retrieved:
-        return True
-    return any(
-        citation.startswith(r) and citation[len(r):].lstrip().startswith("(")
-        for r in retrieved
-    )
 
 
 def citations_in(text: str, known: set[str]) -> set[str]:
@@ -223,7 +187,7 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
         stray = {
             c
             for c in in_prose | set(state.get("citations", []))
-            if not _resolves_to_retrieved(c, retrieved)
+            if not resolves_to_retrieved(c, retrieved)
         }
         checks["citations_were_retrieved"] = not stray
         if stray:
