@@ -42,6 +42,12 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "ecfr"
 #   DIV5 = PART, DIV6 = SUBPART, DIV8 = SECTION
 PART, SUBPART, SECTION = "DIV5", "DIV6", "DIV8"
 
+# Elements that are not operative text. HEAD is the heading, held separately.
+# CITA, SOURCE and AUTH are provenance, captured into source_note rather than
+# discarded: they carry the Federal Register history a reader needs to check a
+# citation.
+NON_BODY = {"HEAD", "CITA", "SOURCE", "AUTH"}
+
 
 def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
@@ -49,6 +55,27 @@ def _clean(text: str) -> str:
 
 def _head(el) -> str:
     return _clean(el.findtext("HEAD") or "")
+
+
+def baseline_load_date(versions_payload: dict) -> date | None:
+    """The date the whole part entered the electronic record, if there is one.
+
+    The eCFR versions feed stamps every section of a part with a shared date on
+    initial load. For Part 825 that is 2016-12-01, carried by all 79 sections,
+    while the regulation itself dates to 2013. Treating it as an amendment date
+    would report when the text entered the database rather than when it began.
+
+    Detected structurally rather than hardcoded: the date every section shares.
+    """
+    per_section: dict[str, set[date]] = {}
+    for row in versions_payload.get("content_versions", []):
+        identifier, raw = row.get("identifier"), row.get("amendment_date")
+        if identifier and raw:
+            per_section.setdefault(identifier, set()).add(date.fromisoformat(raw))
+    if len(per_section) < 2:
+        return None
+    shared = set.intersection(*per_section.values())
+    return min(shared) if shared else None
 
 
 def effective_dates_from_versions(
@@ -104,6 +131,7 @@ def parse_ecfr_part(
     snapshot_date: date,
     effective_dates: dict[str, date],
     end_dates: dict[str, date] | None = None,
+    baseline_date: date | None = None,
 ) -> list[SourceDocument]:
     """Parse one part into a document per section.
 
@@ -112,6 +140,7 @@ def parse_ecfr_part(
     that touched it, and would be invisible downstream.
     """
     end_dates = end_dates or {}
+    floor_date = baseline_date
     root = etree.fromstring(xml_bytes)
     if root.tag != PART:
         raise ValueError(f"expected a {PART} (PART) root, got {root.tag!r}")
@@ -130,13 +159,23 @@ def parse_ecfr_part(
             if not citation:
                 raise ValueError(f"{identifier}: no citation in hierarchy_metadata")
 
-            # Body text excludes HEAD, so the heading is not duplicated into
-            # every chunk. Paragraph boundaries are preserved for the chunker.
-            paragraphs = [
-                _clean("".join(p.itertext()))
-                for p in section.iterdescendants("P")
+            # Body text is every child that is not the heading or provenance.
+            # The first version read only <P>, which silently dropped anything
+            # held in another element, including tables.
+            blocks = [
+                _clean("".join(child.itertext()))
+                for child in section
+                if child.tag not in NON_BODY
             ]
-            text = "\n\n".join(p for p in paragraphs if p)
+            text = "\n\n".join(b for b in blocks if b)
+
+            # Provenance the source prints about itself, kept for citation.
+            notes = [
+                _clean("".join(n.itertext()))
+                for n in section
+                if n.tag in {"CITA", "SOURCE"}
+            ]
+            source_note = " ".join(n for n in notes if n)
 
             is_reserved = "[Reserved]" in heading
             if is_reserved:
@@ -148,20 +187,33 @@ def parse_ecfr_part(
                     "to invent one"
                 )
 
+            effective_from = effective_dates[identifier]
             docs.append(
                 SourceDocument(
-                    source_id=citation,
+                    doc_id=f"us:29-cfr-{identifier}",
                     citation=citation,
                     authority_layer="federal",
                     jurisdiction="US",
-                    section_path=[part_label, subpart_label, heading],
+                    # Ancestors only: the heading is held separately and must
+                    # not be repeated here.
+                    section_path=[part_label, subpart_label],
                     heading=heading,
                     text=text,
-                    effective_from=effective_dates[identifier],
+                    content_status="reserved" if is_reserved else "substantive",
+                    effective_from=effective_from,
                     effective_to=end_dates.get(identifier),
+                    effective_from_is_floor=(
+                        floor_date is not None and effective_from == floor_date
+                    ),
                     observed_on=snapshot_date,
-                    source_url=f"https://www.ecfr.gov/current/title-29/section-{identifier}",
-                    is_reserved=is_reserved,
+                    # Point-in-time documents must link to the text as it stood,
+                    # not to /current/, which would show today's wording for a
+                    # provision that ended years ago.
+                    source_url=(
+                        f"https://www.ecfr.gov/on/{snapshot_date.isoformat()}"
+                        f"/title-29/section-{identifier}"
+                    ),
+                    source_note=source_note,
                 )
             )
 
@@ -199,4 +251,5 @@ def fetch_part(part: int = 825, as_of: date | None = None) -> list[SourceDocumen
         snapshot_date=as_of,
         effective_dates=effective_dates_from_versions(versions, as_of),
         end_dates=end_dates_from_versions(versions, as_of),
+        baseline_date=baseline_load_date(versions),
     )

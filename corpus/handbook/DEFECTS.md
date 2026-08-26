@@ -58,12 +58,18 @@
 - **California:** CFRA's family definition is broader than federal and is understood to include grandparent. State law controls and leave is available, despite handbook silence. This is the "silence is not permission" rule working in the employee's favour.
 - **Ohio:** No state provision. Handbook silent. Federal FMLA's care-leave family definition (`29 CFR 825.122`) covers spouse, parent, and son or daughter, and expressly excludes parents-in-law; grandparent is not among them. The correct answer is that no entitlement exists for this purpose, plus a referral. **Not a refusal**, because the system does know the answer: it is "no".
 
-**Precision found during Phase 2 verification.** "Federal FMLA does not cover grandparents" is too broad and was wrong as originally written. `29 CFR 825.122` does mention grandparents, but only inside the definition of *next of kin of a covered servicemember*, where they appear in the priority order for **military caregiver leave**. Ordinary care leave for a sick grandparent remains uncovered, so `conflict-005` stands, but the claim now has to be stated narrowly. A scenario about caring for a wounded servicemember grandparent would have the opposite answer, and is not in the set.
+**Corrected twice during verification, and the second correction matters more.**
+
+The original claim, "federal FMLA does not cover grandparents", was too broad: `29 CFR 825.122` mentions grandparents inside the definition of *next of kin of a covered servicemember*, for **military caregiver leave**. A scenario about a wounded servicemember grandparent would have the opposite answer and is not in the set.
+
+The first correction then leaned on the wrong section. It claimed grandparent "appears solely in the military caregiver next-of-kin list", which is also false: the term appears in five ingested sections. **`29 CFR 825.206` states the point outright** — leave "to care for a grandparent" is given as an example of a reason "which does not qualify as FMLA leave" — and `825.701(b)(3)` calls it a purpose not covered by FMLA. The conclusion was right throughout and was resting on the weakest available support: absence from a definition is an inference, while 825.206 is an explicit statement. `conflict-005` now cites 825.206.
+
+The lesson is narrower than "verify claims". It is that a sweep which checks only the section you expected to be dispositive will confirm your conclusion while missing that the corpus supports it better somewhere else.
 
 **Why this is the most valuable case in the set:** the same question has opposite correct answers in two states, and neither answer is retrievable from the most semantically relevant document.
 
 - [ ] Verify CFRA covered family members include grandparent
-- [x] Verify federal FMLA family definition excludes grandparent — **verified 2026-08-25** against ingested `29 CFR 825.122`. Care-leave definitions cover spouse, parent, son or daughter only. Grandparent appears solely in the military caregiver next-of-kin priority list.
+- [x] Verify federal FMLA excludes grandparent care — **verified 2026-08-25**, corrected 2026-08-26. `29 CFR 825.206` states it explicitly. `825.122` covers spouse, parent, son or daughter for care leave, and mentions grandparent only in the military caregiver next-of-kin list. The term occurs in five ingested sections, not one.
 
 ---
 
@@ -106,7 +112,8 @@
 **Found in review**, not planned. `conflict-010` and `ambiguous-008/009` already depended on it while it was undocumented, which is exactly the gap this file exists to close.
 
 - [ ] Verify the CFRA employer-size threshold against ingested CA text
-- [x] Verify the federal 50-employee/75-mile threshold against ingested 29 CFR 825 text — **verified 2026-08-25**. `29 CFR 825.104`: "50 or more employees for each working day during each of 20 or more calendar workweeks".
+- [x] Verify the federal 50-employee threshold — **verified 2026-08-25**. `29 CFR 825.104`: "50 or more employees for each working day during each of 20 or more calendar workweeks".
+- [x] Verify the 75-mile component — **corrected 2026-08-26**. The phrase "75 miles" does **not** occur in `825.104`; it is in `825.110` and `825.111`. The original tick claimed a "50-employee/75-mile threshold" verified against 825.104, which overstated what that section says. The two-part test is split across sections and `conflict-010/011` must cite accordingly.
 
 ---
 
