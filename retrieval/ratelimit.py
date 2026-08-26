@@ -67,6 +67,23 @@ class RateBudget:
                 self._events.append((now, tokens))
                 return waited
 
+            # A single request larger than the whole budget can never satisfy
+            # `token_ok`, and with an empty window there is no oldest event to
+            # wait on: the line below would raise IndexError. It is reachable.
+            # Groq's free tier deducts the reserved max_tokens, so one `resolve`
+            # call reserves almost the entire per-minute budget by itself.
+            #
+            # Waiting for the window to clear and then proceeding is the honest
+            # behaviour: the request is as small as it can be made, and the
+            # provider will accept it or refuse it on its own terms.
+            if not self._events:
+                if not token_ok:
+                    self._events.append((now, tokens))
+                    return waited
+                time.sleep(0.5)
+                waited += 0.5
+                continue
+
             # Sleep until the oldest event leaves the window, which is the
             # earliest moment either budget can free up.
             oldest = self._events[0][0]
