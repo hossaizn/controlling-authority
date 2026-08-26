@@ -94,8 +94,42 @@ PRICE_PER_MTOK = {
 # Reactive backoff was tried on Voyage and died 264 chunks into 300.
 _BUDGETS = {
     "anthropic": RateBudget(max_tokens_per_minute=100_000, max_requests_per_minute=40),
-    "openai": RateBudget(max_tokens_per_minute=25_000, max_requests_per_minute=25),
+    # Groq's free tier: an 8,000-token bucket refilling at 8,000/minute, with the
+    # reserved max_tokens deducted rather than the tokens produced. Headroom of
+    # 15% because our estimate and their tokeniser will not agree exactly.
+    "openai": RateBudget(
+        max_tokens_per_minute=int(optional("OPEN_MODEL_TPM", "8000")) * 80 // 100,
+        max_requests_per_minute=30,
+    ),
 }
+
+
+# Output budget for OpenAI-compatible models, and the ceiling it has to fit under.
+#
+# Two constraints pull against each other, and both were found by running it:
+#
+# 1. **Reasoning tokens come out of `max_tokens` and are emitted before the tool
+#    call.** A budget sized for the answer alone truncates the call, and the
+#    provider rejects it server-side with `tool_use_failed`.
+# 2. **Free tiers count reserved `max_tokens` toward the per-request ceiling.**
+#    Groq's free tier allows 8,000 tokens per request for gpt-oss-120b, so asking
+#    for 8,192 output made every request illegal on its own, whatever the prompt.
+#
+# So the budget is computed per call: as much headroom as the ceiling allows once
+# the prompt is paid for. `OPEN_MODEL_TPM` makes the ceiling configurable because
+# it differs per provider, per model and per tier.
+# Deliberately modest. Groq charges the RESERVED max_tokens against the rate
+# bucket, not the tokens actually produced, so an oversized budget throttles
+# throughput without buying anything: observed triage outputs were 294 and 814
+# tokens including reasoning. 1,536 leaves room to think and cuts the per-request
+# reservation by three quarters.
+REASONING_HEADROOM = 1024
+# Just inside the bucket, so our token estimate disagreeing with theirs by a
+# few percent cannot turn a legal request into a 413.
+REQUEST_TOKEN_CEILING = int(optional("OPEN_MODEL_TPM", "8000")) * 95 // 100
+# Enough for a tool call with no thinking at all. Below this, the model has no
+# room to answer and the run should fail loudly rather than emit truncated JSON.
+MIN_OUTPUT_TOKENS = 700
 
 
 @dataclass
@@ -236,10 +270,10 @@ class StructuredCaller:
             return json.loads(path.read_text())["result"]
 
         spec = spec_for(model)
-        _BUDGETS[spec.api].acquire(estimate_tokens([system, user]))
         client = self.client_for(spec)
 
         if spec.api == "anthropic":
+            _BUDGETS["anthropic"].acquire(estimate_tokens([system, user]))
             result, tokens = self._anthropic(client, system, user, tool, model, max_tokens)
         else:
             result, tokens = self._openai(client, system, user, tool, model, max_tokens)
@@ -275,9 +309,35 @@ class StructuredCaller:
         )
 
     def _openai(self, client, system, user, tool, model, max_tokens):
+        # **Reasoning tokens are billed against `max_tokens` and are emitted
+        # before the tool call.** `gpt-oss-120b` spent most of a 1024 budget
+        # thinking, then produced a tool call one closing brace short, and the
+        # provider rejected it server-side with `tool_use_failed` before this
+        # code ever saw a payload to parse.
+        #
+        # The budget is raised rather than the reasoning turned down. Reducing
+        # reasoning effort would make the open model cheaper and faster at
+        # exactly the judgment DL-24 exists to measure, which would bias the
+        # comparison in favour of the conclusion that it cannot do it.
+        prompt_tokens = estimate_tokens([system, user])
+        available = REQUEST_TOKEN_CEILING - prompt_tokens
+        budget = min(REASONING_HEADROOM, available)
+        if budget < MIN_OUTPUT_TOKENS:
+            raise RuntimeError(
+                f"{model}: a {prompt_tokens}-token prompt leaves {available} tokens "
+                f"under the {REQUEST_TOKEN_CEILING} per-request ceiling, below the "
+                f"{MIN_OUTPUT_TOKENS} a tool call needs. Raise OPEN_MODEL_TPM if the "
+                "tier allows more, or the prompt has to shrink."
+            )
+
+        # Paced on prompt PLUS reservation, because that is what the provider
+        # deducts. Pacing on the prompt alone under-counts by the whole output
+        # budget and walks straight into a 429.
+        _BUDGETS["openai"].acquire(prompt_tokens + budget)
+
         response = client.chat.completions.create(
             model=model,
-            max_tokens=max_tokens,
+            max_tokens=budget,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

@@ -937,6 +937,58 @@ Zero in dollars, on a free hosted tier. Not zero in time: every cached decision 
 
 Phase 6 finishes on Haiku first, and this runs afterwards. Switching mid-build would invalidate DL-22 and DL-23, including the naive-versus-agent comparison that is the project's headline result, and re-establishing them is more expensive than the experiment is worth at this point.
 
+### Result: routing reaches parity for nothing; precedence cannot be measured on free infrastructure
+
+**Threshold 1 met.** `openai/gpt-oss-120b` scores **0.818 macro route accuracy** against Haiku's **0.815**, across all 92 scenarios, at **$0.00** versus $0.26.
+
+| route | n | Haiku 4.5 | gpt-oss-120b |
+|---|---|---|---|
+| answer | 57 | 0.895 | 0.947 |
+| **clarify** | 15 | 0.533 | **0.800** |
+| refuse | 14 | 1.000 | 0.857 |
+| escalate | 6 | 0.833 | 0.667 |
+| **macro** | | **0.815** | **0.818** |
+| under-clarification | | 0.467 | **0.200** |
+
+**+0.002 is a tie, not a win.** It sits far inside the one-scenario noise floor DL-23 established, and calling it an improvement would be the overclaiming this log exists to prevent. What is real is the **shape**: the free model is much better at `clarify`, the route Haiku was worst at and the one DL-5 exists to test, and worse at `refuse` and `escalate`. Read those cautiously too: at n=6, one escalate scenario is worth 0.167.
+
+**Threshold 2 could not be measured, for a structural reason rather than a quality one.**
+
+| | |
+|---|---|
+| `resolve` prompt tokens | median 5,385, max **9,036** |
+| Groq free-tier per-request ceiling | **8,000** |
+| prompts over it, all 57 | **13 (23%)** |
+| prompts over it, conflict slice | **7 of 18 (39%)** |
+
+**The open model never gets to attempt the reasoning step.** The request is larger than the tier accepts. This is not "it reasons worse", it is "it is never offered the evidence".
+
+Scoring the 11 conflict scenarios that do fit was considered and **rejected**. All seven excluded carry the full ten passages, and prompt size is a proxy for how much law bears on the question, which is a proxy for how hard the precedence call is. The subset is **self-selected toward easier cases** and would flatter the open model. A biased number is worse than an honest gap.
+
+### The infrastructure findings, which are the transferable part
+
+Five constraints, none documented where they could be planned for, each found by hitting it:
+
+1. **Reasoning tokens are billed against `max_tokens` and emitted before the tool call.** A budget sized for the answer truncated the call one closing brace short, rejected server-side.
+2. **The reserved `max_tokens` is charged against the rate limit, not the tokens produced.** Reserving 1,536 where 278 were used throttled throughput fivefold for nothing.
+3. **A per-day token cap exists and is absent from the rate-limit headers.** 200,000 per model per day, discoverable only in a 429 body. One precedence arm needs ~384,000.
+4. **Daily budgets are per model, not per account**, confirmed by running a resolve-sized call on a second model while the first was exhausted.
+5. **`openai/gpt-oss-20b` cannot honour `tool_choice`**, returning "Tool choice is required, but model did not call a tool". Disqualified on the contract rather than on its score, which was the acceptance criterion fixed before any of this ran.
+
+A sixth is ours rather than theirs: **concurrent foreground calls share the same bucket.** Probing while a run was in flight caused six multi-minute 429 stalls consuming 57 of 74 elapsed minutes.
+
+### What this licenses saying
+
+**Routing is free.** A 120B-class open model matches a paid frontier model on classification and query rewriting, and beats it on the hardest route, at zero cost. To a customer asking whether triage can run on their own infrastructure, the answer is measured, and it is yes.
+
+**The evidence step is not, on a free tier.** Not because of the model: 23% of prompts exceed the per-request ceiling and the daily cap is half what one arm needs. Answering it properly needs a paid tier or self-hosting with a larger context budget. Until then it stays **unmeasured rather than half-measured**.
+
+### Deviations from the pre-registration, recorded
+
+- Pre-registered against the full 92-scenario set. Routing met that; precedence did not run at all.
+- Two open models were touched rather than one: gpt-oss-120b for routing, qwen3.8-27b probed for precedence after gpt-oss exhausted its daily budget. Neither has full coverage.
+- The Haiku precedence baseline (0.877) predates the handbook guarantee in `retrieve`, so the arms would not have sat on byte-identical retrieval even had the run completed. DL-28 measured that effect at zero, which helps and is not nothing.
+
 ---
 
 ## DL-25: End to end, and two metric bugs that made the system look half as good as it is

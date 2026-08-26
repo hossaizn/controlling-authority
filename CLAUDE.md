@@ -39,10 +39,23 @@ now the highest-value work left.
 mutated to return True with the suite still green (DL-26). Treat
 `eval/run_*.py` as production code: it is what every reported number rests on.
 
-**Open, and pre-registered:** DL-24 commits to an open-weights arm with adoption
-thresholds fixed in advance. It also supplies a cross-family verifier, which the
-entailment check currently lacks (it self-grades on the same model as `compose`,
-and that accounts for 20 of 26 verification failures).
+**DL-24 is resolved, partially.** `openai/gpt-oss-120b` matches Haiku on routing
+(**0.818 vs 0.815** macro, at **$0.00**) and beats it on `clarify` (0.800 vs
+0.533). Precedence is **unmeasured and not measurable on a free tier**: 23% of
+`resolve` prompts exceed Groq's 8,000-token per-request ceiling, and the excluded
+ones are systematically the evidence-heaviest, so scoring the remainder would
+flatter the open model.
+
+**Free-tier constraints, none of them in the rate-limit headers.** 200k tokens
+per model per day; reserved `max_tokens` charged against the limit rather than
+tokens produced; reasoning tokens billed against `max_tokens` and emitted before
+the tool call; `gpt-oss-20b` cannot honour `tool_choice`. Do not plan a run
+without accounting for all four.
+
+**Still open:** the entailment check self-grades on the same model as `compose`,
+which accounts for 20 of 26 verification failures. DL-24's open arm was meant to
+supply a cross-family verifier and can, since `verify` prompts are small enough
+to fit the ceiling.
 
 **The headline, DL-23.** Precedence as code against a system that trusts the
 top-ranked passage, same retrieval, same run:

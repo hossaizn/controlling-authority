@@ -93,7 +93,12 @@ def main() -> int:
     model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
     report = run(model)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    path = RUNS_DIR / f"triage_{model}_{PROMPT_VERSION}.json"
+    # Model ids contain slashes ("openai/gpt-oss-120b"), which turn a filename
+    # into a nonexistent subdirectory. The run completed and printed its
+    # results; only the save failed, with an exit code that read as a dead
+    # experiment. run_precedence and run_end_to_end already slugify.
+    slug = model.replace("/", "_")
+    path = RUNS_DIR / f"triage_{slug}_{PROMPT_VERSION}.json"
     path.write_text(json.dumps(report, indent=2, default=str))
     print(f"\nsaved {path}")
     return 0
