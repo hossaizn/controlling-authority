@@ -29,16 +29,15 @@ from __future__ import annotations
 
 import re
 import time
-import urllib.request
 from datetime import date
 from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+from ingest.http import fetch as http_fetch
 from ingest.models import SourceDocument
 
 BASE = "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml"
-USER_AGENT = "controlling-authority/0.1 (portfolio project; contact via GitHub)"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "ca"
 
 # Citation strings the scenario ground truth was written against. These must
@@ -163,12 +162,9 @@ def fetch_section(code: str, section: str, observed_on: date | None = None) -> S
     if cached.exists():
         html = cached.read_text(errors="ignore")
     else:
-        request = urllib.request.Request(
-            f"{BASE}?lawCode={code}&sectionNum={section}",
-            headers={"User-Agent": USER_AGENT},
+        html = http_fetch(f"{BASE}?lawCode={code}&sectionNum={section}").decode(
+            "utf-8", errors="ignore"
         )
-        with urllib.request.urlopen(request, timeout=60) as response:
-            html = response.read().decode("utf-8", errors="ignore")
         cached.write_text(html)
         time.sleep(1.5)  # this is a scrape of a public site, not an API
     return parse_ca_section(html, code, section, observed_on)

@@ -59,6 +59,31 @@ def test_no_secret_shaped_literals_in_tracked_python() -> None:
     variable whose name mentions a key or token are the pattern that matters.
     """
     suspicious: list[str] = []
+
+    def without_comments(source: str) -> str:
+        """Blank out comments before scanning.
+
+        A comment that quotes the pattern being searched for is not a
+        credential. This check flagged its own explanatory note in
+        ingest/settings.py, which is the kind of false positive that gets a
+        useful check disabled.
+        """
+        import io
+        import tokenize
+
+        lines = source.splitlines(keepends=True)
+        try:
+            tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            return source  # unparseable: scan it raw rather than skip it
+        for token in tokens:
+            if token.type != tokenize.COMMENT:
+                continue
+            row = token.start[0] - 1
+            start_col, end_col = token.start[1], token.end[1]
+            line = lines[row]
+            lines[row] = line[:start_col] + " " * (end_col - start_col) + line[end_col:]
+        return "".join(lines)
     # Threshold is 16, not 20. Validated against a real leak in an earlier repo:
     # a 16-character Alpha Vantage key sat under a 20-char threshold undetected
     # while a 40-char Cohere key was caught. Short keys are the ones that slip.
@@ -71,6 +96,6 @@ def test_no_secret_shaped_literals_in_tracked_python() -> None:
     for path in ROOT.rglob("*.py"):
         if any(part in {".venv", "__pycache__", ".git"} for part in path.parts):
             continue
-        for match in pattern.finditer(path.read_text()):
+        for match in pattern.finditer(without_comments(path.read_text())):
             suspicious.append(f"{path.relative_to(ROOT)}: {match.group(1)}")
     assert not suspicious, f"possible hardcoded credentials: {suspicious}"
