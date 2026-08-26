@@ -347,3 +347,40 @@ Six `must_address` values were written as `[\"LEAVE-002\"]` by an f-string escap
 **Payload indexes are silently inert in local mode.** Qdrant's in-memory client warns that payload indexes have no effect. The tests were therefore never exercising the production path, so indexing was run against the live container: 299 chunks, all six indexes created, no jurisdiction leaks. Same failure shape as the compose healthcheck that had never been executed.
 
 **Client and server versions were mismatched**, 1.19 against 1.12.4, far enough apart for the client to warn. Both are now pinned in step, in `pyproject.toml` and `docker-compose.yml`, with a comment in each pointing at the other.
+
+---
+
+## DL-14: Pre-registered prediction for the chunking comparison
+
+**Status:** written 2026-08-26, before any retrieval quality has been measured. Resolves in Phase 5.
+
+This entry exists to be checked against a result that does not exist yet. A decision log in which every prediction turned out correct is a log written backwards, so the prediction, the mechanism, the falsifier and the tie-break rule are all fixed here in advance.
+
+### The prediction
+
+**Structure-aware wins overall on recall@10**, and the margin is concentrated rather than spread evenly.
+
+**Where it should win, and why.** Federal regulations state eligibility as separate numbered prongs:
+
+> (1) Has been employed by the employer for at least 12 months, and
+> (2) Has been employed for at least 1,250 hours of service during the 12-month period...
+
+A fixed window has no reason to keep those together. Split between chunks, "(2)" retrieves as a bare hours requirement with nothing saying which entitlement it governs, and the chunk answering "am I eligible" holds half the test. The scenarios that turn on exactly this are `conflict-003`, `conflict-017`, `conflict-018`, `ambiguous-006` and `ambiguous-007`, all of which hinge on one prong being satisfied and the other not.
+
+**Where it should not.** The `straightforward` slice mostly asks about handbook policies, which are short, already close to one chunk under either strategy, and structurally simple. Expect no meaningful difference there, and treat a large one as a signal that something else is going on.
+
+### What would falsify it
+
+**Chunk-length variance.** Structure-aware inherits the corpus's lopsidedness: it produces chunks up to the 4,000 character cap, while fixed-size never exceeds 1,500. A long chunk dilutes its embedding, because one vector has to represent more distinct propositions. If structure loses overall, this is the most likely reason, and the check is whether its losses cluster on documents whose chunks run past roughly 2,500 characters.
+
+**A concrete number that would surprise me:** structure-aware losing the conflict slice. That is the slice its entire rationale is about, and losing it would mean the subdivision-splitting story is wrong rather than merely outweighed.
+
+### Tie-break, fixed now
+
+**If the two are within 2 points of recall@10, adopt fixed-size.** The threshold is a choice rather than a measurement, and it is set before seeing any result precisely so it cannot be adjusted afterwards to justify the more interesting answer.
+
+The reasoning: structure-aware is the more complex implementation, carrying a subdivision regex, a continuation-grouping rule, a packing heuristic and a hard cap. Complexity has to be paid for in measured benefit, not in a plausible story about why it ought to help. If the numbers are level, the simpler thing wins.
+
+### What is not on trial
+
+Both strategies keep the heading and nearest hierarchy level in the embedded text. That was settled in DL-13 for a separate reason: without it a bare subdivision is close to meaningless and an FMLA chunk reads almost identically to a CFRA one. It applies to both arms, so it is a constant here rather than a variable.

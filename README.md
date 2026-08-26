@@ -60,6 +60,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-11** | Verification found two ground-truth errors; premature verification now enforced, not remembered | Phase 3 |
 | **DL-12** | A log entry described work that never ran; silent no-ops now assert | decided |
 | **DL-13** | Chunking and embedding both left open for Phase 5 to measure | open |
+| **DL-14** | Pre-registered prediction, falsifier and tie-break for the chunking comparison | open |
 
 ---
 
