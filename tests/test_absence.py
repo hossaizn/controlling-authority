@@ -71,7 +71,13 @@ def test_absences_are_unverified_until_checked() -> None:
     """
     from ingest.absence import load_absence_index
 
-    assert all(r.verified_on is None for r in load_absence_index("OH"))
+    # Written with an exit condition. The first version asserted every record
+    # was unverified, which had to fail the moment verification happened: the
+    # DL-7 anti-pattern of a test that breaks when the project succeeds.
+    # What matters is that the flag holds a real date or a real null, never a
+    # placeholder string, and that pending records are still visible as pending.
+    for r in load_absence_index("OH"):
+        assert r.verified_on is None or r.verified_on.year >= 2026
 
 
 def test_a_string_null_is_rejected_not_treated_as_unverified() -> None:

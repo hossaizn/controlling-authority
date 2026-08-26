@@ -26,8 +26,18 @@ from ingest.state_ny import fetch_section as fetch_ny
 FEDERAL_SNAPSHOT = date(2026, 8, 1)
 
 # Scoped by what the scenario set cites, per the plan's stopping rule.
-CA_SECTIONS = [("GOV", "12945.2"), ("GOV", "12945"), ("LAB", "227.3"), ("ELEC", "14000")]
-NY_SECTIONS = [("WKC", "204")]
+# Scope is read off the scenario set. Three sections were added in Phase 5.5
+# after verification found claims that no ingested text supported:
+#   LAB 246     paid sick leave, which conflict-019 and conflict-020 rest on
+#   GOV 12945.7 bereavement, which conflict-002 rests on
+#   WKC 203     the eligibility rule conflict-006 and ambiguous-015 cite 204 for
+CA_SECTIONS = [
+    ("GOV", "12945.2"), ("GOV", "12945"), ("GOV", "12945.7"),
+    ("LAB", "227.3"), ("LAB", "246"), ("ELEC", "14000"),
+]
+# 203 sets eligibility; 204 sets the benefit 203 points to. Both are needed:
+# scenarios about "am I eligible" cite 203, scenarios about "how much" cite 204.
+NY_SECTIONS = [("WKC", "203"), ("WKC", "204")]
 FEDERAL_PART = 825
 ABSENCE_JURISDICTIONS = ["OH"]
 

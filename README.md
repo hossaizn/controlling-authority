@@ -65,6 +65,8 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-16** | Query rewriting committed; reranking gated on a pre-registered recall gap | open |
 | **DL-17** | First results: structure-aware +5.3 pts, entirely in the conflict slice, as predicted | provisional |
 | **DL-18** | DL-1/14/16 all closed: voyage-law-2 adopted, fixed chunking per tie-break, no reranking | decided |
+| **DL-19** | Verification found five ground-truth errors; three Ohio records were false | applied |
+| **DL-20** | Corrections flipped the chunking answer; two pre-registered rules collided | decided |
 
 ---
 

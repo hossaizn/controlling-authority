@@ -216,8 +216,9 @@
   verified: false
   notes: >
     Replaces a self-contradictory scenario found in review, which declared
-    tenure missing while supplying it. New York keys Paid Family Leave
-    eligibility on weeks worked rather than months of service plus hours, so
-    neither supplied fact settles it and the specific missing prong is weeks
-    worked. Tests that the agent knows which eligibility test the jurisdiction
+    tenure missing while supplying it. N.Y. Workers' Comp. Law 203 keys Paid
+    Family Leave eligibility on twenty-six or more consecutive weeks of
+    employment, so neither supplied fact settles it and the missing prong is
+    weeks worked. Verified against ingested text in Phase 5.5; 203 was added to
+    the corpus then, the claim having previously been attributed to 204. Tests that the agent knows which eligibility test the jurisdiction
     actually uses instead of reaching for the federal shape.

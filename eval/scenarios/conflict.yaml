@@ -113,15 +113,22 @@
   pairs_with: conflict-018
   expected_route: answer
   expected_authority: state
-  required_citations: ["N.Y. Workers' Comp. Law 204"]
+  required_citations: ["N.Y. Workers' Comp. Law 203"]
   must_address: ["LEAVE-002"]
   verified: false
   notes: >
     Under 12 months, so federal FMLA eligibility fails and the handbook's
-    18-month rule fails harder. New York Paid Family Leave uses a different
-    eligibility basis, weeks worked rather than months plus hours, so she may
-    qualify where both other layers say no. Tests that the agent does not apply
-    the federal eligibility test to a state benefit with its own test.
+    18-month rule fails harder. N.Y. Workers' Comp. Law 203 keys Paid Family
+    Leave eligibility on twenty-six or more consecutive weeks of employment
+    rather than months of service plus hours, so she may qualify where both
+    other layers say no. Tests that the agent does not apply the federal
+    eligibility test to a state benefit with its own test.
+
+    Citation corrected in Phase 5.5. This cited section 204, which sets benefit
+    amounts and duration and defines no eligibility test at all; 203 is titled
+    "Employees eligible for benefits under section two hundred four" and is
+    where the weeks rule lives. The claim about New York was correct throughout;
+    the citation named the provision the rule refers to rather than the rule.
 
 - scenario_id: conflict-007
   pairs_with: conflict-008
@@ -307,11 +314,19 @@
   employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-05-20
   expected_route: answer
-  expected_authority: company
+  acceptable_authorities: [state, company]
   required_citations: ["LEAVE-004-v2"]
   forbidden_citations: ["LEAVE-004-v1"]
-  verified: false
+  verified: true
   notes: >
+    Authority is indeterminate, set in Phase 5.5. Cal. Lab. Code 246 grants the
+    same accrual rate and the same 40 hour cap as the handbook, so under
+    precedence rule 5 a statute independently compels the entitlement and the
+    handbook merely concurs. Whether the statute also compels this particular
+    *use* turns on Cal. Lab. Code 246.5, which is not ingested, so the corpus
+    cannot resolve the layer. The answer is the same either way, which is what
+    acceptable_authorities exists for.
+
     Version 2 added domestic violence, sexual assault and stalking as qualifying
     uses; version 1 did not mention them. Both versions are in the corpus and
     are near-identical lexically, so this is a supersession trap sitting inside
