@@ -1,11 +1,22 @@
 """Retrieval evaluation: run the scenario set against a configured store.
 
-**These are oracle-filter numbers.** Jurisdiction and as-of date are taken from
-each scenario's metadata rather than derived from its question, because query
-rewriting is not built (DL-16). So this measures retrieval *given perfect query
-understanding*, which is the right way to isolate one variable and is not the
-same as end-to-end performance. Reporting it as though it were would flatter the
-system by exactly the amount the unbuilt component would cost.
+**These are raw-query numbers, not oracle-filter numbers** (DL-21 corrects an
+earlier, stronger caveat here). Jurisdiction and as-of date come from the
+scenario's `employee_context` and `as_of_date`, which the schema defines as what
+the asker volunteered and the date they asked on. Both are ordinary caller
+inputs: an HRIS knows which state an employee works in and what today's date is.
+Of the 57 scoreable scenarios, 47 supply a state and 10 withhold it, and
+retrieval runs **unfiltered** on those 10, so there is no case where this harness
+applies a filter the running system could not.
+
+What separates these figures from end-to-end is therefore narrower than DL-17 and
+DL-18 claimed, and is two specific things:
+
+1. **The query text.** This sends the raw question; the agent sends a rewritten
+   one. `eval/baseline_retrieval.json` exists to detect that rewrite degrading
+   retrieval, which an end-to-end score can hide.
+2. **Routing.** Every scoreable scenario expects `answer`, so a mis-route means
+   the scenario never retrieves at all. Scored separately in `eval/run_routes.py`.
 
 Only scenarios carrying `required_citations` are scored. Clarify, refuse and
 escalate have no retrieval target: whether the agent should have asked a question
@@ -20,6 +31,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date, datetime
 from pathlib import Path
@@ -50,24 +62,36 @@ def scoreable(scenarios: list[Scenario] | None = None) -> list[Scenario]:
     return [s for s in (scenarios or load_all()) if s.required_citations]
 
 
+def raw_question(scenario: Scenario) -> str:
+    return scenario.question
+
+
 def run_scenarios(
-    store: ChunkStore, scenarios: list[Scenario], limit: int = 10
+    store: ChunkStore,
+    scenarios: list[Scenario],
+    limit: int = 10,
+    query_of: Callable[[Scenario], str] = raw_question,
 ) -> list[RetrievalScore]:
+    """`query_of` selects what actually gets searched.
+
+    One code path, two callers. The baseline sends the raw question; the rewrite
+    check sends what `triage` produced. Copying this loop to vary one line is how
+    two measurements that are supposed to be comparable stop being comparable.
+    """
+    queries = [query_of(s) for s in scenarios]
+
     # One request for every question, rather than one per search. Providers
     # rate-limit on requests as well as tokens, and 57 individual calls at three
     # per minute is twenty minutes of waiting for work that fits in three.
     embed_many = getattr(store.provider, "embed_queries", None)
-    vectors = (
-        embed_many([s.question for s in scenarios])
-        if embed_many
-        else [None] * len(scenarios)
-    )
+    vectors = embed_many(queries) if embed_many else [None] * len(scenarios)
 
     scores: list[RetrievalScore] = []
-    for scenario, vector in zip(scenarios, vectors, strict=True):
+    for scenario, query, vector in zip(scenarios, queries, vectors, strict=True):
         hits = store.search(
-            scenario.question,
-            # Oracle filters. See the module docstring.
+            query,
+            # Caller-supplied, not oracular; None where the scenario withholds
+            # it, which leaves retrieval unfiltered. See the module docstring.
             jurisdiction=scenario.employee_context.state,
             as_of=scenario.as_of_date,
             limit=limit,

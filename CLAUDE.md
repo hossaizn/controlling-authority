@@ -21,7 +21,14 @@ Public repo: `github.com/hossaizn/controlling-authority`
 
 ## Status
 
-Phases 0 through 5.5 complete and merged. Phase 6 (the agent) is next.
+Phases 0 through 5.5 complete and merged. Phase 6 in progress: Tasks 6.0 (the
+regression gate), 6.1 (graph skeleton) and 6.2 (`triage`) are done. Task 6.3
+(`clarify`) is next, then 6.4 (`resolve`), which is the one that matters.
+
+**Triage, on Haiku, DL-22:** route accuracy **0.815 macro**, clearing the 0.80
+upgrade threshold by 1.5 points, which is less than one clarify scenario. Weakest
+route is clarify at 0.533. Query rewriting **improves** retrieval, 0.895 to
+**0.912** recall@10, with no slice regressing.
 
 **Adopted configuration**, settled by measurement in DL-18 and revised in DL-20:
 
@@ -126,9 +133,18 @@ Title 23, one in Title 59.
   resolution, forbidden-citation checks and figure matching are code; only
   semantic entailment needs a model. This replaces DL-15's cross-family rule and
   is both cheaper and stronger.
-- **Query rewriting is committed (DL-16) and unbuilt.** Current eval numbers are
-  **oracle-filter numbers**: jurisdiction and as-of date come from scenario
-  metadata, not from the question. End-to-end will be lower.
+- **Query rewriting is built in `triage` (DL-21), and it is narrower than DL-16
+  claimed.** Date extraction is deliberately not built: the superseded pairs are
+  word-identical questions differing only in `as_of_date`, so the date is an
+  input, not something recoverable from text. Jurisdiction extraction is built
+  but **no scenario exercises it**; 75 supply the state in context and none of
+  the 17 that withhold it name a state in the question.
+- **Retrieval numbers are raw-query numbers, not "oracle-filter" numbers.**
+  DL-21 retracts that caveat: `employee_context` and `as_of_date` are ordinary
+  caller inputs, and retrieval already runs unfiltered on the 10 scoreable
+  scenarios that withhold a state. What still separates them from end-to-end is
+  the rewritten query (watched by the regression gate) and routing errors
+  (scored in `eval/run_routes.py`).
 - **6 of 57 scoreable scenarios verified.** Ohio absences 4 of 8. Three
   verification boxes remain open, two for New York provisions no scenario needs.
 - `codes.ohio.gov` has no programmatically reachable search, so a full-code
