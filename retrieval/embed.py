@@ -16,10 +16,13 @@ quietly stop meaning anything.
 from __future__ import annotations
 
 import hashlib
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from ingest.settings import require
+from retrieval.cache import EmbeddingCache
+from retrieval.ratelimit import RateBudget, estimate_tokens
 
 
 @dataclass(frozen=True)
@@ -63,7 +66,14 @@ class EmbeddingProvider(ABC):
 
 
 class OpenAIEmbeddings(EmbeddingProvider):
-    """General-purpose baseline."""
+    """Retained but not used in DL-1.
+
+    The original design compared Voyage against OpenAI, which confounds the
+    question being asked. DL-1 asks whether a legal-domain model beats a
+    general-purpose one; a cross-vendor comparison also varies the tokenizer,
+    the training corpus and the serving stack, so a win could not be attributed
+    to domain specialisation. Both arms now run inside Voyage. See DL-18.
+    """
 
     def __init__(self, model: str = "text-embedding-3-small", dimensions: int = 1536):
         self.spec = EmbeddingSpec("openai", model, dimensions)
@@ -92,7 +102,20 @@ class OpenAIEmbeddings(EmbeddingProvider):
 
 
 class VoyageEmbeddings(EmbeddingProvider):
-    """Legal-domain model. The DL-1 hypothesis under test."""
+    """Voyage, either arm of DL-1.
+
+    `voyage-law-2` is the legal-domain model under test. `voyage-2` is the
+    general-purpose control: **same generation, same 1024 dimensions**, so the
+    only thing varying between arms is domain specialisation.
+
+    Generation matters here. Comparing `voyage-law-2` against `voyage-4` would
+    have confounded "legal beats general" with "newer beats older", and a win
+    would have been unattributable.
+    """
+
+    # Shared across instances: the limit is per account, not per object, so a
+    # per-instance budget would let two providers each use the full allowance.
+    _budget = RateBudget()
 
     def __init__(self, model: str = "voyage-law-2", dimensions: int = 1024):
         self.spec = EmbeddingSpec("voyage", model, dimensions)
@@ -108,14 +131,64 @@ class VoyageEmbeddings(EmbeddingProvider):
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        return self._get_client().embed(
-            texts, model=self.spec.model, input_type="document"
-        ).embeddings
+        return self._cached(texts, "document")
+
+    def _cached(self, texts: list[str], input_type: str) -> list[list[float]]:
+        """Compute only what is not already on disk.
+
+        Re-running the evaluation then costs nothing, which matters most while
+        the account is throttled to three requests a minute.
+        """
+        cache = EmbeddingCache(f"{self.spec.model}_{input_type}")
+        found, missing = cache.get_many(texts)
+        if missing:
+            pending = [texts[i] for i in missing]
+            # Wait for room before sending, rather than sending and recovering.
+            self._budget.acquire(estimate_tokens(pending))
+            fresh = self._with_retry(
+                lambda: self._get_client()
+                .embed([texts[i] for i in missing], model=self.spec.model,
+                       input_type=input_type)
+                .embeddings
+            )
+            for index, vector in zip(missing, fresh, strict=True):
+                cache.put(texts[index], vector)
+                found[index] = vector
+        return [v for v in found if v is not None]
+
+    @staticmethod
+    def _with_retry(call, attempts: int = 8):
+        """Exponential backoff on rate limits.
+
+        An account without a payment method is capped at 3 requests and 10,000
+        tokens per minute. The free token allowance is unaffected, so the limit
+        is a pacing constraint rather than a cost one, and waiting is the
+        correct response rather than an error.
+        """
+        import voyageai.error
+
+        delay = 5.0
+        for attempt in range(attempts):
+            try:
+                return call()
+            except voyageai.error.RateLimitError:
+                if attempt == attempts - 1:
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 1.7, 90.0)
+        raise RuntimeError("unreachable")
 
     def embed_query(self, text: str) -> list[float]:
-        return self._get_client().embed(
-            [text], model=self.spec.model, input_type="query"
-        ).embeddings[0]
+        return self._cached([text], "query")[0]
+
+    def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """Embed many queries in one request.
+
+        The evaluation asks 57 questions per configuration. Sent one at a time
+        that is 57 requests, which at three per minute is twenty minutes of
+        waiting for work that fits in three calls.
+        """
+        return self._cached(texts, "query")
 
 
 class DeterministicEmbeddings(EmbeddingProvider):
@@ -143,9 +216,20 @@ class DeterministicEmbeddings(EmbeddingProvider):
         return self._vector(text)
 
 
+def voyage_legal() -> VoyageEmbeddings:
+    """DL-1 treatment arm: legal-domain."""
+    return VoyageEmbeddings(model="voyage-law-2", dimensions=1024)
+
+
+def voyage_general() -> VoyageEmbeddings:
+    """DL-1 control arm: general-purpose, same generation and width."""
+    return VoyageEmbeddings(model="voyage-2", dimensions=1024)
+
+
 PROVIDERS = {
+    "voyage-law": voyage_legal,
+    "voyage-general": voyage_general,
     "openai": OpenAIEmbeddings,
-    "voyage": VoyageEmbeddings,
     "deterministic": DeterministicEmbeddings,
 }
 
@@ -154,3 +238,28 @@ def get_provider(name: str) -> EmbeddingProvider:
     if name not in PROVIDERS:
         raise ValueError(f"unknown provider {name!r}; expected one of {sorted(PROVIDERS)}")
     return PROVIDERS[name]()
+
+
+class SparseOnly(EmbeddingProvider):
+    """No dense vectors at all: retrieval falls to lexical matching.
+
+    Not a degraded mode. Sparse matching with server-side IDF is a legitimate
+    retrieval strategy, and it needs no credentials, so the chunking comparison
+    can run before DL-1 is settled. Results from this arm are labelled as their
+    own configuration rather than reported as though they were hybrid.
+
+    A one-dimensional dense vector is still written, because a collection needs
+    a dense configuration to exist. It is never queried.
+    """
+
+    def __init__(self) -> None:
+        self.spec = EmbeddingSpec("none", "sparse_only", 1)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[0.0] for _ in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return [0.0]
+
+
+PROVIDERS["sparse"] = SparseOnly

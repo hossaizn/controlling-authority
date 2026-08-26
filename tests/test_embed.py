@@ -22,7 +22,7 @@ from retrieval.embed import (
 def test_both_candidate_models_are_available_and_neither_is_default() -> None:
     """DL-1 is open. A default would decide by omission what is meant to be
     decided by measurement."""
-    assert {"openai", "voyage"} <= set(PROVIDERS)
+    assert {"voyage-law", "voyage-general"} <= set(PROVIDERS)
     with pytest.raises(TypeError):
         get_provider()  # type: ignore[call-arg]
 
@@ -30,19 +30,24 @@ def test_both_candidate_models_are_available_and_neither_is_default() -> None:
 def test_specs_pin_a_model_version_not_a_floating_alias() -> None:
     """An index built against a silently updated model is not comparable with
     the numbers that justified choosing it."""
-    assert OpenAIEmbeddings().spec.model == "text-embedding-3-small"
-    assert VoyageEmbeddings().spec.model == "voyage-law-2"
+    assert get_provider("voyage-law").spec.model == "voyage-law-2"
+    assert get_provider("voyage-general").spec.model == "voyage-2"
 
 
-def test_the_two_candidates_have_different_dimensions() -> None:
-    """Which is exactly why they cannot share a collection."""
-    assert OpenAIEmbeddings().spec.dimensions != VoyageEmbeddings().spec.dimensions
+def test_the_dl1_arms_differ_only_in_domain_specialisation() -> None:
+    """Same generation and same width, so a win is attributable to the domain
+    model rather than to a newer or larger one."""
+    legal = get_provider("voyage-law").spec
+    general = get_provider("voyage-general").spec
+    assert legal.dimensions == general.dimensions == 1024
+    assert legal.model.endswith("-2") and general.model.endswith("-2")
+    assert legal.provider == general.provider
 
 
 def test_collection_suffix_separates_models() -> None:
     suffixes = {
-        OpenAIEmbeddings().spec.collection_suffix,
-        VoyageEmbeddings().spec.collection_suffix,
+        get_provider("voyage-law").spec.collection_suffix,
+        get_provider("voyage-general").spec.collection_suffix,
         DeterministicEmbeddings().spec.collection_suffix,
     }
     assert len(suffixes) == 3

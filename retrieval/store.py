@@ -119,7 +119,14 @@ class ChunkStore:
         ]:
             self.client.create_payload_index(self.collection, field, schema)
 
-    def index(self, chunks: list[Chunk], batch_size: int = 64) -> int:
+    def index(self, chunks: list[Chunk], batch_size: int = 12) -> int:
+        """Index chunks.
+
+        The default batch is sized for tokens rather than convenience. Chunks
+        average roughly 300 tokens, so 64 of them is about 19,000 in one
+        request, which alone exceeds an unpaid Voyage account's 10,000 per
+        minute ceiling and fails before any pacing can help.
+        """
         wrong = [c.chunk_id for c in chunks if c.strategy != self.strategy]
         if wrong:
             raise ValueError(
@@ -159,7 +166,14 @@ class ChunkStore:
         jurisdiction: str | None = None,
         as_of: date | None = None,
         limit: int = 10,
+        query_vector: list[float] | None = None,
     ) -> list[SearchHit]:
+        """`query_vector` lets a caller supply a precomputed dense embedding.
+
+        The evaluation embeds all 57 questions in one request rather than one
+        per search, which matters when the provider is throttled to three
+        requests a minute.
+        """
         must: list[models.Condition] = []
 
         if jurisdiction:
@@ -190,6 +204,28 @@ class ChunkStore:
         query_filter = models.Filter(must=must) if must else None
         sparse_indices, sparse_values = sparse_vector(query)
 
+        sparse_prefetch = models.Prefetch(
+            query=models.SparseVector(indices=sparse_indices, values=sparse_values),
+            using=SPARSE,
+            filter=query_filter,
+            limit=limit * 4,
+        )
+
+        # Sparse-only is a real retrieval mode, not a degraded one: it is
+        # lexical matching with server-side IDF, which needs no embedding
+        # provider and therefore no credentials. It lets the chunking comparison
+        # run before DL-1 is settled, and it is labelled as its own arm rather
+        # than reported as though it were the hybrid result.
+        if self.provider.spec.provider == "none":
+            response = self.client.query_points(
+                collection_name=self.collection,
+                prefetch=[sparse_prefetch],
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                limit=limit,
+                with_payload=True,
+            )
+            return _hits(response)
+
         # Hybrid: dense and sparse retrieved separately, then fused with
         # reciprocal rank fusion. Legal text needs both. A dense embedding puts
         # "825.200" near its paraphrases, which is wrong for a citation lookup;
@@ -202,7 +238,11 @@ class ChunkStore:
             collection_name=self.collection,
             prefetch=[
                 models.Prefetch(
-                    query=self.provider.embed_query(query),
+                    query=(
+                        query_vector
+                        if query_vector is not None
+                        else self.provider.embed_query(query)
+                    ),
                     using=DENSE,
                     filter=query_filter,
                     limit=limit * 4,
@@ -220,19 +260,23 @@ class ChunkStore:
             limit=limit,
             with_payload=True,
         )
-        return [
-            SearchHit(
-                chunk_id=p.payload["chunk_id"],
-                citation=p.payload["citation"],
-                authority_layer=p.payload["authority_layer"],
-                jurisdiction=p.payload["jurisdiction"],
-                content_status=p.payload["content_status"],
-                heading=p.payload["heading"],
-                text=p.payload["text"],
-                score=p.score,
-            )
-            for p in response.points
-        ]
+        return _hits(response)
+
+
+def _hits(response) -> list[SearchHit]:
+    return [
+        SearchHit(
+            chunk_id=p.payload["chunk_id"],
+            citation=p.payload["citation"],
+            authority_layer=p.payload["authority_layer"],
+            jurisdiction=p.payload["jurisdiction"],
+            content_status=p.payload["content_status"],
+            heading=p.payload["heading"],
+            text=p.payload["text"],
+            score=p.score,
+        )
+        for p in response.points
+    ]
 
 
 # Text still in force needs an upper bound a range filter can compare against.
