@@ -89,8 +89,20 @@ class PrecedenceOutcome:
         return set(self.must_address) <= named
 
 
-def run(model: str = HAIKU) -> dict:
+def run(model: str = HAIKU, only_slice: str | None = None) -> dict:
+    """`only_slice` restricts the run to one slice.
+
+    Added because Groq's free tier caps a model at 200,000 tokens per day and
+    the full arm needs roughly 384,000. This is a deviation from DL-24, which
+    pre-registered the full scenario set, and it is forced by infrastructure
+    rather than chosen for convenience: the conflict slice is where the
+    project's thesis lives, so it is the most informative 18 scenarios to
+    spend a daily budget on. Recorded as a deviation, not presented as the
+    original protocol.
+    """
     scenarios = [s for s in load_all() if s.expected_route == "answer"]
+    if only_slice:
+        scenarios = [s for s in scenarios if s.slice == only_slice]
     usage = Usage()
     caller = StructuredCaller(usage=usage)
 
@@ -221,9 +233,11 @@ def report(outcomes: list[PrecedenceOutcome], usage: Usage, model: str = HAIKU) 
 
 def main() -> int:
     model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
-    result = run(model)
+    only_slice = sys.argv[2] if len(sys.argv) > 2 else None
+    result = run(model, only_slice)
     slug = model.replace('/', '_')
-    path = Path(RUNS_DIR) / f"precedence_{PROMPT_VERSION}_{slug}.json"
+    suffix = f"_{only_slice}" if only_slice else ""
+    path = Path(RUNS_DIR) / f"precedence_{PROMPT_VERSION}_{slug}{suffix}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2))
     print(f"saved {path}")

@@ -40,3 +40,23 @@ def test_the_window_prunes_old_events() -> None:
     stamp, tokens = budget._events[0]
     budget._events[0] = (stamp - 61.0, tokens)
     assert budget.acquire(9_000) == 0.0
+
+
+def test_a_request_larger_than_the_whole_budget_does_not_crash() -> None:
+    """Reachable, and it raised IndexError.
+
+    Groq's free tier deducts the reserved max_tokens rather than the tokens
+    produced, so one `resolve` call reserves almost the entire per-minute budget
+    by itself. With an empty window there is no oldest event to wait on, and the
+    sleep computation indexed into an empty deque.
+    """
+    budget = RateBudget(max_tokens_per_minute=1_000, max_requests_per_minute=60)
+    assert budget.acquire(5_000) == 0.0
+
+
+def test_an_oversized_request_still_paces_the_next_one() -> None:
+    """Having spent the budget, the following call must wait rather than sail
+    through on an empty window."""
+    budget = RateBudget(max_tokens_per_minute=1_000, max_requests_per_minute=60)
+    budget.acquire(5_000)
+    assert len(budget._events) == 1
