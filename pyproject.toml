@@ -23,9 +23,13 @@ dependencies = [
     "langgraph>=0.2",
     "langchain-core>=0.3",
     # models. Multi-provider on purpose: verify must not share a family with compose.
-    "anthropic>=0.39",
-    "openai>=1.54",
-    "voyageai>=0.3",
+    # Upper bounds on the SDKs whose response shapes this code reads. DL-1's
+    # result is only reproducible if the embedding call means the same thing
+    # later; a major-version bump that changes a response shape would break
+    # that quietly rather than loudly.
+    "anthropic>=0.39,<1.0",
+    "openai>=1.54,<2.0",
+    "voyageai>=0.3,<1.0",
     # observability
     "langfuse>=2.53",
     "certifi>=2026.7.22",

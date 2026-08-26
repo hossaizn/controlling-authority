@@ -16,6 +16,7 @@ than an error.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import date
 
@@ -24,11 +25,34 @@ from qdrant_client import QdrantClient, models
 from ingest.settings import QDRANT_API_KEY, QDRANT_URL
 from retrieval.chunking import Chunk
 from retrieval.embed import EmbeddingProvider
+from retrieval.sparse import sparse_vector
 
 # The handbook applies everywhere, so a state query must still see it. Federal
 # law applies everywhere too. A jurisdiction filter therefore admits the
 # jurisdiction asked about plus the universal layers, and nothing else.
 UNIVERSAL_JURISDICTION = "US"
+
+# Named vectors. The spec requires hybrid retrieval, and unnamed-to-named is a
+# breaking collection change rather than an additive one, so it has to exist
+# before any index is built for real measurement.
+DENSE = "dense"
+SPARSE = "sparse"
+
+# Namespace for deterministic point ids. Any fixed UUID would do; this one is
+# arbitrary and constant.
+_POINT_NAMESPACE = uuid.UUID("6f2b1c94-3f0a-4b7e-9a1d-2c5e8f0a7b31")
+
+
+def point_id(chunk_id: str) -> str:
+    """A stable id for a chunk, identical across processes and runs.
+
+    The first version used `abs(hash(chunk_id)) % 2**63`. Python randomises str
+    hashing per process unless PYTHONHASHSEED is set, so the same chunk received
+    a different id on every run: re-indexing inserted duplicates instead of
+    updating, and this was confirmed on the live server, where re-running index()
+    in a fresh process left 12 points for 6 chunks. Nothing errored.
+    """
+    return str(uuid.uuid5(_POINT_NAMESPACE, chunk_id))
 
 
 @dataclass(frozen=True)
@@ -73,9 +97,17 @@ class ChunkStore:
             self.client.delete_collection(self.collection)
         self.client.create_collection(
             collection_name=self.collection,
-            vectors_config=models.VectorParams(
-                size=self.provider.spec.dimensions, distance=models.Distance.COSINE
-            ),
+            vectors_config={
+                DENSE: models.VectorParams(
+                    size=self.provider.spec.dimensions, distance=models.Distance.COSINE
+                )
+            },
+            # IDF is computed by Qdrant across the collection. Computing it here
+            # would mean recomputing on every corpus change and being silently
+            # stale whenever that was missed.
+            sparse_vectors_config={
+                SPARSE: models.SparseVectorParams(modifier=models.Modifier.IDF)
+            },
         )
         for field, schema in [
             ("jurisdiction", models.PayloadSchemaType.KEYWORD),
@@ -103,11 +135,19 @@ class ChunkStore:
                 collection_name=self.collection,
                 points=[
                     models.PointStruct(
-                        id=abs(hash(c.chunk_id)) % (2**63),
-                        vector=vector,
+                        id=point_id(c.chunk_id),
+                        vector={
+                            DENSE: dense,
+                            SPARSE: models.SparseVector(indices=idx, values=vals),
+                        },
                         payload=_payload(c),
                     )
-                    for c, vector in zip(batch, vectors, strict=True)
+                    for c, dense, (idx, vals) in zip(
+                        batch,
+                        vectors,
+                        [sparse_vector(c.embedding_text) for c in batch],
+                        strict=True,
+                    )
                 ],
             )
             written += len(batch)
@@ -147,10 +187,36 @@ class ChunkStore:
                 )
             )
 
+        query_filter = models.Filter(must=must) if must else None
+        sparse_indices, sparse_values = sparse_vector(query)
+
+        # Hybrid: dense and sparse retrieved separately, then fused with
+        # reciprocal rank fusion. Legal text needs both. A dense embedding puts
+        # "825.200" near its paraphrases, which is wrong for a citation lookup;
+        # sparse matching alone misses anything worded differently.
+        #
+        # The filter is applied to each prefetch, not after fusion, so it stays
+        # a hard constraint rather than a post-hoc trim that can silently return
+        # fewer than `limit` results.
         response = self.client.query_points(
             collection_name=self.collection,
-            query=self.provider.embed_query(query),
-            query_filter=models.Filter(must=must) if must else None,
+            prefetch=[
+                models.Prefetch(
+                    query=self.provider.embed_query(query),
+                    using=DENSE,
+                    filter=query_filter,
+                    limit=limit * 4,
+                ),
+                models.Prefetch(
+                    query=models.SparseVector(
+                        indices=sparse_indices, values=sparse_values
+                    ),
+                    using=SPARSE,
+                    filter=query_filter,
+                    limit=limit * 4,
+                ),
+            ],
+            query=models.FusionQuery(fusion=models.Fusion.RRF),
             limit=limit,
             with_payload=True,
         )

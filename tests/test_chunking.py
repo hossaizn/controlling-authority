@@ -128,10 +128,63 @@ def test_fixed_size_windows_overlap() -> None:
 
 
 def test_fixed_size_drops_a_final_window_that_adds_nothing() -> None:
-    doc = make_doc("y" * 1100)
+    """Sized so the dedup actually fires.
+
+    The first version used 1,100 characters, where the final window still added
+    new text, so the break never executed: removing the deduplication entirely,
+    or flipping its comparison, passed the suite. At 1,700 the last window start
+    lands inside the previous window's end.
+    """
+    doc = make_doc("y" * 1700)
     chunks = chunk_fixed_size(doc, size_chars=1000, overlap_chars=200)
+    # Windows start at 0, 800, 1600. The third would end at 1700, exactly where
+    # the second ends, so it contributes nothing and must be dropped.
     assert len(chunks) == 2
-    assert chunks[1].text != chunks[0].text
+    assert len(chunks[0].text) == 1000
+    assert len(chunks[1].text) == 900
+
+
+def test_no_content_is_lost_by_either_strategy() -> None:
+    """Conservation. A mutated hard-split that dropped half of every oversized
+    unit passed the suite, because the only assertion was an upper bound on
+    chunk length."""
+    doc = make_doc("(a) " + "alpha " * 900 + "\n\n(b) " + "beta " * 900)
+    for chunks in (chunk_structure_aware(doc), chunk_fixed_size(doc)):
+        rejoined = "".join(c.text for c in chunks)
+        assert rejoined.count("alpha") >= 900
+        assert rejoined.count("beta") >= 900
+
+
+def test_prose_documents_are_split_on_paragraphs() -> None:
+    """Not every source uses numbered subdivisions.
+
+    The handbook policies are prose under Markdown headings with no "(a)"
+    markers, so every block folded into one unit and target_chars became inert:
+    a 1,612 character policy emitted a single oversized chunk while the baseline
+    correctly emitted two.
+    """
+    doc = make_doc("\n\n".join(f"Paragraph {i} of ordinary prose. " * 20 for i in range(4)))
+    chunks = chunk_structure_aware(doc, target_chars=600)
+    assert len(chunks) > 1
+    assert all(len(c.text) < 2000 for c in chunks)
+
+
+def test_a_single_paragraph_document_stays_one_chunk() -> None:
+    """The paragraph fallback must not fire when there is nothing to fall back
+    to, or it would re-split text that has no internal boundaries."""
+    doc = make_doc("One paragraph, no blank lines, nothing to split on.")
+    assert len(chunk_structure_aware(doc)) == 1
+
+
+def test_subdivision_pattern_matches_real_openers_and_not_prose() -> None:
+    """The regex was entirely untested: loosening it to "anything starting with
+    a bracket" survived."""
+    from retrieval.chunking import SUBDIVISION
+
+    for opener in ("(a) text", "(1) text", "(iv) text", "(bb) text", "(12) text"):
+        assert SUBDIVISION.match(opener), opener
+    for prose in ("(see below) text", "(2026) text", "text (a) mid-sentence", "(a"):
+        assert not SUBDIVISION.match(prose), prose
 
 
 def test_overlap_must_be_smaller_than_the_window() -> None:

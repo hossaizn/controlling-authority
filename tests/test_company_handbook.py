@@ -133,3 +133,51 @@ def test_every_handbook_citation_used_by_scenarios_resolves(docs) -> None:
             if c.startswith("LEAVE-"):
                 used.add(c)
     assert used <= available, f"cited but not ingested: {sorted(used - available)}"
+
+
+def test_the_allowlist_rejects_answer_key_filenames() -> None:
+    """Review defeated the first version, which was case-insensitive and let
+    LEAVE-009-defects.md through. The earlier test only grepped documents that
+    had already loaded, so it never presented a hostile filename at all."""
+    from ingest.company_handbook import is_policy_file
+
+    for name in (
+        "LEAVE-009-defects.md",
+        "LEAVE-001-DEFECTS.md",
+        "leave-000-defects.MD",
+        "LEAVE-999-ground-truth-answer-key.MD",
+        "DEFECTS.md",
+        "README.md",
+        "notes.md",
+    ):
+        assert not is_policy_file(name), f"allowlist admitted {name}"
+
+
+def test_the_allowlist_still_accepts_real_policies() -> None:
+    from ingest.company_handbook import is_policy_file
+
+    for name in (
+        "LEAVE-001-family-medical-leave.md",
+        "LEAVE-004-v1-paid-sick-leave.md",
+        "LEAVE-004-v2-paid-sick-leave.md",
+    ):
+        assert is_policy_file(name), f"allowlist rejected {name}"
+
+
+def test_answer_key_content_is_refused_even_with_a_valid_filename(tmp_path) -> None:
+    """Defence in depth. A file can satisfy the naming convention and still be
+    the answer key, and the consequence is silent: an agent retrieving it would
+    score well on precisely the scenarios that exist to catch it."""
+    import ingest.company_handbook as handbook_mod
+
+    (tmp_path / "LEAVE-010-sneaky.md").write_text(
+        "---\npolicy_id: LEAVE-010\ntitle: Sneaky\neffective_from: 2024-01-01\n---\n"
+        "# Sneaky\n\nDefect D-1. The correct resolution is that statute controls.\n"
+    )
+    original = handbook_mod.HANDBOOK_DIR
+    handbook_mod.HANDBOOK_DIR = tmp_path
+    try:
+        with pytest.raises(ValueError, match="answer-key material"):
+            handbook_mod.load_handbook(OBSERVED)
+    finally:
+        handbook_mod.HANDBOOK_DIR = original

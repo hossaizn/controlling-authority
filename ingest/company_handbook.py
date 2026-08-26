@@ -28,7 +28,39 @@ HANDBOOK_DIR = Path(__file__).resolve().parent.parent / "corpus" / "handbook"
 
 # Allowlist, not a denylist. Anything that is not a numbered policy file is not
 # part of the corpus, whatever it is called.
-POLICY_FILENAME = re.compile(r"^LEAVE-\d{3}(?:-v\d+)?-[a-z0-9-]+\.md$", re.I)
+#
+# Case-sensitive, deliberately. The first version used re.I, which admitted
+# LEAVE-009-defects.md, LEAVE-001-DEFECTS.md and leave-000-defects.MD: an
+# allowlist that a file named "defects" can satisfy is not protecting anything.
+# Policy files are lowercase-suffixed by convention, so requiring that costs
+# nothing and removes a whole class of near-miss filename.
+POLICY_FILENAME = re.compile(r"^LEAVE-\d{3}(?:-v\d+)?-[a-z0-9-]+\.md$")
+
+# The pattern alone cannot tell "defects" from a genuine policy name: that is a
+# semantic question, not a structural one, and LEAVE-009-defects.md is a
+# perfectly well-formed policy filename. These slugs are refused outright.
+FORBIDDEN_SLUGS = ("defect", "answer", "ground-truth", "groundtruth", "key", "solution")
+
+
+def is_policy_file(name: str) -> bool:
+    if not POLICY_FILENAME.match(name):
+        return False
+    return not any(slug in name.lower() for slug in FORBIDDEN_SLUGS)
+
+# Second line of defence, independent of the filename. DEFECTS.md states which
+# clauses are wrong and how each resolves, so any of these phrases in an
+# ingested body means the answer key has reached the corpus.
+#
+# Two mechanisms rather than one because the consequence is silent: an agent
+# retrieving the answer key would score well on exactly the scenarios the
+# project exists to test, and nothing about the result would look wrong.
+ANSWER_KEY_MARKERS = (
+    "ground truth",
+    "seeded defect",
+    "correct resolution",
+    "defect d-",
+    "never be ingested",
+)
 
 FRONT_MATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.S)
 
@@ -59,7 +91,7 @@ def load_handbook(observed_on: date | None = None) -> list[SourceDocument]:
     docs: list[SourceDocument] = []
 
     for path in sorted(HANDBOOK_DIR.glob("*.md")):
-        if not POLICY_FILENAME.match(path.name):
+        if not is_policy_file(path.name):
             continue  # README.md, DEFECTS.md, anything else added later
 
         raw = path.read_text()
@@ -72,8 +104,20 @@ def load_handbook(observed_on: date | None = None) -> list[SourceDocument]:
         # Drop the H1: the title is held as the heading, and repeating it would
         # start every chunk of the policy with the same string.
         body = re.sub(r"^#\s+.*\n", "", body, count=1)
-        body = SUPERSEDED_BANNER.sub("", body, count=1)
+        # Only strip a leading blockquote when it is actually the supersession
+        # banner. Stripping unconditionally would silently delete any other
+        # blockquote a policy happened to open with.
+        if SUPERSEDED_BANNER.match(body.lstrip("\n")) and "superseded" in body[:400].lower():
+            body = SUPERSEDED_BANNER.sub("", body.lstrip("\n"), count=1)
         text = _clean(body)
+
+        lowered = text.lower()
+        found = [m for m in ANSWER_KEY_MARKERS if m in lowered]
+        if found:
+            raise ValueError(
+                f"{path.name}: reads as answer-key material ({found}); refusing to "
+                "ingest. Policy files must not describe the defects they contain."
+            )
 
         policy_id = meta["policy_id"]
         version = meta.get("version")
