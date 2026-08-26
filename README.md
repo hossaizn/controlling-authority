@@ -58,6 +58,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-9** | Federal citations verified against ingested text; one claim was too broad | federal done |
 | **DL-10** | Mutation testing showed the date tests proved nothing; contract was federal-shaped | decided |
 | **DL-11** | Verification found two ground-truth errors; premature verification now enforced, not remembered | Phase 3 |
+| **DL-12** | A log entry described work that never ran; silent no-ops now assert | decided |
 
 ---
 

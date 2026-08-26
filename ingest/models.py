@@ -124,6 +124,12 @@ class SourceDocument(BaseModel):
         Inclusive at both ends: a provision is in force on the day it takes
         effect and on the day it is superseded.
         """
+        # An absence is a standing fact about a body of law, not a provision
+        # with a commencement date. Comparing it against a query date would
+        # assert that a jurisdiction's silence "began" on some day, and the
+        # sentinel used to express that would then leak into answers.
+        if self.content_status == "absent":
+            return True
         if day < self.effective_from:
             return False
         return self.effective_to is None or day <= self.effective_to

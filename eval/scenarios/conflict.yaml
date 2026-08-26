@@ -20,9 +20,9 @@
   employee_context: {state: CA, tenure_months: 14, hours_worked_12mo: 1800, employer_size: 400}
   as_of_date: 2026-03-01
   expected_route: answer
-  expected_authority: state
+  acceptable_authorities: [federal, state]
   required_citations: ["Cal. Gov. Code 12945.2"]
-  must_address: [\"LEAVE-002\"]
+  must_address: ["LEAVE-002"]
   verified: true
   notes: >
     Defect D-1. The handbook (LEAVE-002) requires 18 months, so the most
@@ -30,6 +30,13 @@
     hours, which she meets, so the answer is yes and the handbook term is
     unenforceable as to her. A correct answer should also mention the handbook
     and why it does not control, since she has probably already read it.
+
+    Authority is indeterminate rather than state, corrected in Phase 3.5. At 14
+    months with 1,800 hours at a 400-person employer she satisfies the federal
+    test too, and precedence rule 5 orders statute above policy without ordering
+    federal against state when both independently compel the same outcome. The
+    point of the scenario is that a statute defeats the handbook, and either
+    statute does.
 
 - scenario_id: conflict-002
   slice: conflict
@@ -72,7 +79,7 @@
   expected_route: answer
   expected_authority: state
   required_citations: ["Cal. Gov. Code 12945.2"]
-  must_address: [\"LEAVE-001\"]
+  must_address: ["LEAVE-001"]
   verified: true
   notes: >
     Defect D-4, California half. The handbook lists spouse, child and parent,
@@ -89,7 +96,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.122"]
-  must_address: [\"LEAVE-001\"]
+  must_address: ["LEAVE-001"]
   verified: false
   notes: >
     Defect D-4, Ohio half, and the single most valuable case in the set. Word
@@ -120,20 +127,25 @@
   pairs_with: conflict-008
   slice: conflict
   question: >
-    I have 11 vacation days left over from last year and HR says I lose the
-    ones over 5 after March. Is that right?
+    I'm leaving at the end of the month with 11 unused vacation days. The
+    handbook says anything over 5 is forfeited. Do I get paid for them?
   employee_context: {state: CA, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-04-10
   expected_route: answer
   expected_authority: state
   required_citations: ["Cal. Lab. Code 227.3"]
-  must_address: [\"LEAVE-008\"]
+  must_address: ["LEAVE-008"]
   verified: true
   notes: >
-    Defect D-6. The handbook forfeits carryover beyond 5 days. California treats
-    accrued vacation as earned wages that cannot be forfeited, so the clause is
-    unenforceable there. She is quoting the handbook back, which is exactly the
-    situation where retrieving it and agreeing is the confident wrong answer.
+    Defect D-6, reframed in Phase 3.5. Cal. Lab. Code 227.3 requires vested
+    vacation to be paid as wages on termination and bars a policy from providing
+    for forfeiture of it, so the handbook clause cannot be applied to her and she
+    is owed all 11 days. She is quoting the handbook back, which is exactly where
+    retrieving it and agreeing is the confident wrong answer.
+
+    Phase 3 claimed this had been reframed and it had not: the edit silently
+    no-opped and nothing asserted otherwise, so the scenario kept a question
+    about annual carryover that 227.3 does not address, while marked verified.
 
 - scenario_id: conflict-008
   pairs_with: conflict-007
@@ -155,7 +167,9 @@
 
 - scenario_id: conflict-009
   slice: conflict
-  question: Does the company have to pay out my unused vacation when I resign?
+  question: >
+    The handbook says vacation payout follows the law of the state I work in.
+    What does that actually mean for me?
   employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-08-01
   expected_route: answer
@@ -183,7 +197,7 @@
   expected_authority: state
   required_citations: ["Cal. Gov. Code 12945.2"]
   forbidden_citations: ["29 CFR 825.104"]
-  must_address: [\"LEAVE-001\"]
+  must_address: ["LEAVE-001"]
   verified: true
   notes: >
     Federal FMLA requires 50 employees within 75 miles, so it does not apply at
@@ -219,7 +233,7 @@
   expected_authority: federal
   required_citations: ["29 CFR 825.112"]
   forbidden_citations: ["LEAVE-005"]
-  must_address: [\"LEAVE-005\"]
+  must_address: ["LEAVE-005"]
   verified: false
   notes: >
     She names the wrong policy. Personal leave is discretionary, capped near 30
@@ -260,7 +274,13 @@
     by a day of service: 29 CFR 825.110 says "at least 12 months", while Cal.
     Gov. Code 12945.2 says "more than 12 months of service". At exactly twelve
     months she meets the federal test and fails the state one, so federal
-    controls and CFRA is a forbidden citation. The original assumed both floors
+    controls and CFRA is a forbidden citation.
+
+    Narrowed in Phase 3.5: subdivision (r) of 12945.2 opens an alternative route
+    at "12 months or more" for air-carrier flight and cabin crew, who would
+    qualify at exactly twelve months. She is a logistics employee, so the
+    ordinary test governs, but the claim is about this employee rather than
+    about California generally. The original assumed both floors
     read alike and labelled this state-controlled.
 
 - scenario_id: conflict-018

@@ -261,13 +261,17 @@ Reading the citation requirements off the scenario set before writing any adapte
 | New York | 1 section |
 | **Ohio** | **0** |
 
-**Ohio needs no statutory adapter at all.** All 46 Ohio scenarios resolve to federal law, the handbook, or a recorded absence. The plan's stopping rule, that ingestion ends when the eval is answerable, eliminated an entire integration before a line of it was written. The Phase 3 plan had specified ingesting Ohio's military, jury duty and voting leave provisions; nothing asks about them.
+**Ohio needs no statutory adapter at all.** All 48 Ohio scenarios resolve to federal law, the handbook, or a recorded absence.
+
+**Two corrections to this paragraph, made in Phase 3.5.** The count was 46 and is 48; it was written from memory rather than computed. And "or a recorded absence" was not true when written: three scenarios rested on Ohio silence about jury duty pay, witness duty pay and military leave that no record covered. A test now asserts every Ohio scenario expecting the handbook to control has a corresponding absence record, so the claim is enforced rather than asserted. The plan's stopping rule, that ingestion ends when the eval is answerable, eliminated an entire integration before a line of it was written. The Phase 3 plan had specified ingesting Ohio's military, jury duty and voting leave provisions; nothing asks about them.
 
 ### Two scenarios asserted things the text does not say
 
 **`conflict-017` was backwards.** Federal `29 CFR 825.110` grants eligibility at "at least 12 months". California `Gov. Code 12945.2` says "more than 12 months of service". At exactly twelve months the federal test is met and the state test is not, so federal controls, not state. The scenario had been written assuming both floors read alike, with a note asserting the inclusive reading as though it settled both. It is now a better scenario than the original: a boundary case where the two layers genuinely diverge by a day of service.
 
-**`Cal. Lab. Code 227.3` does not say what D-6 claimed.** The defect asserted that a use-it-or-lose-it clause is unenforceable in California generally. The section addresses forfeiture and payout **upon termination** and is silent on annual carryover during employment. The wider proposition rests on vacation being vested plus agency interpretation, neither of which is in the corpus. `conflict-007`, `conflict-008` and `ambiguous-004` were reframed onto termination, which the text does support, and `conflict-009` moved to Ohio to become a deferral-into-silence case rather than a duplicate.
+**`Cal. Lab. Code 227.3` does not say what D-6 claimed.** The defect asserted that a use-it-or-lose-it clause is unenforceable in California generally. The section addresses forfeiture and payout **upon termination** and is silent on annual carryover during employment. The wider proposition rests on vacation being vested plus agency interpretation, neither of which is in the corpus. `conflict-008` and `ambiguous-004` were reframed onto termination, which the text does support, and `conflict-009` moved to Ohio.
+
+**This paragraph originally said `conflict-007` was reframed too. It was not.** The edit silently no-opped and nothing checked. See DL-12.
 
 Both errors are the same shape: **a claim that is true enough in general and not supported by the specific text cited.** Neither would have failed a plausibility check. Both would have scored a correct system as wrong.
 
@@ -282,3 +286,42 @@ DL-3 was unambiguous. It had just been restated. Judgment failed anyway, in the 
 So it is no longer a matter of judgment. Two tests now enforce it: no Ohio scenario may be verified while the Ohio absence records carry `verified_on: null`, and no scenario withholding jurisdiction may be verified at all, since such an answer claims something about every state and only a fraction of state law exists in the corpus.
 
 **Six of 92 scenarios are verified**, all California-plus-federal cases whose every dependency is checked. That number is lower than the 16 claimed an hour earlier, and it is the first one that is true.
+
+
+---
+
+## DL-12: A decision-log entry described work that had not happened
+
+**Status:** decided and executed, Phase 3.5
+
+Third independent review. The finding that matters most is not a bug.
+
+### The log claimed something false
+
+DL-11 stated that `conflict-007` had been reframed from annual carryover onto termination, because `Cal. Lab. Code 227.3` addresses only the latter. It had not been. The scripted edit used `str.replace()`, the target text no longer matched because a `pairs_with` line had been inserted into the block earlier in the same session, and `str.replace()` returns the string unchanged when it matches nothing. Nothing asserted otherwise.
+
+So the scenario kept a question the cited section does not answer, kept a note asserting the exact proposition DL-11 had just retracted, and was marked `verified: true` on the strength of a correction that never ran. Its paired scenario's note, "identical question, Ohio employee", was false as well.
+
+**A silent no-op is worse than a crash in exactly the way this project keeps rediscovering.** The suite stayed green, the commit message described the intended change, and the decision log recorded it as done. Every artifact agreed, and all of them were wrong.
+
+Every scripted edit now goes through a helper that asserts the target was found. That rule caught a second no-op within minutes of being adopted.
+
+### The guard defeated by malformed input
+
+Six `must_address` values were written as `[\"LEAVE-002\"]` by an f-string escaping bug, and loaded as the literal string `\"LEAVE-002\"`. The DL-7 citation guard did not catch them, because it only inspected strings that already looked like handbook citations. **A guard that ignores what it cannot recognise is not a guard.** It now rejects any citation containing a quote or backslash outright, and had to be narrowed once when it flagged `N.Y. Workers' Comp. Law 204`, whose apostrophe is legitimate.
+
+### The rest
+
+**Prefix matching.** `"12945."` is a prefix of `"12945.2."`, so parsing the 12945.2 page as section 12945 emitted the right citation attached to the wrong statute, silently. Both sections are in this corpus, so it was reachable in ordinary use. Now matched with a boundary.
+
+**Four mutation survivors**, all in California and New York parsing: the section-number offset, the credit-line trailing anchor, the hierarchy append, and New York's title strip. Each is now pinned by a test asserting a value.
+
+**New York's heading regex over-stripped.** `[^.]*\.` after the section number consumed the body when a title contained a period, and ate the `1.` opening the first subdivision when there was no title. It now anchors on the title the API supplies.
+
+**Two guard tests could silently disable themselves.** The Ohio guard read `verified_on` by substring-matching `source_note`, which a YAML value of the *string* `"null"` satisfies identically to a real null. `verified_on` is now a parsed field on a typed record, and a string `"null"` is rejected. The jurisdiction-withheld guard had no exit condition at all, making it the DL-7 anti-pattern: a test that must be deleted the moment the project succeeds. It now self-disables once every jurisdiction is covered.
+
+**Two of the verified six were overstated.** `conflict-017` claimed the state test fails at exactly twelve months; subdivision (r) of 12945.2 admits air-carrier crew at "12 months or more", so the claim holds for this employee and not for California generally. And `conflict-001` named `state` as controlling when at 14 months both federal and state independently compel the same outcome, which **precedence rule 5 never ordered**. That gap is now written into the spec, and the scenario carries `acceptable_authorities`.
+
+**The absence sentinel leaked semantics.** Absences were dated 1900-01-01 with `effective_from_is_floor=True`, overloading a flag documented as "the earliest date the source can attest to" and implying the FMLA governed in 1900. `in_force_on` now short-circuits on `content_status`, so the sentinel is never compared against a query date.
+
+**Contract drift between adapters.** Federal documents carried a real section heading while California and New York repeated their citation, leaving a chunker with no context for state documents. New York had a real title and was discarding it into `source_note`. California genuinely has none, since its sections are untitled, and that is now documented rather than left looking like an oversight.

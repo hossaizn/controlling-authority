@@ -16,6 +16,7 @@ project, unverified until checked (DL-3). `verified_on` stays null until then.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Literal
@@ -23,6 +24,21 @@ from typing import Literal
 import yaml
 
 from ingest.models import SourceDocument
+
+
+@dataclass(frozen=True)
+class AbsenceRecord:
+    """An absence plus the metadata scoring needs, kept as parsed values.
+
+    The document alone is not enough: whether the claim has been verified was
+    previously only recoverable by substring-matching source_note, which a YAML
+    value of the string "null" satisfies just as well as a real null.
+    """
+
+    document: SourceDocument
+    topic: str
+    effect: AbsenceEffect
+    verified_on: date | None
 
 ABSENCE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "absence"
 
@@ -38,13 +54,20 @@ ABSENCE_EFFECTIVE_FROM = date(1900, 1, 1)
 def load_absence_records(
     jurisdiction: str, observed_on: date | None = None
 ) -> list[SourceDocument]:
+    """Documents only. Use `load_absence_index` when verification state matters."""
+    return [r.document for r in load_absence_index(jurisdiction, observed_on)]
+
+
+def load_absence_index(
+    jurisdiction: str, observed_on: date | None = None
+) -> list[AbsenceRecord]:
     observed_on = observed_on or date.today()
     path = ABSENCE_DIR / f"{jurisdiction.lower()}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"no absence records for {jurisdiction}")
 
     entries = yaml.safe_load(path.read_text()) or []
-    docs: list[SourceDocument] = []
+    records: list[AbsenceRecord] = []
     for entry in entries:
         topic = entry["topic"]
         effect = entry["effect"]
@@ -55,8 +78,14 @@ def load_absence_records(
         if not text:
             raise ValueError(f"{jurisdiction} {topic}: absence records must carry text")
 
-        docs.append(
-            SourceDocument(
+        raw_verified = entry.get("verified_on")
+        if raw_verified is not None and not isinstance(raw_verified, date):
+            raise ValueError(
+                f"{jurisdiction} {topic}: verified_on must be a date or a real YAML "
+                f"null, got {raw_verified!r}"
+            )
+
+        document = SourceDocument(
                 doc_id=f"{jurisdiction.lower()}:absence-{topic}",
                 # Deliberately not a statutory citation: there is no statute to
                 # cite. An answer quoting this should read as a statement about
@@ -68,11 +97,19 @@ def load_absence_records(
                 heading=f"No {jurisdiction.upper()} state provision: {topic}",
                 text=text,
                 content_status="absent",
+                # An absence is a standing fact, not a dated provision. The
+                # sentinel is not a claim that anything was "in force" in 1900;
+                # in_force_on short-circuits on content_status, so this date is
+                # never compared against a query.
                 effective_from=ABSENCE_EFFECTIVE_FROM,
                 effective_from_is_floor=True,
                 observed_on=observed_on,
                 source_url="",
-                source_note=f"effect={effect}; verified_on={entry.get('verified_on')}",
+                source_note=f"effect={effect}",
+            )
+        records.append(
+            AbsenceRecord(
+                document=document, topic=topic, effect=effect, verified_on=raw_verified
             )
         )
-    return docs
+    return records

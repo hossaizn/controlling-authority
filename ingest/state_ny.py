@@ -46,7 +46,8 @@ NY_LAW_NAMES = {"WKC": "N.Y. Workers' Comp. Law"}
 def _clean(text: str) -> str:
     # The API escapes newlines as two characters. Decode before collapsing, or
     # the literal sequences are preserved as text.
-    text = text.replace("\\n", " ").replace("\\t", " ")
+    text = text.replace("\\r\\n", " ").replace("\\n", " ").replace("\\r", " ")
+    text = text.replace("\\t", " ")
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -65,9 +66,18 @@ def parse_ny_section(payload: dict, observed_on: date) -> SourceDocument:
         raise ValueError(f"unmapped New York law {law_id!r}")
 
     text = _clean(raw_text)
-    # Strip the section heading the body repeats: "§ 204. Disability and family
-    # leave during employment."
-    text = re.sub(rf"^§\s*{re.escape(str(location))}\.\s*[^.]*\.\s*", "", text).strip()
+    # Strip the heading the body repeats: "§ 204. Disability and family leave
+    # during employment."
+    #
+    # Anchored on the title the API supplies rather than "everything up to the
+    # next full stop". That earlier pattern over-stripped into the body whenever
+    # a title contained a period, and with no title at all it consumed the "1."
+    # opening the first subdivision. Both failed silently.
+    title = (result.get("title") or "").strip().rstrip(".")
+    prefix = rf"^§\s*{re.escape(str(location))}\."
+    if title:
+        prefix += rf"\s*{re.escape(title)}\."
+    text = re.sub(prefix, "", text).strip()
 
     section_path = [
         p.get("title", "").strip()
@@ -80,20 +90,26 @@ def parse_ny_section(payload: dict, observed_on: date) -> SourceDocument:
         raise ValueError(f"{law_id} {location}: no activeDate; refusing to infer one")
 
     citation = f"{NY_LAW_NAMES[law_id]} {location}"
+    # The API supplies a real section title. The first version dropped it into
+    # source_note and repeated the citation as the heading, which left a chunker
+    # with no descriptive context for New York documents while federal ones had
+    # it. heading is what a chunk carries into the embedding, so it must say
+    # something.
+    heading = f"{citation} — {title}" if title else citation
     return SourceDocument(
         doc_id=f"ny:{law_id.lower()}-{location}",
         citation=citation,
         authority_layer="state",
         jurisdiction="NY",
         section_path=section_path or [NY_LAW_NAMES[law_id]],
-        heading=citation,
+        heading=heading,
         text=text,
         content_status="substantive",
         effective_from=date.fromisoformat(active),
         effective_from_is_floor=False,
         observed_on=observed_on,
         source_url=f"https://www.nysenate.gov/legislation/laws/{law_id}/{location}",
-        source_note=f"{result.get('title', '')} (activeDate {active})".strip(),
+        source_note=f"activeDate {active}",
     )
 
 

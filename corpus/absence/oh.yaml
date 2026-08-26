@@ -60,3 +60,44 @@
     Ohio has no state bereavement leave entitlement for employees of private
     employers. Bereavement leave is whatever the employer's own policy provides.
   verified_on: null
+
+# Added in Phase 3.5. Review found three Ohio scenarios resting on silence that
+# was never recorded: straightforward-005 and -010 (jury and witness duty pay)
+# and -015 (military leave). Each expects the handbook to control, which under
+# precedence rule 5 requires that nothing else addresses the topic. Nothing did,
+# and nothing said so.
+#
+# These are deliberately narrower than the records above. A broad claim that a
+# state "has no X law" is easy to get wrong; a claim that no statute requires a
+# private employer to PAY for a specific absence is narrower and closer to what
+# the scenarios actually turn on.
+
+- topic: jury_duty_pay
+  effect: employer_policy_controls
+  text: >
+    Ohio has no statute requiring a private employer to pay an employee for time
+    spent on jury service. Whether jury service is paid, and for how long, is
+    governed by the employer's own policy. This record addresses payment only
+    and makes no claim about protection from discharge for serving.
+  verified_on: null
+
+- topic: witness_duty_pay
+  effect: employer_policy_controls
+  text: >
+    Ohio has no statute requiring a private employer to pay an employee for time
+    spent appearing as a witness under subpoena. Payment is governed by the
+    employer's own policy. This record addresses payment only.
+  verified_on: null
+
+- topic: military_leave
+  effect: employer_policy_controls
+  text: >
+    Ohio has no statute governing military leave for employees of private
+    employers that adds to this corpus. Military leave and reemployment rights
+    for private-sector employees arise under the federal Uniformed Services
+    Employment and Reemployment Rights Act, which is NOT part of this corpus:
+    only 29 CFR Part 825 was ingested at the federal layer. Within the corpus,
+    therefore, the employer's own policy is the only source addressing military
+    leave, and it may exceed the federal floor without conflicting with anything
+    ingested.
+  verified_on: null

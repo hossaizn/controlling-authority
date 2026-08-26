@@ -120,3 +120,48 @@ def test_a_page_without_statute_text_raises() -> None:
     producing an empty document would poison the corpus."""
     with pytest.raises(ValueError, match="no statute text"):
         parse_ca_section("<html><body>nothing here</body></html>", "GOV", "12945.2", OBSERVED)
+
+
+def test_section_number_is_stripped_exactly(cfra) -> None:
+    """Pins the offset. Dropping one character leaves a leading full stop on
+    every document, which survived the first version of this suite."""
+    assert not cfra.text.startswith(".")
+    assert cfra.text.startswith("(a) It shall be an unlawful employment practice")
+
+
+def test_full_section_path_is_asserted_not_just_its_first_entry() -> None:
+    """Dropping the h5 append silently lost the ARTICLE level from every
+    document and nothing noticed, because no test looked at the whole path."""
+    # Depth is ragged: the Elections Code has two levels here and the
+    # Government Code five. Asserting a minimum depth encodes an assumption
+    # that does not hold across California's codes.
+    assert _parse("ca_elec_14000.html", "ELEC", "14000").section_path == [
+        "DIVISION 14. ELECTION DAY PROCEDURES",
+        "CHAPTER 1. Privileges of Voters",
+    ]
+    assert _parse("ca_gov_12945.2.html", "GOV", "12945.2").section_path == [
+        "TITLE 2. GOVERNMENT OF THE STATE OF CALIFORNIA",
+        "DIVISION 3. EXECUTIVE DEPARTMENT",
+        "PART 2.8. CIVIL RIGHTS DEPARTMENT",
+        "CHAPTER 6. Discrimination Prohibited",
+        "ARTICLE 1. Unlawful Practices, Generally",
+    ]
+
+
+def test_credit_line_is_taken_from_the_end_of_the_text() -> None:
+    """The trailing anchor was untested: no fixture happens to contain an
+    earlier parenthetical starting with "(Amended", so removing the anchor
+    passed. This asserts the credit line is the final one, not the first."""
+    d = _parse("ca_gov_12945.2.html", "GOV", "12945.2")
+    assert d.source_note.startswith("(Amended by Stats. 2022")
+    assert d.source_note.endswith(")")
+    assert d.text.rstrip().endswith("subdivision.")
+
+
+def test_a_prefix_section_number_does_not_match_a_longer_section() -> None:
+    """"12945." is a prefix of "12945.2.". A startswith test let section 12945
+    parse the 12945.2 page and emit the right citation on the wrong statute.
+    Both sections are in this corpus, so it was reachable in normal use."""
+    page = (FIXTURES / "ca_gov_12945.2.html").read_text(errors="ignore")
+    with pytest.raises(ValueError, match="did not open with that section number"):
+        parse_ca_section(page, "GOV", "12945", OBSERVED)

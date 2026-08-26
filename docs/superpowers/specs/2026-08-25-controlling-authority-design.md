@@ -177,6 +177,11 @@ Applied by `resolve`, in order:
 
 Every resolution emits a structured trace: which layers were considered, which won, which rule decided it.
 
+**Rule 5 does not order federal against state.** Where both independently compel
+the same outcome, as they do for an employee who satisfies each eligibility test,
+neither is "the" controlling authority, and demanding one would score a
+defensible answer wrong. Those scenarios carry `acceptable_authorities`.
+
 ### The controlling authority can be indeterminate while the answer is not
 
 Rule 5 has a consequence worth stating separately, because it was missed on the first pass and it changes the schema.
