@@ -1005,3 +1005,75 @@ So **`required citations present` is not measuring `compose`. It is measuring ho
 `agent/build.py` assembles the graph in one place, and `build_baseline` is the same graph with precedence swapped for "trust the top-ranked passage". Phase 9's comparison is therefore one code path with one component changed, not two implementations that could differ for reasons nobody intended.
 
 **Cost:** the full end-to-end run is about $0.57 cold and $0.13 warm. Total project spend to here is roughly **$3.00**.
+
+---
+
+## DL-26: The code that measures the system had no tests, and fixing that moved every number
+
+**Status:** decided, Phase 6.8 hardening. Independent review of Phase 6, 14 findings, all addressed.
+
+### The finding that mattered
+
+**Every eval scorer could be mutated to return `True` unconditionally and the full suite stayed green.** `precedence_correct`, `naive_correct`, `addressed_what_it_should`, `verified`, `required_present`, `forbidden_present`, and `build_baseline` swapped to use the real resolver: seven mutations, seven survivors, 303 of 303 tests passing throughout.
+
+The agent code was mutation-tested from Task 6.1 onward. **The code that measures it was not**, so both halves of the headline comparison and all of `fully_correct` rested on arithmetic nothing tested. DL-25's `verified` fix, the bug that halved the headline, had no regression test either.
+
+This is DL-10 one level up. The lesson there was "assert values, not relationships"; the lesson here is that **the measuring apparatus is code and needs the same discipline as the thing measured.** A wrong number and a right one are indistinguishable from inside.
+
+`tests/test_scorers.py` now exists. All twelve review mutations are caught.
+
+### Numbers that changed, and they moved in both directions
+
+| metric | before | after | why |
+|---|---|---|---|
+| passed verification | 0.717 | **0.621** | denominator was 92; only 58 reach verify |
+| fully correct | 0.587 | **0.620** | net of five scorer and checker fixes |
+| conflict, fully correct | 0.167 | **0.278** | subsection citations no longer failed |
+| naive baseline, precedence | 0.632 | 0.649 | one implementation instead of two |
+| precedence delta | +24.6 | **+22.8** | same |
+
+**`passed verification` at 0.717 was wrong and I reported it.** 34 scenarios correctly route to refuse, clarify or escalate and never reach `verify`; the metric counted them as passes. This is the identical "did not run is not a pass" conflation DL-25 fixed for `fully_correct` and left standing one line away, which is worth recording as a pattern rather than a slip: **fixing an instance of a bug is not fixing the bug.**
+
+### Three holes in the groundedness check
+
+The figures check compares quantities in the answer against the sources. It had one hole in each direction and one that made it a rubber stamp.
+
+**`29` was exempt corpus-wide.** The check excluded any digit appearing inside a retrieved citation, and every federal citation is `29 CFR ...`. An answer claiming "you are entitled to 29 workweeks" passed. Confirmed by the reviewer, not hypothetical.
+
+**Number words were matched as substrings**, so `"written"` contains `"ten"` and marked 10 as supported, and `"none"` contains `"one"`. Any corpus of ordinary prose therefore supported those figures unconditionally.
+
+**And it failed correct answers**: `1,250` against `1250`, and bare section references like "section 825.201".
+
+All three came from the same mistake: extracting every number and then trying to subtract the ones that were not quantities. The check now requires a **unit**. A section number is never followed by "weeks"; a fabricated entitlement always is.
+
+**Check 1 could never fire.** It compared `state["citations"]` against the retrieved set, but `compose` had already filtered that list by the identical predicate. Its comment said it caught citations "appearing in the prose", which is behaviour the code did not have. It now reads the prose.
+
+### Two things that would have flattered the agent
+
+**`build_baseline` hardcoded its verify model** while `build_agent` took a parameter. Identical today, but DL-24 pre-registers swapping in a cross-family verifier, at which point the agent would get it and the baseline silently would not, on exactly the Phase 9 screen that is the project's argument.
+
+**There were two implementations of the naive baseline**, one in `build.py` and one in the precedence scorer. DL-23 claimed the baseline "cannot drift from the agent it is compared against"; it could drift from itself. One implementation now, and the baseline moved by a scenario when they were unified, which is the drift made visible.
+
+### A rule that was not counting what it claimed
+
+`statutory_floor` labelled both rule 1 (federal against state) and the handbook-below-the-floor case. Those are different rules and one of them **is the project's thesis**. Split into `policy_below_floor`, and the counter now reads **8 handbook-below-floor against 3 federal-versus-state**, where it previously reported 11 undifferentiated.
+
+### My own overcorrection, caught by the flat zero rule
+
+Fixing DL-12's prefix trap in the scorers (`Cal. Gov. Code 12945` is a prefix of `12945.2`), I required citations to be bracketed. That broke the other direction: `compose` brackets the controlling provision and names the beaten handbook in prose, so **`named the beaten source` reported a flat 0.000**.
+
+DL-23 says a flat zero is the one value too suspicious to accept, and it was right twice in one project. Boundary matching handles both without dictating how an answer is written.
+
+**And the check was failing subsections.** The model writes `Cal. Gov. Code 12945.2(b)(13)` where `Cal. Gov. Code 12945.2` was retrieved, which is a more precise pointer into the same passage. That accounted for 14 of 30 verification failures and was wiping correct answers. A cited string now resolves if it extends a retrieved one **with a bracket**, so the allowance cannot launder `12945.2` in on the strength of `12945`.
+
+### What remains genuinely weak
+
+**`named the beaten source` is 0 of 8, and it is real this time.** Six of the eight fail verification and degrade to a referral; the two that survive do not mention the source they override. An answer that silently contradicts the handbook is unusable to the person holding it, and this is now the weakest requirement in the system by a distance.
+
+**Under-clarification is 0.467**, unchanged, and caps `ambiguous` at 0.533 in both the agent and the baseline.
+
+### What the review confirmed was sound
+
+The precedence rules match the spec, including rule 5's ordering above rule 2 and its deliberate refusal to order federal against state; the reviewer traced eight configurations by hand. The `denies` versus `grants` integrity check is exactly sufficient. **`DEFECTS.md` remains unreachable through both guards and through a rename attack.** 26 of 30 mutants in `agent/` were already killed. Every figure quoted in DL-21 through DL-25 reproduces exactly against the saved runs.
+
+**Final Phase 6 numbers:** fully correct **0.620**, precedence 0.772 end to end and 0.877 isolated, verification 0.621 over the 58 that reach it, route accuracy 0.815 macro, one forbidden-citation leak in 92.

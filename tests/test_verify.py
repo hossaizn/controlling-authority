@@ -105,6 +105,75 @@ def test_common_number_words_map_to_their_digits() -> None:
     assert {"12", "50", "5"} <= stated
 
 
+def test_number_words_are_matched_as_whole_words_not_substrings() -> None:
+    """Confirmed by review: "written" contains "ten" and "none" contains "one",
+    so substring matching marked 10 and 1 as supported by any corpus containing
+    ordinary prose. That turned a groundedness check into a rubber stamp."""
+    stated = supported_figures("the employee must give written notice; none apply")
+    assert "10" not in stated
+    assert "1" not in stated
+
+
+def test_a_fabricated_quantity_is_caught_even_when_the_prose_looks_similar() -> None:
+    hits = [hit("29 CFR 825.302", text="must give written notice of the need for leave")]
+    out, _ = run(
+        "You must give 10 days of notice [29 CFR 825.302].",
+        hits=hits,
+        res=resolution("federal", "29 CFR 825.302"),
+        citations=["29 CFR 825.302"],
+        caller=Exploding(),
+    )
+    assert out["verification"].checks["figures_appear_in_the_sources"] is False
+
+
+def test_a_thousands_separator_does_not_make_a_figure_look_fabricated() -> None:
+    """The corpus writes "1,250 hours" and an answer writes "1250 hours"."""
+    assert "1250" in supported_figures("at least 1,250 hours of service")
+    assert figures_in("you worked 1,250 hours", set()) == {"1250"}
+
+
+def test_only_numbers_carrying_a_unit_count_as_quantities() -> None:
+    """The earlier design excluded digits found in citations, which made 29
+    exempt corpus-wide because every federal citation is "29 CFR ...". An answer
+    claiming 29 workweeks passed. Requiring a unit closes it from both sides."""
+    figures = figures_in(
+        "Under section 825.201 you get 29 workweeks. [29 CFR 825.201]",
+        {"29 CFR 825.201"},
+    )
+    assert figures == {"29"}
+
+
+def test_the_number_twentynine_is_no_longer_exempt() -> None:
+    out, _ = run(
+        "You are entitled to 29 workweeks of leave. [29 CFR 825.200]",
+        caller=Exploding(),
+    )
+    assert out["verification"].checks["figures_appear_in_the_sources"] is False
+
+
+def test_any_defensible_provision_satisfies_the_controlling_citation_check() -> None:
+    """On an indeterminate resolution both layers independently compel the
+    outcome, so citing either is correct. Taking only the first failed an answer
+    that correctly cited state because federal came first in `considered`."""
+    hits = [hit("29 CFR 825.110"), hit("Cal. Gov. Code 12945.2", layer="state")]
+    res = Resolution(
+        controlling=None,
+        rule="indeterminate",
+        acceptable=["federal", "state"],
+        considered=[
+            LayerFinding("federal", True, "grants", "29 CFR 825.110", "", 1),
+            LayerFinding("state", True, "grants", "Cal. Gov. Code 12945.2", "", 1),
+        ],
+    )
+    out, _ = run(
+        "You are eligible at 12 workweeks [Cal. Gov. Code 12945.2].",
+        hits=hits,
+        res=res,
+        citations=["Cal. Gov. Code 12945.2"],
+    )
+    assert out["verification"].checks["controlling_provision_cited"] is True
+
+
 def test_a_figure_stated_only_in_words_still_passes_the_check() -> None:
     hits = [hit("N.Y. WCL 203", text="after twenty-six weeks of employment")]
     out, _ = run(
@@ -132,6 +201,46 @@ def test_an_answer_citing_something_never_retrieved_fails() -> None:
         caller=Exploding(),
     )
     assert not out["verification"].passed
+    assert out["verification"].checks["citations_were_retrieved"] is False
+
+
+def test_a_subsection_of_a_retrieved_provision_is_not_a_stray_citation() -> None:
+    """The model writes `Cal. Gov. Code 12945.2(b)(13)` where
+    `Cal. Gov. Code 12945.2` was retrieved. That is a more precise pointer into
+    the same passage, and failing it wiped correct answers."""
+    hits = [hit("Cal. Gov. Code 12945.2", layer="state")]
+    out, _ = run(
+        "You qualify [Cal. Gov. Code 12945.2(b)(13)] for 12 workweeks.",
+        hits=hits,
+        res=resolution("state", "Cal. Gov. Code 12945.2"),
+        citations=["Cal. Gov. Code 12945.2"],
+    )
+    assert out["verification"].checks["citations_were_retrieved"] is True
+
+
+def test_a_different_statute_sharing_a_prefix_is_still_stray() -> None:
+    """`Cal. Gov. Code 12945` and `Cal. Gov. Code 12945.2` are different
+    statutes. The subsection allowance must not launder one into the other, so
+    the extension has to open with a bracket."""
+    hits = [hit("Cal. Gov. Code 12945", layer="state")]
+    out, _ = run(
+        "You qualify [Cal. Gov. Code 12945.2].",
+        hits=hits,
+        res=resolution("state", "Cal. Gov. Code 12945"),
+        citations=["Cal. Gov. Code 12945.2"],
+        caller=Exploding(),
+    )
+    assert out["verification"].checks["citations_were_retrieved"] is False
+
+
+def test_a_wholly_invented_citation_in_prose_is_caught() -> None:
+    """The check this replaced could never fire: it read the citation list that
+    `compose` had already filtered by the same predicate."""
+    out, _ = run(
+        "You are entitled to 12 workweeks [29 CFR 825.999].",
+        citations=[],
+        caller=Exploding(),
+    )
     assert out["verification"].checks["citations_were_retrieved"] is False
 
 

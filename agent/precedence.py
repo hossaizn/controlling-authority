@@ -85,7 +85,10 @@ def resolve_precedence(
 
     # Rule 4: silence is not permission. A layer that does not address the topic
     # is removed from contention entirely rather than treated as permitting.
-    speaking = [f for f in findings if f.speaks_to_question and f.outcome != "silent"]
+    # Filters on `outcome` alone. `speaks_to_question` mirrors it and is kept
+    # for the trace, but two fields encoding one fact can disagree, and a
+    # review found nothing exercised the difference.
+    speaking = [f for f in findings if f.outcome != "silent"]
 
     if not speaking:
         return Resolution(
@@ -167,7 +170,12 @@ def _decide(
         # Rule 2's other half: a handbook term below the floor is unenforceable
         # and the statute controls. This is the case the demo's baseline toggle
         # exists to show, because naive retrieval returns the handbook first.
-        return "statutory_floor", winning_statutes
+        #
+        # Labelled separately from rule 1. Both were reported as
+        # `statutory_floor`, which merged the count of the project's central
+        # case with an unrelated federal-versus-state comparison, so the one
+        # counter that evidences the thesis was not measuring it.
+        return "policy_below_floor", winning_statutes
 
     if len(statutes_speaking) > 1:
         # Rule 1: federal and state both apply and the employee-favourable one
