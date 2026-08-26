@@ -744,3 +744,80 @@ The query deliberately **excludes state names and dates**. Both are hard filters
 **Upgrade rule, unchanged and fixed in advance:** below **0.80** macro-averaged route accuracy, this node moves from Haiku to Sonnet and the change is recorded. Above it, Haiku stays.
 
 **Cost:** one full run over 92 scenarios is roughly 109,000 input and 8,000 output tokens, about **$0.15** at Haiku 4.5 rates. Decisions are cached on disk by prompt and question, so re-runs are free and each prompt edit costs one run.
+
+---
+
+## DL-22: Triage clears the threshold on the third prompt, and the gate caught a defect the overall number hid
+
+**Status:** decided, Phase 6.2. Haiku stays. Route accuracy 0.815 macro.
+
+### Route accuracy, and the discipline around getting there
+
+| run | change | macro | answer | clarify | refuse | escalate |
+|---|---|---|---|---|---|---|
+| v1 | first prompt | 0.725 | 0.667 | 0.400 | 1.000 | 0.833 |
+| v2 | scope contradiction removed | 0.782 | **0.895** | 0.400 | 1.000 | 0.833 |
+| v3 | clarify guidance made symmetric | **0.815** | 0.895 | **0.533** | 1.000 | 0.833 |
+
+The upgrade rule fixed in advance was: below 0.80 macro, move this node to Sonnet. v1 came in at 0.725 and the rule fired. I did not upgrade, and the reasoning matters more than the number.
+
+**Sixteen of v1's twenty-nine failures were one shape, `answer` routed to `refuse`.** Reading the model's own stated reasons showed it was executing my prompt correctly:
+
+> *"Does the company pay me for jury service?"* → "questions about compensation or pay are outside the scope of leave policy"
+> *"Do I keep my health insurance while I'm on family leave?"* → "health insurance benefits and plan design are outside the scope"
+
+The prompt listed "jury duty and voting" and "paid time off" as **in** the index, then said the index contains nothing about **"pay"** or **"health plan design"**. Group health continuation during leave is `29 CFR 825.209`, confirmed in DL-9 and sitting in the corpus. The prompt asserted P and not-P, and the model picked the exclusion.
+
+So 0.725 measured a self-contradicting prompt, not Haiku's ability. Upgrading to Sonnet there would have bought a smarter model to resolve my contradiction and credited it with a fix that belonged to a bug.
+
+**The obvious hazard is that "the prompt was bad, let me try again" is exactly how someone iterates until they beat a threshold.** The constraint adopted before touching anything, and the thing to judge this entry by:
+
+> A prompt may only be changed to remove a contradiction with the spec or with itself. No coaching drawn from which scenarios failed.
+
+Both changes qualify and both are statable without reference to the score. The first is a flat self-contradiction. The second is a faithfulness failure: the section was titled *"CLARIFYING IS A FAILURE WHEN IT IS UNNECESSARY"* and warned only against over-asking, while the spec and DL-5 make **both** directions scored failures. Stating the rule symmetrically is restoring the spec, not tuning toward the answer. Both defects were found the way DL-15's largest finding was, by reading the artifact against the spec.
+
+Iteration stopped at v3 on crossing the threshold, which is the moment the incentive to keep going is strongest.
+
+**How thin the pass is, stated plainly.** 0.815 clears 0.80 by 1.5 points. One clarify scenario is worth 1/15 of that route and therefore 1.67 points of macro, so **a single scenario flipping would put this below the threshold.** It is a pass, not a comfortable one, and it should not be quoted as though the margin were meaningful.
+
+**Clarify remains the weakest route at 0.533**, with under-clarification at 0.467: seven ambiguous scenarios still get answered when they should ask. Over-clarification stayed low throughout (0.039 → 0.052), so making the rule symmetric did not simply trade one failure for the other, which was the risk.
+
+### The regression gate justified being built first
+
+Running triage's rewritten queries through retrieval, against the baseline frozen before the agent existed:
+
+| slice | baseline | rewritten, first run |
+|---|---|---|
+| adversarial | 1.000 | **0.500** |
+| control | 1.000 | **0.900** |
+| straightforward | 0.941 | 1.000 |
+| superseded | 1.000 | 1.000 |
+| conflict | 0.722 | 0.722 |
+| overall | 0.895 | 0.877 |
+
+**The overall figure moved 1.8 points and reads as noise. Per slice, adversarial had lost half its scenarios.** That is the exact failure mode the gate was written for, and it appeared on the first run rather than as a hypothetical.
+
+### What it found: routing and rewriting are not separable at the source
+
+Two of the four regressed scenarios had the literal string `"none"` as their search query, and they were exactly the two triage had mis-routed to `refuse`. Having decided not to answer, the model wrote a null query into a field the tool schema marks required, and retrieval searched for the word "none".
+
+`run_rewrite_check` claims to isolate the rewrite from routing by scoring all 57 scenarios regardless of route. **It cannot.** Both come out of a single model call, so a bad route poisons the query it produced. The isolation is a property of the harness, not of the system.
+
+Fixed in code rather than in the prompt: a degenerate query falls back to the raw question, which is never worse than a null one. Prompt untouched, per the constraint above.
+
+| slice | baseline | rewritten, after fallback |
+|---|---|---|
+| adversarial | 1.000 | 1.000 |
+| control | 1.000 | 1.000 |
+| straightforward | 0.941 | **1.000** |
+| superseded | 1.000 | 1.000 |
+| conflict | 0.722 | 0.722 |
+| **overall** | **0.8947** | **0.9123** |
+
+**Query rewriting improves retrieval by 1.8 points**, and DL-16 predicted the mechanism correctly: `straightforward-012` asks "can the company ask for a doctor's note", the rewrite supplied "medical certification", and `29 CFR 825.305` became retrievable.
+
+**One case it makes worse, and the slice total hides it.** `conflict-003` asks "I've been here 14 months. Can I take parental leave when my son is born?" and the rewrite dropped the figure, producing "parental leave eligibility for birth of child". Fourteen months is what makes `29 CFR 825.110` the target. The prompt already says to keep exact figures; the model did not. That is a real limitation of Haiku on this task and it is left in rather than prompted around, because the fix would be coaching drawn from a failure. It nets out against `conflict-010`, which the rewrite fixed, so the slice reads as unchanged while two scenarios moved in opposite directions.
+
+**Conflict still fails the gate at 0.722, correctly.** The gate demands that slice improve, and `resolve` in Task 6.4 is what closes it. Triage was never going to.
+
+**Cost:** three runs of 92 scenarios, roughly $0.73 total. Decisions cache by prompt and question, so the rewrite check re-ran for nothing.

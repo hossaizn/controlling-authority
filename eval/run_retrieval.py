@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date, datetime
 from pathlib import Path
@@ -61,23 +62,34 @@ def scoreable(scenarios: list[Scenario] | None = None) -> list[Scenario]:
     return [s for s in (scenarios or load_all()) if s.required_citations]
 
 
+def raw_question(scenario: Scenario) -> str:
+    return scenario.question
+
+
 def run_scenarios(
-    store: ChunkStore, scenarios: list[Scenario], limit: int = 10
+    store: ChunkStore,
+    scenarios: list[Scenario],
+    limit: int = 10,
+    query_of: Callable[[Scenario], str] = raw_question,
 ) -> list[RetrievalScore]:
+    """`query_of` selects what actually gets searched.
+
+    One code path, two callers. The baseline sends the raw question; the rewrite
+    check sends what `triage` produced. Copying this loop to vary one line is how
+    two measurements that are supposed to be comparable stop being comparable.
+    """
+    queries = [query_of(s) for s in scenarios]
+
     # One request for every question, rather than one per search. Providers
     # rate-limit on requests as well as tokens, and 57 individual calls at three
     # per minute is twenty minutes of waiting for work that fits in three.
     embed_many = getattr(store.provider, "embed_queries", None)
-    vectors = (
-        embed_many([s.question for s in scenarios])
-        if embed_many
-        else [None] * len(scenarios)
-    )
+    vectors = embed_many(queries) if embed_many else [None] * len(scenarios)
 
     scores: list[RetrievalScore] = []
-    for scenario, vector in zip(scenarios, vectors, strict=True):
+    for scenario, query, vector in zip(scenarios, queries, vectors, strict=True):
         hits = store.search(
-            scenario.question,
+            query,
             # Caller-supplied, not oracular; None where the scenario withholds
             # it, which leaves retrieval unfiltered. See the module docstring.
             jurisdiction=scenario.employee_context.state,

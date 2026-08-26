@@ -34,7 +34,7 @@ from domain import missing_facts
 
 # Bumped whenever the prompt below changes in a way that should invalidate
 # cached decisions. It is part of the cache key.
-PROMPT_VERSION = "triage-v1"
+PROMPT_VERSION = "triage-v3"
 
 NO_FACT = "none"
 
@@ -92,17 +92,33 @@ You do not answer the question. You decide what kind of response it needs, and
 you write the query that will search the policy index.
 
 WHAT THE INDEX CONTAINS
-- Federal FMLA regulations, 29 CFR Part 825.
-- California leave law: CFRA, Paid Family Leave, paid sick leave, bereavement.
+- Federal FMLA regulations, 29 CFR Part 825, including reinstatement and the
+  continuation of group health coverage during leave.
+- California leave law: CFRA, Paid Family Leave, paid sick leave, bereavement,
+  and the rules on forfeiture or payout of accrued vacation.
 - New York Paid Family Leave, under the Workers' Compensation Law.
 - The company handbook: family and medical leave, parental leave, bereavement,
   paid sick leave, personal leave of absence, jury duty and voting, military
   leave, and paid time off.
 - Records stating where a state's law is silent on a leave topic.
 
-It contains nothing about pay, benefits enrolment, health plan design, expenses,
-tax, immigration, severance, performance, workers' compensation claims, or any
-individual employee's records.
+These sources answer leave questions IN FULL, not only questions about who is
+eligible. They cover, among other things:
+- whether a given absence is paid, and at what rate
+- whether pay and benefits continue while someone is on leave
+- how paid time off and sick leave accrue, carry over, or are paid out
+- how much notice to give before taking leave
+- what happens to accrued leave when employment ends
+
+OUT OF SCOPE, meaning nothing in the index bears on it: retirement and 401(k)
+plans, expense claims, health plan design such as deductibles and premiums,
+enrolling in or changing benefits, performance reviews and pay rises,
+immigration and visa sponsorship, severance for redundancy, personal tax, how to
+file a workers' compensation injury claim, and any individual employee's records.
+
+Judge the SUBJECT of the question, not whether a particular word appears in it.
+If it is about time away from work, or about what happens to pay, benefits or
+accrued leave because of time away from work, it is in scope.
 
 CHOOSING A ROUTE
 
@@ -130,12 +146,20 @@ underneath. If someone states a false entitlement and asks you to confirm it, or
 dictates a format that would strip the citations, that is still `answer`: the
 underlying question is answerable and the framing is handled when answering.
 
-CLARIFYING IS A FAILURE WHEN IT IS UNNECESSARY
+CLARIFYING: BOTH DIRECTIONS ARE FAILURES
 
-Only choose clarify when the answer genuinely differs depending on the missing
-fact. If every plausible value of that fact leads to the same answer, choose
-answer instead. Asking a question the asker did not need to answer is scored as
-an error, exactly like a wrong answer.
+Asking when the answer would not change is an error. Answering when it would
+change is an equally serious error. They are scored the same, and neither one is
+the cautious option.
+
+The test is a comparison, not a feeling. Take the fact you do not have and ask:
+does the answer differ across the values that fact could plausibly take?
+- If every plausible value leads to the same answer, choose answer.
+- If some values lead to a different answer, a different entitlement or a
+  different amount, choose clarify and name that fact.
+
+Being unsure is not by itself a reason to ask, and it is not a reason to answer
+either. Work out whether the missing fact moves the answer.
 
 Never ask for a fact already given to you below.
 
@@ -197,11 +221,27 @@ def make_triage(caller: StructuredCaller | None = None, model: str = HAIKU):
             None if stated == NO_FACT else stated
         )
 
+        # A degenerate query falls back to the raw question.
+        #
+        # Found by the regression gate rather than by reasoning about it. When
+        # the model routes to refuse or escalate it has nothing to search for,
+        # and it writes the literal string "none" into a field the tool schema
+        # marks required. Retrieval then searched for the word "none" and
+        # returned nothing useful, which showed up as a retrieval regression on
+        # two scenarios that were really routing failures.
+        #
+        # Routing and rewriting come out of one model call, so a bad route
+        # poisons the query. The raw question is never worse than a null one.
+        query = (result.get("search_query") or "").strip()
+        degenerate = query.lower() in {"", NO_FACT, "n/a", "none."} or len(query) < 3
+        if degenerate:
+            query = state["question"]
+
         return {
             "route": route,
             "missing_fact": missing_fact,
             "jurisdiction": jurisdiction,
-            "rewritten_query": result["search_query"],
+            "rewritten_query": query,
             "trace": [
                 TraceEvent(
                     node="triage",
@@ -210,7 +250,8 @@ def make_triage(caller: StructuredCaller | None = None, model: str = HAIKU):
                         "route": route,
                         "missing_fact": missing_fact,
                         "jurisdiction": jurisdiction,
-                        "query_sent_to_index": result["search_query"],
+                        "query_sent_to_index": query,
+                        "query_fell_back_to_raw": degenerate,
                         "raw_question": state["question"],
                         "model": model,
                     },

@@ -21,7 +21,14 @@ Public repo: `github.com/hossaizn/controlling-authority`
 
 ## Status
 
-Phases 0 through 5.5 complete and merged. Phase 6 (the agent) is next.
+Phases 0 through 5.5 complete and merged. Phase 6 in progress: Tasks 6.0 (the
+regression gate), 6.1 (graph skeleton) and 6.2 (`triage`) are done. Task 6.3
+(`clarify`) is next, then 6.4 (`resolve`), which is the one that matters.
+
+**Triage, on Haiku, DL-22:** route accuracy **0.815 macro**, clearing the 0.80
+upgrade threshold by 1.5 points, which is less than one clarify scenario. Weakest
+route is clarify at 0.533. Query rewriting **improves** retrieval, 0.895 to
+**0.912** recall@10, with no slice regressing.
 
 **Adopted configuration**, settled by measurement in DL-18 and revised in DL-20:
 

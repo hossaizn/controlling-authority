@@ -102,6 +102,33 @@ def test_the_trace_carries_both_the_raw_and_the_rewritten_query() -> None:
     assert detail["query_sent_to_index"] == "grandparent care leave"
 
 
+def test_a_null_search_query_falls_back_to_the_raw_question() -> None:
+    """Found by the regression gate, not by reasoning about it.
+
+    When the model routes to refuse it has nothing to search for and writes the
+    literal string "none" into a field the schema marks required. Retrieval then
+    searched for the word "none". Routing and rewriting come out of one call, so
+    a bad route poisons the query; the raw question is never worse than a null.
+    """
+    out, _ = run_triage(
+        FakeCaller(route="refuse", search_query=NO_FACT), question="do I get paid?"
+    )
+    assert out["rewritten_query"] == "do I get paid?"
+    assert out["trace"][0].detail["query_fell_back_to_raw"] is True
+
+
+def test_an_empty_or_whitespace_query_falls_back_too() -> None:
+    for empty in ("", "   ", "n/a"):
+        out, _ = run_triage(FakeCaller(search_query=empty), question="how much leave?")
+        assert out["rewritten_query"] == "how much leave?", empty
+
+
+def test_a_real_query_is_not_treated_as_degenerate() -> None:
+    out, _ = run_triage(FakeCaller(search_query="bereavement leave entitlement"))
+    assert out["rewritten_query"] == "bereavement leave entitlement"
+    assert out["trace"][0].detail["query_fell_back_to_raw"] is False
+
+
 def test_the_prompt_version_is_in_the_cache_key_material() -> None:
     """Editing the prompt must invalidate cached decisions, or a run reports
     yesterday's routing for today's prompt."""
