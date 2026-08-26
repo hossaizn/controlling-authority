@@ -95,8 +95,9 @@ PRICE_PER_MTOK = {
 _BUDGETS = {
     "anthropic": RateBudget(max_tokens_per_minute=100_000, max_requests_per_minute=40),
     # Groq's free tier: an 8,000-token bucket refilling at 8,000/minute, with the
-    # reserved max_tokens deducted rather than the tokens produced. Headroom of
-    # 15% because our estimate and their tokeniser will not agree exactly.
+    # reserved max_tokens deducted rather than the tokens produced. Paced at 80%
+    # of the bucket: measured, pacing at 100% produced six stalls over 90s in 74
+    # minutes because the SDK absorbs a 429 with a retry-after sleep.
     "openai": RateBudget(
         max_tokens_per_minute=int(optional("OPEN_MODEL_TPM", "8000")) * 80 // 100,
         max_requests_per_minute=30,
@@ -121,8 +122,8 @@ _BUDGETS = {
 # Deliberately modest. Groq charges the RESERVED max_tokens against the rate
 # bucket, not the tokens actually produced, so an oversized budget throttles
 # throughput without buying anything: observed triage outputs were 294 and 814
-# tokens including reasoning. 1,536 leaves room to think and cuts the per-request
-# reservation by three quarters.
+# tokens including reasoning. 1,024 leaves room to think and still cuts the
+# per-request reservation substantially.
 REASONING_HEADROOM = 1024
 # Just inside the bucket, so our token estimate disagreeing with theirs by a
 # few percent cannot turn a legal request into a 413.
@@ -208,18 +209,33 @@ def parse_arguments(raw: str, model: str) -> dict[str, Any]:
     """
     text = raw.strip()
     try:
-        return json.loads(text)
+        return _require_object(json.loads(text), raw, model)
     except json.JSONDecodeError:
         pass
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         text = text.rsplit("```", 1)[0]
     try:
-        return json.loads(text.strip())
+        return _require_object(json.loads(text.strip()), raw, model)
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             f"{model} returned tool arguments that are not JSON: {raw[:200]!r}"
         ) from exc
+
+
+def _require_object(value: Any, raw: str, model: str) -> dict[str, Any]:
+    """Tool arguments are an object. `"123"` parses to an int, `"null"` to None.
+
+    The signature promised a dict while the function could return anything JSON
+    can express, so a malformed response reached callers as a value they would
+    subscript and fail on far from the cause.
+    """
+    if not isinstance(value, dict):
+        raise RuntimeError(
+            f"{model} returned tool arguments that are not an object "
+            f"({type(value).__name__}): {raw[:200]!r}"
+        )
+    return value
 
 
 class StructuredCaller:
@@ -321,8 +337,13 @@ class StructuredCaller:
         # comparison in favour of the conclusion that it cannot do it.
         prompt_tokens = estimate_tokens([system, user])
         available = REQUEST_TOKEN_CEILING - prompt_tokens
+        # Against the real ceiling, not the discounted one. The 5% margin
+        # exists to absorb tokeniser disagreement on the RESERVATION, and
+        # applying it to the floor check as well rejected prompts of
+        # 6,901 to 7,300 tokens that the provider accepts.
         budget = min(REASONING_HEADROOM, available)
-        if budget < MIN_OUTPUT_TOKENS:
+        headroom_at_full = int(optional("OPEN_MODEL_TPM", "8000")) - prompt_tokens
+        if headroom_at_full < MIN_OUTPUT_TOKENS:
             raise RuntimeError(
                 f"{model}: a {prompt_tokens}-token prompt leaves {available} tokens "
                 f"under the {REQUEST_TOKEN_CEILING} per-request ceiling, below the "
