@@ -18,9 +18,18 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-Route = Literal["answer", "clarify", "refuse", "escalate"]
-Authority = Literal["federal", "state", "company"]
-Jurisdiction = Literal["CA", "NY", "OH"]
+# Route, Authority, Jurisdiction, MissingFact and EmployeeContext describe the
+# domain rather than the eval, and the agent needs them too. They live in
+# `domain.py` so there is exactly one definition; re-exported here because the
+# scenario files and every existing importer read them from this module.
+from domain import (  # noqa: F401
+    Authority,
+    EmployeeContext,
+    Jurisdiction,
+    MissingFact,
+    Route,
+)
+
 Slice = Literal[
     "straightforward",
     "ambiguous",
@@ -30,32 +39,6 @@ Slice = Literal[
     "out_of_scope",
     "adversarial",
 ]
-
-# Facts an agent may legitimately need before it can answer. A `clarify`
-# scenario must name which one is missing, so that asking the right question and
-# asking merely to be safe can be told apart.
-#
-# weeks_worked_12mo exists because New York Paid Family Leave keys eligibility
-# on weeks worked rather than months of service plus hours, and the first draft
-# had a scenario asserting an NY outcome the schema could not express.
-MissingFact = Literal[
-    "state",
-    "tenure_months",
-    "hours_worked_12mo",
-    "weeks_worked_12mo",
-    "employer_size",
-]
-
-
-class EmployeeContext(BaseModel):
-    """What the asker has volunteered. `None` means genuinely not supplied."""
-
-    state: Jurisdiction | None = None
-    tenure_months: int | None = None
-    hours_worked_12mo: int | None = None
-    weeks_worked_12mo: int | None = None
-    employer_size: int | None = None
-
 
 class Scenario(BaseModel):
     scenario_id: str
