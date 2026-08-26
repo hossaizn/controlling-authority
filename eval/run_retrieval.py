@@ -53,14 +53,25 @@ def scoreable(scenarios: list[Scenario] | None = None) -> list[Scenario]:
 def run_scenarios(
     store: ChunkStore, scenarios: list[Scenario], limit: int = 10
 ) -> list[RetrievalScore]:
+    # One request for every question, rather than one per search. Providers
+    # rate-limit on requests as well as tokens, and 57 individual calls at three
+    # per minute is twenty minutes of waiting for work that fits in three.
+    embed_many = getattr(store.provider, "embed_queries", None)
+    vectors = (
+        embed_many([s.question for s in scenarios])
+        if embed_many
+        else [None] * len(scenarios)
+    )
+
     scores: list[RetrievalScore] = []
-    for scenario in scenarios:
+    for scenario, vector in zip(scenarios, vectors, strict=True):
         hits = store.search(
             scenario.question,
             # Oracle filters. See the module docstring.
             jurisdiction=scenario.employee_context.state,
             as_of=scenario.as_of_date,
             limit=limit,
+            query_vector=vector,
         )
         scores.append(
             score_one(

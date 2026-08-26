@@ -119,7 +119,14 @@ class ChunkStore:
         ]:
             self.client.create_payload_index(self.collection, field, schema)
 
-    def index(self, chunks: list[Chunk], batch_size: int = 64) -> int:
+    def index(self, chunks: list[Chunk], batch_size: int = 12) -> int:
+        """Index chunks.
+
+        The default batch is sized for tokens rather than convenience. Chunks
+        average roughly 300 tokens, so 64 of them is about 19,000 in one
+        request, which alone exceeds an unpaid Voyage account's 10,000 per
+        minute ceiling and fails before any pacing can help.
+        """
         wrong = [c.chunk_id for c in chunks if c.strategy != self.strategy]
         if wrong:
             raise ValueError(
@@ -159,7 +166,14 @@ class ChunkStore:
         jurisdiction: str | None = None,
         as_of: date | None = None,
         limit: int = 10,
+        query_vector: list[float] | None = None,
     ) -> list[SearchHit]:
+        """`query_vector` lets a caller supply a precomputed dense embedding.
+
+        The evaluation embeds all 57 questions in one request rather than one
+        per search, which matters when the provider is throttled to three
+        requests a minute.
+        """
         must: list[models.Condition] = []
 
         if jurisdiction:
@@ -224,7 +238,11 @@ class ChunkStore:
             collection_name=self.collection,
             prefetch=[
                 models.Prefetch(
-                    query=self.provider.embed_query(query),
+                    query=(
+                        query_vector
+                        if query_vector is not None
+                        else self.provider.embed_query(query)
+                    ),
                     using=DENSE,
                     filter=query_filter,
                     limit=limit * 4,

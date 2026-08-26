@@ -528,3 +528,73 @@ It also explains why the six verified scenarios score far worse than the rest: t
 `conflict-017` asks about "twelve months"; the statute says "12 months". A sparse tokenizer cannot bridge that and a dense embedding can. Cases like it are why the sparse-only arm understates the conflict slice, which is precisely the slice the chunking margin lives in.
 
 **DL-1 remains open and needs `OPENAI_API_KEY` and `VOYAGE_API_KEY`.** Until the hybrid arm runs, both the chunking adoption and the reranking decision stand as provisional.
+
+---
+
+## DL-18: DL-1, DL-14 and DL-16 all resolve, and two of three go against the intuition
+
+**Status:** decided, Phase 5. Four configurations, 57 scoreable scenarios, oracle filters.
+
+| config | recall@10 | recall@3 | mrr | forbidden | headroom |
+|---|---|---|---|---|---|
+| `voyage-law-2` / structure | **0.895** | **0.825** | 0.723 | 0.035 | 7.0 pts |
+| `voyage-law-2` / fixed | 0.877 | 0.781 | 0.691 | 0.053 | 9.6 pts |
+| `voyage-2` / structure | 0.877 | 0.702 | 0.673 | 0.035 | 17.5 pts |
+| `voyage-2` / fixed | 0.860 | 0.675 | 0.652 | 0.035 | 18.4 pts |
+
+### DL-1 closes: adopt `voyage-law-2`
+
+The legal-domain model beats the general one by **+1.8 points of recall@10 in both chunking arms**, identical to a decimal place, which is itself reassuring: the effect is independent of the other variable.
+
+**The interesting number is recall@3: +12.3 and +10.5 points.** Both models find the right document about equally often. The legal model is far better at putting it near the top.
+
+That is what domain specialisation should buy in a corpus like this one. Every chunk is employment law, so "relevant to the question" is nearly free and almost everything qualifies. The hard part is discriminating between near-neighbours: knowing that a CFRA eligibility clause beats a general FMLA definition for a Californian at fourteen months. Separating signal from noise is easy here; ranking plausible against correct is the whole problem.
+
+The comparison is clean because both arms are the same generation at the same 1024 dimensions from the same provider. Comparing against OpenAI, as originally planned, would have confounded domain specialisation with vendor.
+
+### DL-14 closes against the prediction: adopt fixed-size
+
+**Structure-aware wins by +1.8 points, in both model arms. The tie-break fixed in advance was 2 points. So fixed-size is adopted.**
+
+Under sparse-only retrieval the gap was 5.3 points and structure won outright. Under dense retrieval it is 1.8. The mechanism explains the shrinkage: DL-14 predicted structure would win because 205 of 313 fixed chunks begin mid-sentence and carry fragments rather than propositions. Lexical matching punishes that; **a dense embedding largely does not care**, because it encodes meaning rather than token boundaries.
+
+At n=57, 1.8 points is **one scenario**. The tie-break exists precisely for that: one scenario of difference does not justify a subdivision regex, a continuation-grouping rule, a packing heuristic, a hard cap, and a prose fallback.
+
+**An honest admission about the rule.** It was written against recall@10 alone, and structure also wins on recall@3, on mrr, and on forbidden-citation rate under the adopted model (0.035 against 0.053). Forbidden citations are a correctness failure rather than a ranking one, and the rule did not consider them. That is an under-specification I should have caught when writing it.
+
+It does not change the outcome. Every one of those gaps is also worth about one scenario at this sample size, so the rule's underlying logic, that the evidence is too thin to buy complexity, holds across all four metrics rather than only the one it named.
+
+**Recorded cost:** the adopted configuration scores 0.877 rather than the best-observed 0.895. Adopting the winner instead would mean deciding, after seeing data, that a threshold set in advance was wrong, which is the exact failure pre-registration exists to prevent.
+
+### DL-16 closes: do not build reranking
+
+The rule was to build it only above 10 points of `recall@10 - recall@3` headroom.
+
+- With `voyage-law-2`: **7.0 and 9.6 points. Below.**
+- With `voyage-2`: 17.5 and 18.4 points. Above.
+
+**Choosing the right embedding model removed the headroom a reranker would have chased.** On the general model the rule fires clearly and a reranker would have been built, tuned, and credited with recovering buried answers, when the same recovery was available for free by picking a domain-appropriate model.
+
+The adopted configuration sits at 9.6 points, near enough the threshold to revisit if the corpus grows. It is not near enough to override a rule fixed in advance.
+
+### Where it still struggles, and that is by design
+
+Best configuration, by slice:
+
+| slice | n | recall@10 | recall@3 |
+|---|---|---|---|
+| adversarial | 2 | 1.000 | 1.000 |
+| control | 10 | 1.000 | 0.900 |
+| superseded | 10 | 1.000 | 1.000 |
+| straightforward | 17 | 0.941 | 0.941 |
+| **conflict** | **18** | **0.722** | **0.556** |
+
+Four slices are at or near perfect. Conflict is twenty points below everything else, and it is the slice where the correct answer contradicts the most semantically relevant document. Retrieval is not failing there so much as being asked the wrong question: the handbook genuinely *is* the closest match, and no embedding model will rank a statute above it on similarity alone.
+
+**That gap is the argument for Phase 6.** It is a reasoning problem over retrieved evidence, and it is what the precedence rules exist to solve.
+
+### Standing caveats
+
+These are **oracle-filter numbers**: jurisdiction and as-of date come from scenario metadata, not from the question, because query rewriting is not built (DL-16). End-to-end performance will be lower by whatever that component costs.
+
+Only 6 of 57 scoreable scenarios are verified, and all six are conflict-slice. Verification since this run began has found **five ground-truth errors** (three Ohio absence records, one New York misattribution, one flaw in the search method itself). Those corrections will change some scenarios, and this table will need re-running afterwards. The embedding cache makes that nearly free.
