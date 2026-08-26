@@ -14,8 +14,17 @@ services:
     volumes:
       - ./qdrant_storage:/qdrant/storage
     healthcheck:
-      # Qdrant images ship without curl or wget, so probe from Python instead.
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://localhost:6333/readyz')\""]
+      # The image ships no HTTP client and no Python either. It is Debian-based
+      # and has bash, so probe over /dev/tcp. Verified against the running
+      # container: the previous Python probe exited 127 on every attempt and the
+      # service sat "unhealthy" while serving correctly, which is worse than no
+      # healthcheck at all.
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333;
+          printf "GET /readyz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3;
+          grep -q "200 OK" <&3'
       interval: 10s
       timeout: 5s
       retries: 5
