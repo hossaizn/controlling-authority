@@ -475,3 +475,56 @@ The threshold is a choice rather than a measurement, and it is fixed here for th
 Both are worth building and neither is what makes this project non-trivial. In this corpus the correct answer frequently **contradicts the most semantically relevant document**: the handbook is the closest match and, where it falls below a statutory floor, the wrong answer. Perfect retrieval returns it first and a perfect reranker keeps it there.
 
 That is a reasoning problem over retrieved evidence, not a retrieval problem, and no amount of tuning upstream of the agent touches it.
+
+---
+
+## DL-17: First measured results, and DL-14's prediction held
+
+**Status:** sparse-only arm complete, Phase 5. Hybrid arm blocked on credentials.
+
+### What was run
+
+The scenario set against the live corpus, both chunking strategies, **sparse-only retrieval**. Sparse matching with server-side IDF needs no embedding provider, so this arm could run while DL-1 waits for keys. It is a real retrieval mode, not a degraded one, and it is reported as its own configuration rather than as the hybrid result.
+
+**These are oracle-filter numbers.** Jurisdiction and as-of date come from scenario metadata rather than from the question, because query rewriting is not built (DL-16). This measures retrieval given perfect query understanding. Presenting it as end-to-end performance would flatter the system by exactly the cost of the missing component.
+
+57 of 92 scenarios carry `required_citations` and are scoreable. The rest expect a clarification, refusal or escalation, which have no retrieval target.
+
+### Results, recall@10 by slice
+
+| slice | n | structure | fixed |
+|---|---|---|---|
+| adversarial | 2 | 1.000 | 1.000 |
+| conflict | 18 | **0.667** | **0.500** |
+| control | 10 | 0.700 | 0.700 |
+| straightforward | 17 | 0.765 | 0.765 |
+| superseded | 10 | 1.000 | 1.000 |
+| **overall** | 57 | **0.772** | **0.719** |
+
+**Structure-aware wins by 5.3 points, and the entire margin is in the conflict slice.** Every other slice is tied to three decimal places.
+
+### DL-14 predicted this, including where
+
+The prediction was: structure wins overall, the margin is concentrated rather than spread, and the straightforward slice shows no meaningful difference. All three hold. Straightforward is not merely close, it is identical at 0.765.
+
+The tie-break fixed in advance was 2 points. At 5.3 it does not apply, so **structure-aware is adopted**, provisionally pending the hybrid arm.
+
+**This is stronger evidence than the overall number suggests**, because the mechanism was corrected in Phase 4.5 before the run. The original claim, that fixed windows split eligibility prongs, was checked and found not to occur. The replacement claim, that 205 of 313 fixed chunks begin mid-sentence and carry fragments rather than propositions, is the one that predicted a conflict-slice-only margin, and that is what appeared.
+
+### The core thesis showed up as a measurement
+
+Inspecting the verified scenarios individually, `conflict-001`, `conflict-007` and `conflict-021` all rank **the handbook first**, on precisely the scenarios where the handbook is the wrong answer. The spec's opening claim, that the right answer often contradicts the most semantically relevant document, is now visible in retrieval output rather than asserted.
+
+It also explains why the six verified scenarios score far worse than the rest: they are **entirely conflict-slice**, the hardest cases by construction. Comparing that subset against the others measures difficulty, not correctness, which is why the table above is by slice.
+
+### Reranking: the DL-16 rule fires, provisionally
+
+`recall@10 - recall@3` for structure-aware is **15.8 points**, against the threshold of 10 fixed in DL-16. On the conflict slice specifically, structure has *lower* recall@3 than fixed (0.278 against 0.333) while having higher recall@10, which is the exact signature of retrieving the right document and burying it.
+
+**Held rather than acted on**, for one reason: DL-16 says the rule does not apply when recall@10 is itself poor, and 0.772 under sparse-only is not the number this decision should rest on.
+
+### Why this is not final
+
+`conflict-017` asks about "twelve months"; the statute says "12 months". A sparse tokenizer cannot bridge that and a dense embedding can. Cases like it are why the sparse-only arm understates the conflict slice, which is precisely the slice the chunking margin lives in.
+
+**DL-1 remains open and needs `OPENAI_API_KEY` and `VOYAGE_API_KEY`.** Until the hybrid arm runs, both the chunking adoption and the reranking decision stand as provisional.

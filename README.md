@@ -63,6 +63,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-14** | Pre-registered prediction, falsifier and tie-break for the chunking comparison | open |
 | **DL-15** | Spec required hybrid retrieval; Phase 4 skipped it without recording the deviation | decided |
 | **DL-16** | Query rewriting committed; reranking gated on a pre-registered recall gap | open |
+| **DL-17** | First results: structure-aware +5.3 pts, entirely in the conflict slice, as predicted | provisional |
 
 ---
 

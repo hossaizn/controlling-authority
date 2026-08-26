@@ -154,3 +154,28 @@ def get_provider(name: str) -> EmbeddingProvider:
     if name not in PROVIDERS:
         raise ValueError(f"unknown provider {name!r}; expected one of {sorted(PROVIDERS)}")
     return PROVIDERS[name]()
+
+
+class SparseOnly(EmbeddingProvider):
+    """No dense vectors at all: retrieval falls to lexical matching.
+
+    Not a degraded mode. Sparse matching with server-side IDF is a legitimate
+    retrieval strategy, and it needs no credentials, so the chunking comparison
+    can run before DL-1 is settled. Results from this arm are labelled as their
+    own configuration rather than reported as though they were hybrid.
+
+    A one-dimensional dense vector is still written, because a collection needs
+    a dense configuration to exist. It is never queried.
+    """
+
+    def __init__(self) -> None:
+        self.spec = EmbeddingSpec("none", "sparse_only", 1)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [[0.0] for _ in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return [0.0]
+
+
+PROVIDERS["sparse"] = SparseOnly

@@ -190,6 +190,28 @@ class ChunkStore:
         query_filter = models.Filter(must=must) if must else None
         sparse_indices, sparse_values = sparse_vector(query)
 
+        sparse_prefetch = models.Prefetch(
+            query=models.SparseVector(indices=sparse_indices, values=sparse_values),
+            using=SPARSE,
+            filter=query_filter,
+            limit=limit * 4,
+        )
+
+        # Sparse-only is a real retrieval mode, not a degraded one: it is
+        # lexical matching with server-side IDF, which needs no embedding
+        # provider and therefore no credentials. It lets the chunking comparison
+        # run before DL-1 is settled, and it is labelled as its own arm rather
+        # than reported as though it were the hybrid result.
+        if self.provider.spec.provider == "none":
+            response = self.client.query_points(
+                collection_name=self.collection,
+                prefetch=[sparse_prefetch],
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                limit=limit,
+                with_payload=True,
+            )
+            return _hits(response)
+
         # Hybrid: dense and sparse retrieved separately, then fused with
         # reciprocal rank fusion. Legal text needs both. A dense embedding puts
         # "825.200" near its paraphrases, which is wrong for a citation lookup;
@@ -220,19 +242,23 @@ class ChunkStore:
             limit=limit,
             with_payload=True,
         )
-        return [
-            SearchHit(
-                chunk_id=p.payload["chunk_id"],
-                citation=p.payload["citation"],
-                authority_layer=p.payload["authority_layer"],
-                jurisdiction=p.payload["jurisdiction"],
-                content_status=p.payload["content_status"],
-                heading=p.payload["heading"],
-                text=p.payload["text"],
-                score=p.score,
-            )
-            for p in response.points
-        ]
+        return _hits(response)
+
+
+def _hits(response) -> list[SearchHit]:
+    return [
+        SearchHit(
+            chunk_id=p.payload["chunk_id"],
+            citation=p.payload["citation"],
+            authority_layer=p.payload["authority_layer"],
+            jurisdiction=p.payload["jurisdiction"],
+            content_status=p.payload["content_status"],
+            heading=p.payload["heading"],
+            text=p.payload["text"],
+            score=p.score,
+        )
+        for p in response.points
+    ]
 
 
 # Text still in force needs an upper bound a range filter can compare against.
