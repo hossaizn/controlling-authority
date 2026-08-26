@@ -821,3 +821,76 @@ Fixed in code rather than in the prompt: a degenerate query falls back to the ra
 **Conflict still fails the gate at 0.722, correctly.** The gate demands that slice improve, and `resolve` in Task 6.4 is what closes it. Triage was never going to.
 
 **Cost:** three runs of 92 scenarios, roughly $0.73 total. Decisions cache by prompt and question, so the rewrite check re-ran for nothing.
+
+---
+
+## DL-23: Precedence as code beats the most relevant document by 24.6 points, and one prompt bug made every resolution look right
+
+**Status:** decided, Phase 6.3 and 6.4. Precedence correctness **0.877**, naive baseline **0.632**.
+
+### The measurement the project was built to make
+
+Same retrieval, same 57 answer scenarios, same run. The only difference is what decides the controlling authority: the layer of the top-ranked passage, or the precedence rules.
+
+| slice | n | naive | precedence as code | delta |
+|---|---|---|---|---|
+| adversarial | 2 | 0.500 | 0.500 | +0.0 |
+| conflict | 18 | **0.500** | **0.833** | **+33.3** |
+| control | 10 | 0.300 | 0.900 | +60.0 |
+| straightforward | 17 | 0.765 | 0.882 | +11.8 |
+| superseded | 10 | 1.000 | 1.000 | +0.0 |
+| **overall** | 57 | **0.632** | **0.877** | **+24.6** |
+
+**The handbook is the top-ranked passage 26 times out of 57.** The spec's opening claim, that the correct answer frequently contradicts the most semantically relevant document, is no longer a premise. It is a measured 24.6 points, concentrated exactly where predicted: conflict and control.
+
+The two slices with zero delta are the two where naive is already right. Superseded is solved by the effective-date filter, not by reasoning, and adversarial has two scenarios.
+
+### What is code and what is a model
+
+The model is asked two things: what does each layer's text say, and which provision is more generous to the employee. It is **never** asked which layer controls.
+
+That decision is `agent/precedence.py`. Rules 1, 2, 4 and 5 are a pure function of the findings. Rule 3, effective dating, is not implemented there at all: the store already applies the as-of date as a hard filter inside each prefetch, and a second implementation would eventually disagree with the first.
+
+The split is worth more than tidiness. **Rule 5 is the subtlest rule in the spec and the one a review found missing entirely (DL-7)**, and in code it cannot be argued out of by a persuasively worded question, produces the same answer every time, and records which rule fired. `concurrence_tie_break` fired 4 times, `statutory_floor` 11, `policy_may_exceed` 8, `silence_is_not_permission` 33.
+
+One integrity check earns its place: a layer that **denies** may never be ranked more generous than one that **grants**. It is the only way a model-supplied ranking can be checked against itself, and without it a handbook granting leave would lose to a statute that merely does not require it.
+
+### The bug that made every resolution look correct
+
+`named the beaten source` came back **0 of 8** while precedence read 0.895 and every individual resolution looked right.
+
+The cause: the model was returning entire passages in the `citation` field. The prompt said to copy the citation "exactly as it appears in the passages", and passages are rendered as `[citation] heading / body`, so it copied the block. Nothing failed. Precedence ran, resolutions were produced, the trace looked plausible, and the citations were paragraphs.
+
+**This is the pattern this project keeps rediscovering.** DL-12: every artifact agreed with every other and all were wrong. The only reason it surfaced is that a secondary metric was zero when it should not have been, and a flat zero is the one value too suspicious to ignore.
+
+Fixed in two places, because either alone is insufficient:
+- the prompt now shows the exact transformation with an example
+- **`resolve_citation` validates against the citations actually retrieved**, and rejects anything else. Longest match wins, because `Cal. Gov. Code 12945` is a prefix of `Cal. Gov. Code 12945.2` and both are in this corpus, which is DL-12's other trap. A citation that was never retrieved makes its layer silent rather than letting an entitlement rest on a provision nobody produced.
+
+The code half matters more. No amount of prompting reliably stops a model citing what it was not given, and a model cannot be trusted to police that in itself.
+
+**The correction moved the headline down, 0.895 to 0.860.** The honest reading is not that the fix hurt: it is that **0.895 was never a valid measurement**, because 0 of 8 proves the evidence it rested on was malformed. There is no regression to explain, only a first real number.
+
+### Three prompts, and why the spread is not progress
+
+| prompt | precedence | note |
+|---|---|---|
+| resolve-v2 | 0.860 | citations validated |
+| resolve-v3 | 0.860 | tie guidance made symmetric |
+| resolve-v4 | **0.877** | tool schema aligned with the prompt |
+
+**The spread is one scenario. It should not be read as improvement.** v3 did what it was written to do, cutting spurious ties from 4 to 1, and bought no accuracy; the errors moved rather than reduced. v4 removed a genuine self-contradiction, the tool schema still calling ties "common" while the system prompt said to tie only on identical provisions.
+
+Reporting 0.877 as the result of three rounds of tuning would be dishonest. **The measurement's precision at n=57 is about one scenario, so the finding is "roughly 0.87", and the three versions are indistinguishable.** The constraint from DL-22 held throughout: prompts changed only to remove a contradiction with the spec or with themselves.
+
+### What is still weak, stated plainly
+
+**`named the beaten source` is 3 of 8.** An answer that overrides the handbook without saying so leaves a reader who has already read the handbook unable to reconcile the two. `resolve` names the losing citations; whether the answer uses them is Task 6.5, and this number is the floor it starts from.
+
+**All 7 remaining failures are generosity comparisons**, which is precisely the one judgment delegated to the model. Three hand a case to `company` that should be statutory and three do the reverse. No structural fix is available inside the current split: the rules are right and the evidence going into them is sometimes wrong.
+
+**Reachable after routing is 51 of 57.** Six answer scenarios never get here because triage routes them elsewhere, and precedence on the reachable subset is 0.863. End-to-end is the product of both, and Task 6.7 reports it as such rather than quoting either alone.
+
+**Clarify needs no model.** Triage has already named the missing fact, so turning `tenure_months` into a sentence is a five-way lookup. A model there would add cost, latency and a way for the question asked to drift from the fact recorded, which nothing downstream would catch.
+
+**Cost:** four precedence runs and three triage runs, about **$2.31** in total. The naive baseline is computed on the same pass from the same retrieval, so it costs nothing and cannot drift from the agent it is compared against.

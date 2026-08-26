@@ -1,0 +1,351 @@
+"""`resolve`: read what each authority layer says, then apply precedence in code.
+
+The split is the point. The model is asked only what the retrieved text says and
+which provision is more generous to the employee. It is never asked which layer
+controls: that is `agent/precedence.py`, where the rule that fired is recorded,
+the same input always gives the same output, and rule 5 cannot be argued out of
+by a persuasively worded question.
+
+Passages are presented **grouped by layer and labelled**, because the layer a
+provision belongs to is the whole basis of the decision and asking a model to
+infer it from a citation string is inviting an error that precedence cannot
+detect. It is metadata we already have.
+
+**Absence records read as silence, and that is deliberate.** A retrieved record
+saying Ohio has no family-leave provision is evidence that the layer is silent,
+which is different from retrieval having failed. Rule 4 then keeps that silence
+from overriding a layer that does speak.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+
+from agent.models import HAIKU, StructuredCaller
+from agent.precedence import PrecedenceError, resolve_precedence
+from agent.state import AgentState, LayerFinding, Resolution, TraceEvent
+from domain import Authority
+
+PROMPT_VERSION = "resolve-v4"
+
+LAYERS: tuple[Authority, ...] = ("federal", "state", "company")
+
+# The tool requires a rank on every finding because models fill required fields
+# more reliably than optional ones. 0 means "not applicable", which is what a
+# silent layer gets, and the node maps it to None before precedence sees it.
+NOT_APPLICABLE = 0
+
+READ_TOOL = {
+    "name": "read_authorities",
+    "description": (
+        "Record what each authority layer says about the question, and how the "
+        "provisions compare in generosity to the employee."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "findings": {
+                "type": "array",
+                "description": "Exactly one entry per layer: federal, state, company.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "layer": {"type": "string", "enum": list(LAYERS)},
+                        "outcome": {
+                            "type": "string",
+                            "enum": ["grants", "denies", "silent"],
+                            "description": (
+                                "grants: this layer provides the entitlement asked "
+                                "about. denies: it addresses the question and does "
+                                "not provide it. silent: it does not address the "
+                                "question at all."
+                            ),
+                        },
+                        "citation": {
+                            "type": "string",
+                            "description": (
+                                "The bracketed identifier only, for example "
+                                "'29 CFR 825.200'. Not the passage text, not the "
+                                "heading. Empty string when the layer is silent."
+                            ),
+                        },
+                        "says": {
+                            "type": "string",
+                            "description": "One sentence, what this layer provides.",
+                        },
+                        "generosity_rank": {
+                            "type": "integer",
+                            "description": (
+                                "1 is most generous to the employee. Equal ranks "
+                                "mean the layers provide the same thing; rank them "
+                                "differently wherever they differ. Use 0 when the "
+                                "layer is silent. A layer that denies must never "
+                                "rank better than one that grants."
+                            ),
+                        },
+                    },
+                    "required": ["layer", "outcome", "citation", "says", "generosity_rank"],
+                },
+            }
+        },
+        "required": ["findings"],
+    },
+}
+
+SYSTEM = """You read employment leave provisions and report what each one says.
+
+You are NOT deciding which authority wins. That decision is made by code from
+what you report, and it follows rules you do not need to know. Reporting the
+evidence accurately is the entire job; guessing the outcome corrupts it.
+
+For each of the three layers, federal, state and company, report:
+
+OUTCOME
+- grants: this layer provides the entitlement being asked about.
+- denies: this layer addresses the question and does not provide it. A rule that
+  defines who or what is covered, where the asker falls outside it, denies.
+- silent: this layer does not address the question at all.
+
+"denies" and "silent" are different and the difference matters. A statute that
+lists covered family members and omits grandparents DENIES leave for a
+grandparent. A statute that never mentions family leave is SILENT. If a passage
+explicitly records that a state has no provision on the topic, that layer is
+silent, and you know it rather than merely failing to find it.
+
+If no passage from a layer was supplied, that layer is silent.
+
+CITATION
+Every passage is preceded by its citation in square brackets. Return ONLY that
+bracketed identifier, with nothing else: no brackets, no heading, no passage
+text. For example, given
+
+    [29 CFR 825.200] § 825.200 Amount of leave. (a) An eligible employee...
+
+the citation is exactly:
+
+    29 CFR 825.200
+
+Return one citation, not several. Never return a citation that was not supplied
+to you. Use an empty string for a silent layer.
+
+GENEROSITY RANK
+Rank the layers by how favourable they are TO THE EMPLOYEE. 1 is most generous.
+
+- More leave, more pay, broader coverage, or an easier eligibility test is more
+  generous. A lower service requirement is more generous, not less.
+- A layer that denies must never rank better than one that grants.
+- Silent layers get 0.
+
+Ties and differences are equally important to get right, and both are errors in
+opposite directions.
+
+- Tie them ONLY where they provide the same thing. A policy that restates a
+  statutory minimum ties with it, and breaking that tie arbitrarily is wrong.
+- Do NOT tie them where they differ. More days, more weeks, paid rather than
+  unpaid, a longer period of coverage, more qualifying reasons, or a lower
+  service requirement all mean one is more generous than the other. Ten paid
+  days against a five-day statutory minimum is not a tie.
+
+Read the two provisions against each other on the specific point and say which
+gives the employee more. Only call it equal when neither does.
+
+Compare the provisions on the point the question actually turns on. If the
+question is about eligibility, compare the eligibility tests, not the amount of
+leave each one grants."""
+
+
+def _passages_by_layer(state: AgentState) -> dict[str, list]:
+    grouped: dict[str, list] = defaultdict(list)
+    for hit in state.get("retrieved", []):
+        grouped[hit.authority_layer].append(hit)
+    return grouped
+
+
+def _user_message(state: AgentState) -> str:
+    ctx = state["employee_context"]
+    supplied = {k: v for k, v in ctx.model_dump().items() if v is not None}
+    known = "\n".join(f"- {k}: {v}" for k, v in supplied.items()) or "- nothing supplied"
+
+    grouped = _passages_by_layer(state)
+    blocks = []
+    for layer in LAYERS:
+        hits = grouped.get(layer, [])
+        if not hits:
+            blocks.append(f"### {layer.upper()}\n(no passages retrieved for this layer)")
+            continue
+        body = "\n\n".join(
+            f"[{h.citation}] {h.heading}\n{h.text}"
+            + ("\n(this is a record that the law is silent on this topic)"
+               if h.content_status == "absent" else "")
+            for h in hits
+        )
+        blocks.append(f"### {layer.upper()}\n{body}")
+
+    return (
+        f"Question: {state['question']}\n\n"
+        f"What is known about the employee:\n{known}\n\n"
+        f"As of date: {state['as_of'].isoformat()}\n\n"
+        "Retrieved passages, grouped by authority layer:\n\n" + "\n\n".join(blocks)
+    )
+
+
+def resolve_citation(raw: str, valid: set[str]) -> str | None:
+    """Map whatever the model wrote into a citation that was actually retrieved.
+
+    **Necessary because the model returned whole passages here.** Told to copy
+    the citation "exactly as it appears in the passages", and given passages
+    rendered as `[citation] heading / body`, it copied the entire block. That
+    silently emptied `non_controlling_to_address` and would have broken every
+    citation check in `verify`, while the resolution still looked correct.
+
+    Doing it in code rather than only in the prompt is the point: this also
+    rejects a citation that was never retrieved, which no amount of prompting
+    reliably prevents and which a model cannot be trusted to police in itself.
+
+    **Longest match wins.** `Cal. Gov. Code 12945` is a prefix of
+    `Cal. Gov. Code 12945.2` and both are in this corpus. DL-12 records the same
+    trap producing the right citation attached to the wrong statute.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text in valid:
+        return text
+    matches = [c for c in valid if c in text]
+    return max(matches, key=len) if matches else None
+
+
+def _to_findings(raw: list[dict], valid_citations: set[str]) -> list[LayerFinding]:
+    """One finding per layer, always all three.
+
+    A layer the model omitted is silent, not missing. Dropping it would make the
+    resolution look like it considered two layers when it considered three, and
+    the trace is supposed to show what was rejected as well as what won.
+    """
+    by_layer = {}
+    for item in raw:
+        layer = item.get("layer")
+        if layer in LAYERS and layer not in by_layer:
+            by_layer[layer] = item
+
+    findings = []
+    for layer in LAYERS:
+        item = by_layer.get(layer, {})
+        outcome = item.get("outcome", "silent")
+        if outcome not in ("grants", "denies", "silent"):
+            outcome = "silent"
+        rank = item.get("generosity_rank", NOT_APPLICABLE)
+        citation = resolve_citation(item.get("citation", ""), valid_citations)
+
+        # A layer claiming to speak without naming a provision has nothing
+        # behind it. Treated as silent rather than allowed to control an answer
+        # on the strength of an uncited assertion.
+        if outcome != "silent" and citation is None:
+            outcome = "silent"
+
+        findings.append(
+            LayerFinding(
+                layer=layer,
+                speaks_to_question=outcome != "silent",
+                outcome=outcome,
+                citation=citation,
+                says=item.get("says", ""),
+                generosity_rank=None if outcome == "silent" else (rank or 1),
+            )
+        )
+    return findings
+
+
+def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
+    caller = caller or StructuredCaller()
+
+    def resolve(state: AgentState) -> dict:
+        if not state.get("retrieved"):
+            resolution = Resolution(
+                controlling=None,
+                rule="silence_is_not_permission",
+                considered=[],
+            )
+            return {
+                "resolution": resolution,
+                "trace": [
+                    TraceEvent(
+                        node="resolve",
+                        summary="nothing was retrieved, so no authority controls",
+                        detail={"rule": resolution.rule},
+                    )
+                ],
+            }
+
+        result = caller.call(
+            system=f"{SYSTEM}\n\n<!-- {PROMPT_VERSION} -->",
+            user=_user_message(state),
+            tool=READ_TOOL,
+            model=model,
+            max_tokens=2048,
+        )
+        valid = {h.citation for h in state["retrieved"]}
+        findings = _to_findings(result.get("findings", []), valid)
+
+        try:
+            resolution = resolve_precedence(findings)
+            summary = _summarise(resolution)
+        except PrecedenceError as exc:
+            # Inconsistent evidence is not resolved on a best guess. The answer
+            # degrades rather than being asserted from findings that contradict
+            # each other, which would still look like a resolution downstream.
+            resolution = Resolution(
+                controlling=None, rule="not_reached", considered=findings
+            )
+            summary = f"evidence was inconsistent, so no authority was resolved: {exc}"
+
+        return {
+            "resolution": resolution,
+            "trace": [
+                TraceEvent(
+                    node="resolve",
+                    summary=summary,
+                    detail={
+                        "controlling": resolution.controlling,
+                        "acceptable": resolution.acceptable,
+                        "rule": resolution.rule,
+                        "considered": [
+                            {
+                                "layer": f.layer,
+                                "outcome": f.outcome,
+                                "citation": f.citation,
+                                "says": f.says,
+                                "generosity_rank": f.generosity_rank,
+                            }
+                            for f in resolution.considered
+                        ],
+                        "model": model,
+                    },
+                )
+            ],
+        }
+
+    return resolve
+
+
+# Written for a non-technical reader, because the trace is a feature rather than
+# a debug flag and this line is the one that explains the whole product.
+_RULE_TEXT = {
+    "statutory_floor": "a statutory floor overrides a less generous provision",
+    "policy_may_exceed": "company policy is more generous than the law requires, so it governs",
+    "silence_is_not_permission": "only one layer addresses this, so it governs",
+    "concurrence_tie_break": (
+        "the handbook restates the statute, so the statute is what compels this"
+    ),
+    "indeterminate": "federal and state law each independently compel the same outcome",
+    "not_reached": "no authority was resolved",
+}
+
+
+def _summarise(resolution: Resolution) -> str:
+    reason = _RULE_TEXT.get(resolution.rule, resolution.rule)
+    if resolution.controlling:
+        return f"{resolution.controlling} law controls: {reason}"
+    if resolution.acceptable:
+        return f"{' and '.join(resolution.acceptable)} both control: {reason}"
+    return reason

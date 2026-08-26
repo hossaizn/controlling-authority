@@ -21,14 +21,28 @@ Public repo: `github.com/hossaizn/controlling-authority`
 
 ## Status
 
-Phases 0 through 5.5 complete and merged. Phase 6 in progress: Tasks 6.0 (the
-regression gate), 6.1 (graph skeleton) and 6.2 (`triage`) are done. Task 6.3
-(`clarify`) is next, then 6.4 (`resolve`), which is the one that matters.
+Phases 0 through 5.5 complete and merged. Phase 6 in progress: Tasks 6.0 (gate),
+6.1 (skeleton), 6.2 (`triage`), 6.3 (`clarify` and `retrieve`) and 6.4
+(`resolve`) are done. Task 6.5 (`compose`) is next, then 6.6 (`verify`) and 6.7
+(end-to-end).
 
-**Triage, on Haiku, DL-22:** route accuracy **0.815 macro**, clearing the 0.80
-upgrade threshold by 1.5 points, which is less than one clarify scenario. Weakest
-route is clarify at 0.533. Query rewriting **improves** retrieval, 0.895 to
-**0.912** recall@10, with no slice regressing.
+**The headline, DL-23.** Precedence as code against a system that trusts the
+top-ranked passage, same retrieval, same run:
+
+| | naive | precedence as code |
+|---|---|---|
+| conflict slice | 0.500 | **0.833** |
+| overall | 0.632 | **0.877** |
+
+The handbook is the top-ranked passage 26 times of 57. The spec's opening claim
+is now a measured +24.6 points rather than a premise.
+
+**Triage, DL-22:** route accuracy **0.815 macro**, clearing the 0.80 upgrade
+threshold by less than one clarify scenario. Weakest route is clarify at 0.533.
+Query rewriting **improves** retrieval, 0.895 to **0.912** recall@10.
+
+**Precision at n=57 is about one scenario.** Three resolve prompts scored 0.860,
+0.860, 0.877 and are indistinguishable. Do not quote the spread as progress.
 
 **Adopted configuration**, settled by measurement in DL-18 and revised in DL-20:
 

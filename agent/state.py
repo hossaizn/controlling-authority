@@ -41,6 +41,9 @@ PrecedenceRule = Literal[
 ]
 
 
+Outcome = Literal["grants", "denies", "silent"]
+
+
 @dataclass(frozen=True)
 class LayerFinding:
     """What one authority layer had to say. Every layer is recorded, including
@@ -49,26 +52,54 @@ class LayerFinding:
     `speaks_to_question` is the distinction rule 4 turns on. A layer that is
     silent is not a layer that permits, and collapsing the two is how "the
     handbook doesn't mention it, so it's fine" gets produced.
+
+    `outcome` separates two things that are both "speaking": a layer can address
+    the question and grant nothing. `conflict-005` is exactly that. Federal FMLA
+    covers grandparents only as next of kin for military caregiver leave, so for
+    ordinary care it speaks and denies. The answer is "no", which is an answer
+    rather than a refusal, and the layer that determined it is controlling.
+
+    `generosity_rank` is the one comparison a model has to make, because "more
+    generous to the employee" is not always arithmetic. 1 is most generous, ties
+    allowed. It ranks the PROVISIONS against each other; it never says which one
+    controls. That decision is `agent/precedence.py`, in code.
     """
 
     layer: Authority
     speaks_to_question: bool
+    outcome: Outcome = "silent"
     citation: str | None = None
     says: str = ""
+    generosity_rank: int | None = None
 
 
 @dataclass(frozen=True)
 class Resolution:
     """Structured, not prose. A sentence saying "state law controls here" cannot
-    be scored, diffed, or shown in a trace panel."""
+    be scored, diffed, or shown in a trace panel.
+
+    `controlling` is None when the layers genuinely tie, and `acceptable` names
+    the tie. Spec: where federal and state each independently compel the same
+    outcome, neither is "the" controlling authority, and demanding one would
+    score a defensible answer wrong.
+    """
 
     controlling: Authority | None
     rule: PrecedenceRule
     considered: list[LayerFinding] = field(default_factory=list)
+    acceptable: list[Authority] = field(default_factory=list)
     # Sources the answer must acknowledge without treating as controlling. An
     # employee who already read the handbook needs to know why the answer
     # differs from it, or the answer is useless to them.
     non_controlling_to_address: list[str] = field(default_factory=list)
+
+    @property
+    def defensible(self) -> list[Authority]:
+        """Every authority this resolution treats as correct. One when it is
+        determinate, several when it is not."""
+        if self.acceptable:
+            return list(self.acceptable)
+        return [self.controlling] if self.controlling else []
 
 
 @dataclass(frozen=True)
