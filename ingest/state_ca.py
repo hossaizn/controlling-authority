@@ -53,6 +53,7 @@ CA_CODE_NAMES = {
 CREDIT_LINE = re.compile(r"\((?:Amended|Added|Enacted|Repealed)[^()]*(?:\([^()]*\)[^()]*)*\)\s*$")
 EFFECTIVE_DATE = re.compile(r"Effective\s+([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})")
 CHAPTER_YEAR = re.compile(r"Stats\.\s*(\d{4})")
+RANGE_MARKER = re.compile(r"\s*\[[\d.\s\-]+\]\s*$")
 
 MONTHS = {
     m: i
@@ -95,15 +96,28 @@ def parse_ca_section(
 
     # leginfo answers 200 with a shell page for an unknown section. An empty
     # document would enter the corpus and retrieve as a plausible near-miss.
-    if not body_text.startswith(f"{section}."):
+    #
+    # Matched with a boundary rather than startswith: "12945." is a prefix of
+    # "12945.2.", so a prefix test let section 12945 parse the 12945.2 page and
+    # emit the right citation attached to the wrong statute. Both sections are
+    # in this corpus, so that was reachable in normal use.
+    opener = re.match(rf"{re.escape(section)}\.(?!\d)", body_text)
+    if not opener:
         raise ValueError(
-            f"no statute text for {code} {section}: page did not contain the section body"
+            f"no statute text for {code} {section}: page did not open with that "
+            "section number"
         )
 
-    # Hierarchy: the h4s after the code name, plus any h5.
+    # Hierarchy: the h4s after the code name, plus any h5. Depth is ragged and
+    # must not be assumed: the Government Code runs five levels here, the
+    # Elections Code two.
     headers = [_clean(h.get_text(" ")) for h in container.select("h4")]
     section_path = [h for h in headers[1:] if h]
     section_path += [_clean(h.get_text(" ")) for h in container.select("h5")]
+    # Drop "[14000 - 14443]" range markers. They are navigation artifacts, and
+    # a chunk carries its section_path into the embedding, where bare digit
+    # ranges are noise.
+    section_path = [RANGE_MARKER.sub("", h).strip() for h in section_path]
 
     credit_match = CREDIT_LINE.search(body_text)
     credit = credit_match.group(0) if credit_match else ""
@@ -111,7 +125,7 @@ def parse_ca_section(
         raise ValueError(f"{code} {section}: no credit line, cannot date the section")
 
     text = body_text[: credit_match.start()].strip()
-    text = text[len(section) + 1 :].strip()  # drop the leading "12945.2."
+    text = text[opener.end() :].strip()  # drop the leading "12945.2."
 
     effective_from, is_floor = _effective_from(credit)
     citation = f"{CA_CODE_NAMES[code]} {section}"
@@ -122,12 +136,20 @@ def parse_ca_section(
         authority_layer="state",
         jurisdiction="CA",
         section_path=section_path or [CA_CODE_NAMES[code]],
+        # California code sections are largely untitled: leginfo prints the
+        # number and goes straight into the text. The citation is therefore the
+        # only heading available, unlike federal sections which carry a real
+        # one. Not an oversight; there is nothing else to use.
         heading=citation,
         text=text,
         content_status="substantive",
         effective_from=effective_from,
         effective_from_is_floor=is_floor,
         observed_on=observed_on,
+        # leginfo serves only current text: there is no dated URL form, so this
+        # link shows today's wording regardless of observed_on. Recorded rather
+        # than papered over, because the federal adapter *can* link
+        # point-in-time and the difference matters when citing an older version.
         source_url=f"{BASE}?lawCode={code}&sectionNum={section}",
         source_note=credit,
     )

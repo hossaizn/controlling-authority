@@ -48,7 +48,7 @@ def test_escaped_newlines_are_decoded(pfl) -> None:
 
 def test_section_heading_is_not_duplicated_into_the_body(pfl) -> None:
     assert not pfl.text.lstrip().startswith("§ 204.")
-    assert pfl.heading == "N.Y. Workers' Comp. Law 204"
+    assert pfl.heading.startswith("N.Y. Workers' Comp. Law 204")
 
 
 def test_effective_date_is_published_not_inferred(pfl) -> None:
@@ -75,3 +75,53 @@ def test_an_unsuccessful_payload_raises() -> None:
     """The API answers 200 with success:false for an unknown location."""
     with pytest.raises(ValueError, match="unsuccessful"):
         parse_ny_section({"success": False, "result": {}}, observed_on=OBSERVED)
+
+
+def test_the_section_title_is_stripped_not_just_the_number(pfl) -> None:
+    """Reducing the strip to the section number alone left the title in the
+    body, which no test noticed."""
+    assert not pfl.text.startswith("Disability and family leave during employment")
+    assert pfl.text.lstrip().startswith("1.")
+
+
+def test_a_title_containing_a_period_does_not_over_strip() -> None:
+    """The original pattern consumed everything to the first full stop."""
+    payload = {
+        "success": True,
+        "result": {
+            "lawId": "WKC",
+            "locationId": "204",
+            "title": "Benefits under art. 9 of this chapter",
+            "activeDate": "2016-04-08",
+            "parents": [],
+            "text": "  § 204. Benefits under art. 9 of this chapter. 1. The first"
+                    " subdivision must survive intact.",
+        },
+    }
+    d = parse_ny_section(payload, observed_on=OBSERVED)
+    assert d.text.startswith("1. The first subdivision must survive intact.")
+
+
+def test_no_title_does_not_eat_the_first_subdivision() -> None:
+    payload = {
+        "success": True,
+        "result": {
+            "lawId": "WKC",
+            "locationId": "204",
+            "title": "",
+            "activeDate": "2016-04-08",
+            "parents": [],
+            "text": "  § 204. 1. Disability benefits shall be payable.",
+        },
+    }
+    d = parse_ny_section(payload, observed_on=OBSERVED)
+    assert d.text.startswith("1. Disability benefits")
+
+
+def test_heading_carries_the_section_title(pfl) -> None:
+    """heading is what a chunk carries into the embedding. Repeating the
+    citation leaves state documents with no descriptive context while federal
+    ones have it."""
+    assert pfl.heading == (
+        "N.Y. Workers' Comp. Law 204 — Disability and family leave during employment"
+    )

@@ -125,11 +125,10 @@ def test_no_ohio_scenario_is_verified_while_absence_records_are_unverified() -> 
     was clear and judgment still failed, so the rule is now enforced rather
     than remembered.
     """
-    from ingest.absence import load_absence_records
+    from ingest.absence import load_absence_index
 
-    absences = load_absence_records("OH")
-    absences_verified = all("verified_on=None" not in d.source_note for d in absences)
-    if absences_verified:
+    records = load_absence_index("OH")
+    if all(r.verified_on is not None for r in records):
         return  # once they are checked, Ohio scenarios may be verified
 
     offenders = [
@@ -142,10 +141,28 @@ def test_no_ohio_scenario_is_verified_while_absence_records_are_unverified() -> 
     )
 
 
-def test_no_jurisdiction_withheld_scenario_is_verified_yet() -> None:
+def test_jurisdiction_withheld_scenarios_are_verified_only_with_full_coverage() -> None:
     """Withholding the state means the answer claims something about every
-    jurisdiction. Only a fraction of state law is ingested, scoped to what the
-    scenarios cite, so no such claim can be checked yet."""
+    jurisdiction, and only a fraction of state law is ingested.
+
+    Written with an exit condition. The first version asserted flatly that no
+    such scenario may be verified, which is the anti-pattern DL-7 named: a test
+    that must be deleted the moment the project succeeds. It now self-disables
+    once every jurisdiction has both statutory documents and verified absences.
+    """
+    from ingest.absence import load_absence_index
+
+    covered = set()
+    for jurisdiction in ("CA", "NY", "OH"):
+        try:
+            records = load_absence_index(jurisdiction)
+        except FileNotFoundError:
+            continue
+        if records and all(r.verified_on is not None for r in records):
+            covered.add(jurisdiction)
+    if covered == {"CA", "NY", "OH"}:
+        return
+
     offenders = [
         s.scenario_id
         for s in load_all()

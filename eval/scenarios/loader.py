@@ -116,11 +116,25 @@ def _check_handbook_citations(scenarios: list[Scenario]) -> None:
     """
     known = handbook_policy_ids()
     unresolved: list[str] = []
+    malformed: list[str] = []
     for s in scenarios:
         cites = s.required_citations + s.forbidden_citations + s.must_address
         for cite in cites:
+            # A citation carrying quotes or backslashes is a YAML authoring
+            # error, not a citation. Six of these slipped through the first
+            # version of this check because it only inspected strings that
+            # already looked well formed, so a malformed one skipped validation
+            # rather than failing it. A guard that ignores what it cannot
+            # recognise is not a guard.
+            # Double quotes and backslashes are authoring errors. Apostrophes
+            # are not: "N.Y. Workers' Comp. Law 204" legitimately contains one.
+            if '"' in cite or "\\" in cite:
+                malformed.append(f"{s.scenario_id} -> {cite!r}")
+                continue
             if HANDBOOK_CITATION.match(cite) and cite not in known:
                 unresolved.append(f"{s.scenario_id} -> {cite}")
+    if malformed:
+        raise ValueError(f"malformed citation strings: {malformed}")
     if unresolved:
         raise ValueError(f"handbook citations that do not resolve: {unresolved}")
 
