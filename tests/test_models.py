@@ -123,6 +123,21 @@ def test_a_bare_fence_without_a_language_is_recovered() -> None:
     assert parse_arguments('```\n{"route": "answer"}\n```', "m") == {"route": "answer"}
 
 
+def test_arguments_that_are_not_an_object_raise() -> None:
+    """`"123"` parses to an int and `"null"` to None. The signature promised a
+    dict while the function could return anything JSON expresses, so a malformed
+    response reached callers as a value they would subscript and fail on far
+    from the cause."""
+    for payload in ("123", "null", '"answer"', "[1, 2, 3]", "true"):
+        with pytest.raises(RuntimeError, match="not an object"):
+            parse_arguments(payload, "qwen3-32b")
+
+
+def test_a_fenced_non_object_also_raises() -> None:
+    with pytest.raises(RuntimeError, match="not an object"):
+        parse_arguments('```json\n[1, 2]\n```', "qwen3-32b")
+
+
 def test_unparseable_arguments_raise_with_the_model_named() -> None:
     """Loud, and naming the provider, because this is the failure that says a
     provider cannot honour the contract."""

@@ -31,6 +31,31 @@ from agent.models import Usage
 from agent.state import AgentState
 from ingest.settings import optional
 
+# --- Privacy -----------------------------------------------------------------
+#
+# **This module sends employee data to a third-party SaaS.** The question, the
+# supplied context (state, tenure, hours worked, employer size) and the final
+# answer all leave the system. For an HCM product that is employee PII, and a
+# review found it undocumented, unmentioned and undisableable except by unsetting
+# the credentials.
+#
+# `TRACE_REDACT=1` sends the structure without the content: routes, precedence
+# rules, citations, filters and timings, but no question, no personal facts and
+# no answer text. That keeps the trace useful for debugging the *system* while
+# removing what identifies a person.
+#
+# It is opt-in rather than default because this is a portfolio demo with no real
+# employees, and defaulting it on would hide the feature the demo exists to show.
+# **Any real deployment should turn it on, or self-host Langfuse.** Recorded here
+# rather than in a README because the decision belongs next to the code that
+# makes it.
+REDACTED = "[redacted]"
+
+
+def redacting() -> bool:
+    return bool(optional("TRACE_REDACT"))
+
+
 # Nodes that call a model. Langfuse renders these as generations rather than
 # plain spans, which is what surfaces token cost in its UI.
 _GENERATION_NODES = {"triage", "resolve", "compose", "verify"}
@@ -64,6 +89,20 @@ def _client():
         return None
 
 
+# Keys whose values are free text derived from the question or the answer.
+# Everything else in a node detail is structural: routes, rules, citations,
+# filters, layer outcomes.
+_SENSITIVE_DETAIL_KEYS = {"raw_question", "query", "query_sent_to_index", "says"}
+
+
+def _redact_detail(detail: Any) -> Any:
+    if not isinstance(detail, dict):
+        return detail
+    return {
+        k: (REDACTED if k in _SENSITIVE_DETAIL_KEYS else v) for k, v in detail.items()
+    }
+
+
 def _observation_type(node: str) -> str:
     if node in _GENERATION_NODES:
         return "generation"
@@ -74,6 +113,20 @@ def _observation_type(node: str) -> str:
 
 def _summarise_input(state: AgentState) -> dict[str, Any]:
     context = state.get("employee_context")
+    if redacting():
+        return {
+            "question": REDACTED,
+            "as_of": str(state.get("as_of")),
+            # Which facts were supplied still matters for debugging a clarify
+            # decision; their values do not.
+            "employee_context_supplied": sorted(
+                k for k, v in (context.model_dump() if context else {}).items()
+                if v is not None
+            ),
+            "query_sent_to_index": REDACTED,
+            "jurisdiction_filter": state.get("jurisdiction"),
+            "passages_retrieved": [h.citation for h in state.get("retrieved", [])],
+        }
     return {
         "question": state.get("question"),
         "as_of": str(state.get("as_of")),
@@ -82,7 +135,33 @@ def _summarise_input(state: AgentState) -> dict[str, Any]:
             if context
             else {}
         ),
+        # What actually reached the index, and under which filters. The module
+        # claims to mirror the run; dropping these made that claim false.
+        "query_sent_to_index": state.get("rewritten_query"),
+        "jurisdiction_filter": state.get("jurisdiction"),
+        "passages_retrieved": [h.citation for h in state.get("retrieved", [])],
     }
+
+
+def verification_status(state: AgentState) -> str:
+    """Three states, not two.
+
+    `bool(verification and verification.passed)` reports the same `False` for
+    "verify ran and failed" and "verify never ran", which is **exactly the bug
+    DL-25 fixed in the end-to-end scorer and DL-26 recorded as a pattern**:
+    fixing an instance of a bug is not fixing the bug. It reappeared here.
+
+    `clarify`, `refuse` and `escalate` assert no entitlement, so there is nothing
+    to ground and `not_applicable` is the honest label. An answering path that
+    somehow skipped verify is `did_not_run`, which is a defect worth seeing in
+    the trace rather than laundering into a failure.
+    """
+    verification = state.get("verification")
+    if verification is not None:
+        return "passed" if verification.passed else "failed"
+    if state.get("route") in ("clarify", "refuse", "escalate"):
+        return "not_applicable"
+    return "did_not_run"
 
 
 def _summarise_output(state: AgentState) -> dict[str, Any]:
@@ -90,11 +169,28 @@ def _summarise_output(state: AgentState) -> dict[str, Any]:
     resolution = state.get("resolution")
     return {
         "route": state.get("route"),
+        # `controlling` is None on a legitimate indeterminate tie, so the
+        # defensible set is reported too: without it, `concurrence_tie_break`
+        # renders identically to "no authority found".
         "controlling_authority": resolution.controlling if resolution else None,
+        "defensible_authorities": list(resolution.defensible) if resolution else [],
         "precedence_rule": resolution.rule if resolution else None,
+        "considered": (
+            [
+                {"layer": f.layer, "outcome": f.outcome, "citation": f.citation}
+                for f in resolution.considered
+            ]
+            if resolution
+            else []
+        ),
+        "must_address": (
+            list(resolution.non_controlling_to_address) if resolution else []
+        ),
         "citations": state.get("citations", []),
-        "verified": bool(verification and verification.passed),
-        "answer": state.get("answer"),
+        "verification": verification_status(state),
+        "verification_checks": dict(verification.checks) if verification else {},
+        "verification_failures": list(verification.failures) if verification else [],
+        "answer": REDACTED if redacting() else state.get("answer"),
     }
 
 
@@ -128,9 +224,15 @@ def export(
                 child = root.start_observation(
                     name=event.node,
                     as_type=_observation_type(event.node),
-                    input={"summary": event.summary},
-                    output=event.detail,
-                    metadata={"model": event.detail.get("model")},
+                    input={"summary": REDACTED if redacting() else event.summary},
+                    output=_redact_detail(event.detail) if redacting() else event.detail,
+                    # Only when there is one. Attaching `model: None` to every
+                    # deterministic node invents a field the run does not have.
+                    metadata=(
+                        {"model": event.detail["model"]}
+                        if isinstance(event.detail, dict) and event.detail.get("model")
+                        else None
+                    ),
                 )
                 child.end()
 
@@ -149,9 +251,16 @@ def export(
         client.flush()
         return url
     except Exception:
-        # Deliberately silent. Observability that takes the system down with it
-        # is worse than no observability, and the in-state trace still holds
+        # Deliberately silent in production: observability that takes the system
+        # down with it is worse than none, and the in-state trace still holds
         # everything this would have shown.
+        #
+        # But silence has a cost that showed up immediately in testing, where a
+        # bug in a test double looked like a wrong assertion rather than a
+        # crash. `LANGFUSE_DEBUG=1` re-raises, so the guarantee stays intact for
+        # users while remaining diagnosable by whoever is working on it.
+        if optional("LANGFUSE_DEBUG"):
+            raise
         return None
 
 
