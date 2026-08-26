@@ -83,7 +83,25 @@ def test_a_handbook_below_the_floor_is_unenforceable() -> None:
         finding("company", "denies", 2, "LEAVE-002"),
     ])
     assert r.controlling == "state"
-    assert r.rule == "statutory_floor"
+    assert r.rule == "policy_below_floor"
+
+
+def test_rule_1_and_rule_2b_are_counted_separately() -> None:
+    """Both were reported as `statutory_floor`, which merged the count of this
+    project's central case, a handbook below the floor, with an unrelated
+    federal-versus-state comparison. The one counter that evidences the thesis
+    was not measuring it."""
+    handbook_below = resolve_precedence([
+        finding("state", "grants", 1, "Cal. Gov. Code 12945.2"),
+        finding("company", "denies", 2, "LEAVE-002"),
+    ])
+    federal_vs_state = resolve_precedence([
+        finding("federal", "grants", 1, "29 CFR 825.110"),
+        finding("state", "denies", 2, "Cal. Gov. Code 12945.2"),
+    ])
+    assert handbook_below.rule == "policy_below_floor"
+    assert federal_vs_state.rule == "statutory_floor"
+    assert handbook_below.rule != federal_vs_state.rule
 
 
 def test_the_beaten_handbook_is_named_for_the_reader() -> None:

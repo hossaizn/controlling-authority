@@ -31,8 +31,9 @@ from retrieval.store import SearchHit
 # not correctness" (spec, Metrics) and the same applies one level down: the right
 # authority for the wrong reason is also luck.
 PrecedenceRule = Literal[
-    "statutory_floor",             # rule 1: the employee-favourable floor wins
-    "policy_may_exceed",           # rule 2: handbook above statute controls
+    "statutory_floor",             # rule 1: federal vs state, the employee-favourable one wins
+    "policy_may_exceed",           # rule 2a: handbook above statute controls
+    "policy_below_floor",          # rule 2b: handbook below statute is unenforceable
     "effective_dating",            # rule 3: only what was in force on the date
     "silence_is_not_permission",   # rule 4: a silent layer overrides nothing
     "concurrence_tie_break",       # rule 5: highest layer that independently compels

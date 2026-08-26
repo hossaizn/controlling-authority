@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from agent.build import naive_resolve
 from agent.models import HAIKU, StructuredCaller, Usage
 from agent.nodes.resolve import PROMPT_VERSION, make_resolve
 from agent.nodes.retrieve import make_retrieve
@@ -111,10 +112,11 @@ def run() -> dict:
                 resolution=state["resolution"],
                 routed_to=state["route"],
                 must_address=list(s.must_address),
-                naive_layer=(
-                    state["retrieved"][0].authority_layer
-                    if state.get("retrieved") else None
-                ),
+                # Uses the same function the demo baseline runs, rather than
+                # a second copy of "take the top hit". DL-23 claimed the
+                # baseline could not drift from the agent; a review pointed
+                # out it could drift from itself.
+                naive_layer=naive_resolve(state)["resolution"].controlling,
             )
         )
         if i % 15 == 0 or i == len(scenarios):

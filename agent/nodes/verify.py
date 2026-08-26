@@ -41,10 +41,32 @@ REFERRAL = (
     "Please ask your HR team."
 )
 
-# Figures that carry no factual weight: ordinals and small counts appear in
-# ordinary prose ("the first of these", "both parents") and flagging them would
-# make the check noisy enough to be ignored, which is worse than not having it.
-_NUMBER = re.compile(r"\b\d+(?:[.,]\d+)?\b")
+# Only numbers carrying a UNIT are treated as quantities.
+#
+# The first design extracted every number and then tried to exclude the ones
+# belonging to citations. A review showed that could not work: every federal
+# citation is "29 CFR ...", so excluding digits found in citations made **29
+# exempt corpus-wide**, and an answer claiming "you are entitled to 29 workweeks"
+# passed the check. Meanwhile bare section references like "section 825.201" were
+# flagged as fabricated quantities.
+#
+# Requiring a unit fixes both directions at once. A section number is never
+# followed by "weeks"; a fabricated entitlement always is.
+_QUANTITY = re.compile(
+    r"\b(\d[\d,]*(?:\.\d+)?)\s*(?:-\s*)?"
+    r"(workweeks?|weeks?|calendar days?|business days?|days?|hours?|months?|"
+    r"years?|employees?|persons?|percent|%)",
+    re.IGNORECASE,
+)
+
+_NUMBER = re.compile(r"\b\d[\d,]*(?:\.\d+)?\b")
+
+
+def _normalise(number: str) -> str:
+    """`1,250` and `1250` are the same quantity. The corpus writes it one way and
+    an answer the other, and a literal comparison called the correct figure
+    fabricated."""
+    return number.replace(",", "")
 
 ENTAILMENT_TOOL = {
     "name": "check_grounding",
@@ -78,6 +100,43 @@ the answer telling the reader what a source says and why it does not apply,
 provided the passages support what that source says."""
 
 
+def mentions(text: str, citation: str) -> bool:
+    """Whether `text` names this exact citation, and not a longer one containing it.
+
+    A bare `citation in text` reintroduces DL-12's prefix trap:
+    `Cal. Gov. Code 12945` is a prefix of `Cal. Gov. Code 12945.2`, they are
+    different statutes, and both are in this corpus.
+
+    Requiring square brackets was the first fix and it was too strict in the
+    other direction: `compose` brackets the controlling provision but mentions
+    the beaten handbook in prose, so a scorer demanding brackets reported naming
+    the beaten source as a flat zero. A trailing boundary handles both without
+    dictating how the answer is written.
+    """
+    return re.search(re.escape(citation) + r"(?![\w.\-])", text) is not None
+
+
+def _resolves_to_retrieved(citation: str, retrieved: set[str]) -> bool:
+    """Whether a cited string points at text that was actually retrieved.
+
+    An exact match, or a **subsection** of a retrieved provision. The model
+    writes `Cal. Gov. Code 12945.2(b)(13)` where `Cal. Gov. Code 12945.2` was
+    retrieved, which is a more precise pointer into the same passage, not an
+    invented source. Failing those accounted for 14 of 30 verification failures
+    and wiped correct answers.
+
+    The extension has to open with `(`, so this cannot quietly accept
+    `Cal. Gov. Code 12945.2` on the strength of having retrieved
+    `Cal. Gov. Code 12945`, which is a different statute (DL-12).
+    """
+    if citation in retrieved:
+        return True
+    return any(
+        citation.startswith(r) and citation[len(r):].lstrip().startswith("(")
+        for r in retrieved
+    )
+
+
 def citations_in(text: str, known: set[str]) -> set[str]:
     """Which known citations the answer actually names.
 
@@ -85,34 +144,21 @@ def citations_in(text: str, known: set[str]) -> set[str]:
     because a regex for "things that look like a citation" would both miss
     handbook ids and invent matches from ordinary numbers.
     """
-    return {c for c in known if c in text}
+    return {c for c in known if mentions(text, c)}
 
 
 def figures_in(text: str, known_citations: set[str]) -> set[str]:
-    """Numbers the answer asserts as quantities, with citations removed first.
+    """Quantities the answer asserts: a number attached to a unit.
 
-    Two false positives had to be closed, both found by this check failing valid
-    answers rather than by reasoning about it.
-
-    **Section numbers are not quantities.** Stripping the full citation string is
-    not enough: an answer that cites `[29 CFR 825.201]` and then refers to
-    "section 825.201" leaves a bare `825.201` behind, which was then reported as
-    a figure the sources do not support. Any number that appears inside a known
-    citation is excluded.
-
-    **Statutes spell numbers out.** The corpus says "twenty-six weeks" where the
-    answer says "26 weeks", so a literal digit search reported a correct figure
-    as unsupported. Word forms are converted before the comparison, in
-    `supported_figures`.
+    Citations are stripped first so a policy id like `LEAVE-008` cannot supply a
+    number, and then only number-plus-unit pairs are kept. See `_QUANTITY` for
+    why the earlier "every number, minus citation digits" approach was unsound
+    in both directions.
     """
     stripped = text
     for citation in known_citations:
         stripped = stripped.replace(citation, " ")
-
-    citation_digits = {
-        n for c in known_citations for n in _NUMBER.findall(c)
-    }
-    return {n for n in _NUMBER.findall(stripped) if n not in citation_digits}
+    return {_normalise(n) for n, _unit in _QUANTITY.findall(stripped)}
 
 
 _UNITS = [
@@ -134,14 +180,20 @@ for _word, _value in _TENS.items():
         WORD_TO_DIGITS[f"{_word}-{_unit}"] = str(_value + _i)
         WORD_TO_DIGITS[f"{_word} {_unit}"] = str(_value + _i)
 
+# Whole words only. Substring matching marked 10 as supported because "written"
+# contains "ten", and 1 because "none" contains "one", which quietly turned a
+# groundedness check into a rubber stamp on any corpus containing ordinary prose.
+_WORD_NUMBER = re.compile(
+    r"\b(" + "|".join(sorted(WORD_TO_DIGITS, key=len, reverse=True)).replace(" ", r"\s") + r")\b",
+    re.IGNORECASE,
+)
+
 
 def supported_figures(corpus_text: str) -> set[str]:
     """Every quantity the sources state, in digits, however they were written."""
-    lowered = corpus_text.lower()
-    found = set(_NUMBER.findall(corpus_text))
-    for word, digits in WORD_TO_DIGITS.items():
-        if word in lowered:
-            found.add(digits)
+    found = {_normalise(n) for n in _NUMBER.findall(corpus_text)}
+    for word in _WORD_NUMBER.findall(corpus_text):
+        found.add(WORD_TO_DIGITS[" ".join(word.lower().split())])
     return found
 
 
@@ -159,10 +211,19 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
         checks: dict[str, bool] = {}
         failures: list[str] = []
 
-        # 1. Nothing cited that was not retrieved. `compose` already strips these
-        # from the citation list, so this catches them appearing in the prose.
+        # 1. Nothing cited that was not retrieved.
+        #
+        # This checked `state["citations"]`, which `compose` has already filtered
+        # by exactly the same predicate, so it could never fire. A review caught
+        # it: deleting the failure branch changed no test. It now reads the
+        # bracketed citations out of the ANSWER PROSE, which is what the original
+        # comment claimed and the code did not do. That is the surface that
+        # matters, because the prose is what the employee reads.
+        in_prose = set(re.findall(r"\[([^\]\n]{2,60})\]", answer))
         stray = {
-            c for c in state.get("citations", []) if c not in retrieved
+            c
+            for c in in_prose | set(state.get("citations", []))
+            if not _resolves_to_retrieved(c, retrieved)
         }
         checks["citations_were_retrieved"] = not stray
         if stray:
@@ -177,22 +238,23 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
         # 3. The provision the precedence rules selected is the one the answer
         # should rest on. An answer that reaches the right outcome by citing a
         # different layer is right by luck.
-        controlling_citation = None
-        if resolution:
-            controlling_citation = next(
-                (
-                    f.citation
-                    for f in resolution.considered
-                    if f.layer in resolution.defensible and f.citation
-                ),
-                None,
-            )
+        # Where the resolution is indeterminate, ANY of the defensible layers'
+        # provisions satisfies this. Taking only the first one failed an answer
+        # that correctly cited state law because federal happened to come first
+        # in `considered`, which is the same mistake as demanding a single
+        # controlling authority when the spec says two are defensible.
+        acceptable_citations = {
+            f.citation
+            for f in (resolution.considered if resolution else [])
+            if f.layer in (resolution.defensible if resolution else []) and f.citation
+        }
         checks["controlling_provision_cited"] = (
-            controlling_citation in named if controlling_citation else True
+            bool(acceptable_citations & named) if acceptable_citations else True
         )
-        if controlling_citation and controlling_citation not in named:
+        if acceptable_citations and not (acceptable_citations & named):
             failures.append(
-                f"does not cite the controlling provision {controlling_citation!r}"
+                "does not cite the controlling provision, expected one of "
+                f"{sorted(acceptable_citations)}"
             )
 
         # 4. Every quoted figure appears in the text it came from.

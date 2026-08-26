@@ -23,6 +23,7 @@ from pathlib import Path
 from agent.build import build_agent
 from agent.models import HAIKU, StructuredCaller, Usage
 from agent.nodes.compose import PROMPT_VERSION as COMPOSE_VERSION
+from agent.nodes.verify import mentions
 from agent.state import initial_state, nodes_visited
 from eval.run_precedence import ADOPTED_MODEL, ADOPTED_STRATEGY, acceptable_set
 from eval.run_routes import score as score_routes
@@ -65,12 +66,24 @@ class EndToEnd:
             return self.route in ("clarify", "refuse", "escalate")
         return v.passed
 
+    def cites(self, citation: str) -> bool:
+        """Boundary-aware, and deliberately not bracket-aware.
+
+        A bare substring test reintroduces DL-12: `Cal. Gov. Code 12945` is a
+        prefix of `Cal. Gov. Code 12945.2`, they are different statutes, and
+        both are in this corpus. Requiring square brackets fixed that and
+        broke the other direction, because `compose` brackets the controlling
+        provision and mentions the beaten handbook in prose: the scorer then
+        reported naming the beaten source as a flat zero.
+        """
+        return mentions(self.answer, citation)
+
     @property
     def required_present(self) -> bool:
         """Every citation the scenario requires appears in the answer text."""
         if not self.scenario.required_citations:
             return True
-        return all(c in self.answer for c in self.scenario.required_citations)
+        return all(self.cites(c) for c in self.scenario.required_citations)
 
     @property
     def forbidden_present(self) -> bool:
@@ -79,11 +92,11 @@ class EndToEnd:
         The store filters these out before retrieval, so a hit here means either
         the filter was bypassed or the model produced the citation from nowhere.
         """
-        return any(c in self.answer for c in self.scenario.forbidden_citations)
+        return any(self.cites(c) for c in self.scenario.forbidden_citations)
 
     @property
     def addressed(self) -> bool:
-        return all(c in self.answer for c in self.scenario.must_address)
+        return all(self.cites(c) for c in self.scenario.must_address)
 
     @property
     def precedence_correct(self) -> bool:
@@ -151,7 +164,11 @@ def report(results: list[EndToEnd], usage: Usage) -> dict:
     leaked = _rate(results, "forbidden_present")
     print(f"forbidden citation leaked   {leaked:.3f}  (lower is better)")
     print(f"named the beaten source     {_rate(with_addr, 'addressed'):.3f}  (n={len(with_addr)})")
-    print(f"passed verification         {_rate(results, 'verified'):.3f}")
+    reached = [r for r in results if r.final.get("verification") is not None]
+    print(
+        f"passed verification         {_rate(reached, 'verified'):.3f}  "
+        f"(n={len(reached)} that reached verify)"
+    )
     print()
     print(f"FULLY CORRECT               {_rate(results, 'fully_correct'):.3f}")
     print()
@@ -190,7 +207,12 @@ def report(results: list[EndToEnd], usage: Usage) -> dict:
         "required_citations_present": _rate(answers, "required_present"),
         "forbidden_citation_rate": _rate(results, "forbidden_present"),
         "addressed_beaten_source": _rate(with_addr, "addressed"),
-        "verification_pass_rate": _rate(results, "verified"),
+        # Denominator is the scenarios that reached verify. Counting the 34
+        # that never run it as passes reported 0.717 for a real rate of
+        # 0.552: the same "did not run is not a pass" conflation DL-25 fixed
+        # for fully_correct and left standing one line away.
+        "verification_pass_rate": _rate(reached, "verified"),
+        "verification_n": len(reached),
         "fully_correct": _rate(results, "fully_correct"),
         "by_slice": {
             name: {

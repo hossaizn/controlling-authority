@@ -243,6 +243,13 @@ def _to_findings(raw: list[dict], valid_citations: set[str]) -> list[LayerFindin
         if outcome != "silent" and citation is None:
             outcome = "silent"
 
+        # A layer claiming to speak while carrying the not-applicable rank
+        # sentinel cannot be compared against anything. Treated as silent
+        # rather than coerced to rank 1, which is what `rank or 1` did:
+        # it promoted malformed evidence to most-generous.
+        if outcome != "silent" and (not isinstance(rank, int) or rank < 1):
+            outcome = "silent"
+
         findings.append(
             LayerFinding(
                 layer=layer,
@@ -250,7 +257,7 @@ def _to_findings(raw: list[dict], valid_citations: set[str]) -> list[LayerFindin
                 outcome=outcome,
                 citation=citation,
                 says=item.get("says", ""),
-                generosity_rank=None if outcome == "silent" else (rank or 1),
+                generosity_rank=None if outcome == "silent" else rank,
             )
         )
     return findings
@@ -331,7 +338,10 @@ def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
 # Written for a non-technical reader, because the trace is a feature rather than
 # a debug flag and this line is the one that explains the whole product.
 _RULE_TEXT = {
-    "statutory_floor": "a statutory floor overrides a less generous provision",
+    "statutory_floor": "federal and state both apply, and the more generous one governs",
+    "policy_below_floor": (
+        "the handbook promises less than the law requires, so the law governs"
+    ),
     "policy_may_exceed": "company policy is more generous than the law requires, so it governs",
     "silence_is_not_permission": "only one layer addresses this, so it governs",
     "concurrence_tie_break": (

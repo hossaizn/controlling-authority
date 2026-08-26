@@ -118,6 +118,30 @@ def test_a_duplicated_layer_keeps_only_the_first() -> None:
     assert len([f for f in findings if f.layer == "state"]) == 1
 
 
+def test_a_speaking_layer_carrying_the_not_applicable_rank_is_silent() -> None:
+    """`rank or 1` promoted the 0 sentinel to most-generous. A layer that claims
+    to speak while carrying no usable rank is malformed evidence, and if it also
+    denies, the integrity check raises and the whole answer degrades to a
+    referral on the strength of a coercion."""
+    findings = findings_from([
+        {"layer": "federal", "outcome": "denies", "citation": "29 CFR 825.122",
+         "says": "not covered", "generosity_rank": 0},
+        {"layer": "company", "outcome": "grants", "citation": "LEAVE-001",
+         "says": "covered", "generosity_rank": 1},
+    ])
+    federal = next(f for f in findings if f.layer == "federal")
+    assert federal.outcome == "silent"
+    assert federal.generosity_rank is None
+
+
+def test_a_negative_rank_is_also_treated_as_silent() -> None:
+    findings = findings_from([
+        {"layer": "state", "outcome": "grants", "citation": "A", "says": "",
+         "generosity_rank": -1}
+    ])
+    assert all(f.outcome == "silent" for f in findings)
+
+
 def test_an_unrecognised_outcome_is_treated_as_silent() -> None:
     findings = findings_from([
         {"layer": "federal", "outcome": "maybe", "citation": "X", "says": "",
@@ -236,7 +260,7 @@ def test_the_resolution_reaches_the_state_with_the_rule_that_fired() -> None:
          "says": "18 months", "generosity_rank": 2},
     ])
     assert out["resolution"].controlling == "state"
-    assert out["resolution"].rule == "statutory_floor"
+    assert out["resolution"].rule == "policy_below_floor"
 
 
 def test_inconsistent_evidence_degrades_rather_than_resolving_on_a_guess() -> None:

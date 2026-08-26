@@ -91,7 +91,10 @@ def naive_resolve(state: AgentState) -> dict:
 
 
 def build_baseline(
-    store: ChunkStore, caller: StructuredCaller | None = None, model: str = HAIKU
+    store: ChunkStore,
+    caller: StructuredCaller | None = None,
+    model: str = HAIKU,
+    verify_model: str = VERIFY_MODEL,
 ):
     """The same graph with precedence removed, for the demo's side-by-side.
 
@@ -106,7 +109,7 @@ def build_baseline(
         retrieve=make_retrieve(store),
         resolve=naive_resolve,
         compose=make_compose(caller, model),
-        verify=make_verify(caller, model),
+        verify=make_verify(caller, verify_model),
         refuse=refuse,
         escalate=escalate,
     )

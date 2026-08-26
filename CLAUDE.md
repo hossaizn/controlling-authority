@@ -24,10 +24,14 @@ Public repo: `github.com/hossaizn/controlling-authority`
 **Phase 6 is complete.** Phases 0 through 6 merged. Phase 7 (Langfuse
 observability) is next, then 8 (API), 9 (demo) and 10 (ship).
 
-**End to end, DL-25:** fully correct **0.587** across all 92 scenarios, meaning
-right route, right authority, required citations present, nothing forbidden and
-grounded, all at once. Weakest slice is conflict at 0.167 fully correct despite
-1.000 routing: it reaches the resolver and fails at grounding.
+**End to end, DL-25 and DL-26:** fully correct **0.620** across all 92
+scenarios, meaning right route, right authority, required citations present,
+nothing forbidden and grounded, all at once. Verification 0.621 over the 58 that
+reach it. Weakest slice is conflict at 0.278.
+
+**Every eval scorer is now tested.** A Phase 6 review found they could all be
+mutated to return True with the suite still green (DL-26). Treat
+`eval/run_*.py` as production code: it is what every reported number rests on.
 
 **Open, and pre-registered:** DL-24 commits to an open-weights arm with adoption
 thresholds fixed in advance. It also supplies a cross-family verifier, which the
