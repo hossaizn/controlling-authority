@@ -21,10 +21,18 @@ Public repo: `github.com/hossaizn/controlling-authority`
 
 ## Status
 
-Phases 0 through 5.5 complete and merged. Phase 6 in progress: Tasks 6.0 (gate),
-6.1 (skeleton), 6.2 (`triage`), 6.3 (`clarify` and `retrieve`) and 6.4
-(`resolve`) are done. Task 6.5 (`compose`) is next, then 6.6 (`verify`) and 6.7
-(end-to-end).
+**Phase 6 is complete.** Phases 0 through 6 merged. Phase 7 (Langfuse
+observability) is next, then 8 (API), 9 (demo) and 10 (ship).
+
+**End to end, DL-25:** fully correct **0.587** across all 92 scenarios, meaning
+right route, right authority, required citations present, nothing forbidden and
+grounded, all at once. Weakest slice is conflict at 0.167 fully correct despite
+1.000 routing: it reaches the resolver and fails at grounding.
+
+**Open, and pre-registered:** DL-24 commits to an open-weights arm with adoption
+thresholds fixed in advance. It also supplies a cross-family verifier, which the
+entailment check currently lacks (it self-grades on the same model as `compose`,
+and that accounts for 20 of 26 verification failures).
 
 **The headline, DL-23.** Precedence as code against a system that trusts the
 top-ranked passage, same retrieval, same run:
