@@ -56,10 +56,25 @@ class SliceVerdict:
     tolerance: float
     passed: bool
     reason: str
+    verified_n: int = 0
 
     @property
     def delta_points(self) -> float:
         return 100 * (self.observed - self.baseline)
+
+    @property
+    def evidence(self) -> str:
+        """How much of this slice rests on ground truth that was checked against
+        ingested text, rather than drafted from recall (DL-3).
+
+        Printed rather than enforced. The gate compares a slice against itself,
+        so a ground-truth error sits on both sides and cancels; what it cannot do
+        is tell you that a one-scenario improvement on `conflict` may have come
+        entirely from the eleven scenarios nobody has verified. That is a real
+        limit on what a pass means and it belongs on the report, not in a
+        footnote someone has to go looking for.
+        """
+        return f"{self.verified_n}/{self.n} verified"
 
 
 def load_baseline() -> dict:
@@ -81,12 +96,14 @@ def check(observed_by_slice: dict[str, float]) -> list[SliceVerdict]:
     for name, base in sorted(baseline["by_slice"].items()):
         n = base["n"]
         want = base["recall@10"]
+        verified_n = base.get("composition", {}).get("verified", 0)
         got = observed_by_slice.get(name)
 
         if got is None:
             verdicts.append(SliceVerdict(
                 name, n, want, 0.0, 0.0, False,
                 "slice missing from results; a slice that vanishes is not a pass",
+                verified_n,
             ))
             continue
 
@@ -117,17 +134,25 @@ def check(observed_by_slice: dict[str, float]) -> list[SliceVerdict]:
                     f"REGRESSED {100*(want-got):.1f} points, tolerance {100*tol:.1f}"
                 )
 
-        verdicts.append(SliceVerdict(name, n, want, got, tol, passed, reason))
+        verdicts.append(SliceVerdict(name, n, want, got, tol, passed, reason, verified_n))
 
     return verdicts
 
 
 def format_report(verdicts: list[SliceVerdict]) -> str:
-    lines = [f"{'slice':16} {'n':>3} {'base':>7} {'now':>7} {'delta':>8}  verdict"]
+    lines = [
+        f"{'slice':16} {'n':>3} {'base':>7} {'now':>7} {'delta':>8} {'evidence':>14}  verdict"
+    ]
     for v in verdicts:
         mark = "pass" if v.passed else "FAIL"
         lines.append(
             f"{v.name:16} {v.n:>3} {v.baseline:>7.3f} {v.observed:>7.3f} "
-            f"{v.delta_points:>+7.1f}p  {mark}: {v.reason}"
+            f"{v.delta_points:>+7.1f}p {v.evidence:>14}  {mark}: {v.reason}"
         )
+    lines.append("")
+    lines.append(
+        "evidence = scenarios whose citations were checked against ingested text "
+        "(DL-3).\nOnly the conflict slice has any. A pass on a slice at 0/n says the "
+        "measurement\ndid not move, not that the measurement is right."
+    )
     return "\n".join(lines)

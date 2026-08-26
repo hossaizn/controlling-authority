@@ -20,8 +20,12 @@ dependencies = [
     # Kept in step with the server image pinned in docker-compose.yml.
     "qdrant-client>=1.15,<1.16",
     # agent
-    "langgraph>=0.2",
-    "langchain-core>=0.3",
+    # Upper-bounded for the reason DL-15 gave: a lower bound alone contradicts
+    # the pinning discipline the rest of this file follows. The floor said >=0.2
+    # while the installed version was 1.2, a major-version gap across which the
+    # graph API is not guaranteed to mean the same thing.
+    "langgraph>=1.2,<2.0",
+    "langchain-core>=0.3,<2.0",
     # models. Multi-provider on purpose: verify must not share a family with compose.
     # Upper bounds on the SDKs whose response shapes this code reads. DL-1's
     # result is only reproducible if the embedding call means the same thing

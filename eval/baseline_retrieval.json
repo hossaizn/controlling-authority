@@ -1,6 +1,43 @@
 {
   "frozen_on": "2026-08-26",
-  "git_sha": "403c825",
+  "frozen_from": "eval/runs/voyage-law_structure.json",
+  "run_at": "2026-08-26T10:00:45",
+  "parent_git_sha": "403c825",
+  "corpus_state": "post-DL-19. The run predates the commit of the Phase 5.5 corrections but not the corrections themselves: they were applied to the working tree, measured, then committed. Confirmed by pooled mrr of 0.674, which is DL-20's post-correction figure, against DL-18's pre-correction 0.723.",
+  "note": "Retrieval quality with the RAW question as the query. Phase 6 replaces that input with a triage-rewritten question, and this file exists to detect the rewrite degrading retrieval, which an end-to-end score can hide when better routing offsets worse retrieval.",
+  "pooling_caveat": "These per-slice figures pool verified and unverified scenarios, which the standing rule (DL-3) forbids for reporting retrieval QUALITY, because it averages a measurement with a guess. It is admissible here for a different purpose: this file is only ever used for a before/after delta on identical ground truth, where a ground-truth error appears on both sides and cancels. What it does NOT do is make a pass mean more than it does, so `composition` below records how much of each slice rests on checked ground truth. Only the conflict slice has any.",
+  "by_slice": {
+    "adversarial": {
+      "n": 2,
+      "recall@10": 1.0,
+      "recall@3": 1.0,
+      "composition": { "verified": 0, "unverified": 2 }
+    },
+    "conflict": {
+      "n": 18,
+      "recall@10": 0.7222,
+      "recall@3": 0.5556,
+      "composition": { "verified": 7, "unverified": 11 }
+    },
+    "control": {
+      "n": 10,
+      "recall@10": 1.0,
+      "recall@3": 0.9,
+      "composition": { "verified": 0, "unverified": 10 }
+    },
+    "straightforward": {
+      "n": 17,
+      "recall@10": 0.9412,
+      "recall@3": 0.9412,
+      "composition": { "verified": 0, "unverified": 17 }
+    },
+    "superseded": {
+      "n": 10,
+      "recall@10": 1.0,
+      "recall@3": 1.0,
+      "composition": { "verified": 0, "unverified": 10 }
+    }
+  },
   "config": {
     "provider": "voyage",
     "model": "voyage-law-2",
@@ -8,34 +45,6 @@
     "strategy": "structure",
     "limit": 10,
     "corpus_snapshot": "2026-08-01"
-  },
-  "note": "Retrieval quality with the RAW question as the query. Phase 6 replaces that input with a triage-rewritten question, and this file exists to detect the rewrite degrading retrieval, which an end-to-end score can hide when better routing offsets worse retrieval.",
-  "by_slice": {
-    "adversarial": {
-      "n": 2,
-      "recall@10": 1.0,
-      "recall@3": 1.0
-    },
-    "conflict": {
-      "n": 18,
-      "recall@10": 0.7222,
-      "recall@3": 0.5556
-    },
-    "control": {
-      "n": 10,
-      "recall@10": 1.0,
-      "recall@3": 0.9
-    },
-    "straightforward": {
-      "n": 17,
-      "recall@10": 0.9412,
-      "recall@3": 0.9412
-    },
-    "superseded": {
-      "n": 10,
-      "recall@10": 1.0,
-      "recall@3": 1.0
-    }
   },
   "overall": {
     "n": 57,

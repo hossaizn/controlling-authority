@@ -129,3 +129,42 @@ def test_report_renders_every_slice() -> None:
     for name in load_baseline()["by_slice"]:
         assert name in report
     assert "FAIL" in report  # conflict, since holding is not improving
+
+
+def test_every_slice_declares_how_much_of_it_is_verified() -> None:
+    """A slice with no composition would silently report 0/n and read as
+    unverified when it might not be."""
+    for name, base in load_baseline()["by_slice"].items():
+        composition = base.get("composition")
+        assert composition is not None, f"{name} declares no composition"
+        assert composition["verified"] + composition["unverified"] == base["n"]
+
+
+def test_conflict_is_the_only_slice_with_checked_ground_truth() -> None:
+    """Pinned as a value, not asserted as a relationship (DL-10).
+
+    If verification advances, this test fails and the baseline's composition has
+    to be updated deliberately rather than drifting.
+    """
+    verified = {
+        name: base["composition"]["verified"]
+        for name, base in load_baseline()["by_slice"].items()
+    }
+    assert verified == {
+        "adversarial": 0,
+        "conflict": 7,
+        "control": 0,
+        "straightforward": 0,
+        "superseded": 0,
+    }
+
+
+def test_the_report_states_the_limit_of_a_pass() -> None:
+    """The gate's own caveat is printed with its results rather than living in a
+    JSON field nobody reads. The must-improve slice is 7 verified of 18, and its
+    pass bar is one scenario, so a pass can rest entirely on unchecked ground
+    truth. That is a real bound on the claim and it belongs on the report."""
+    report = format_report(check(baseline_values()))
+    assert "7/18 verified" in report
+    assert "0/17 verified" in report  # straightforward rests on nothing checked
+    assert "not that the measurement is right" in report
