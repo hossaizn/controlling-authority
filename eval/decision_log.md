@@ -151,7 +151,13 @@ Roughly a day, before anything depended on the ground truth. The same defects su
 
 A snapshot answers *"what did this say on 1 August 2026"*. It cannot answer *"since when"*, because the text returned may have been unchanged since 2016. Stamping the snapshot date as `effective_from` would make every federal provision appear to have begun on the day we happened to fetch it, and any query asking what the rule was in 2020 would find nothing in force.
 
-**The fix.** A second endpoint, `/versioner/v1/versions/title-29.json`, carries per-section amendment history. For Part 825 it reports 132 version rows across 79 sections with 16 distinct amendment dates between 2016-12-01 and 2025-01-15. `effective_from` is the latest amendment at or before the snapshot; `effective_to` is the day before the earliest amendment after it, or `None` where none exists. The snapshot date is retained separately as `observed_on`.
+**The fix.** A second endpoint, `/versioner/v1/versions/title-29.json`, carries per-section amendment history. For Part 825 it reports 132 version rows across 79 sections with 16 distinct amendment dates. `effective_from` is the latest amendment at or before the snapshot; `effective_to` is the day before the earliest amendment after it, or `None` where none exists. The snapshot date is retained separately as `observed_on`.
+
+**Corrected in Phase 2.5, and the correction is the interesting part.** This entry originally described the result as "real regulatory history". Review checked the feed and found that **all 79 sections carry a shared 2016-12-01 row**, whose `issue_date` is the eCFR baseline load. For 74 of 79 sections that date records when the text entered the electronic record, not when the provision was promulgated: Part 825's own `SOURCE` note gives 78 FR 8902, February 6 2013.
+
+So the fix for DL-8 had quietly reproduced DL-8's own error one level down, trading "the date we fetched it" for "the date the database first held it" and calling both an amendment date.
+
+`effective_from_is_floor` now marks these, `baseline_load_date()` detects the shared date structurally rather than hardcoding it, and the `SOURCE` and `CITA` provenance the parser previously discarded is captured into `source_note`. Queries before the floor return nothing in force, which is the honest answer: we cannot attest to the text then. No scenario is affected, since the earliest `as_of_date` in the set is 2023.
 
 **Refusing to guess.** A section with no amendment record raises rather than defaulting. A fabricated date would silently corrupt every point-in-time answer touching that section, and nothing downstream could detect it.
 
@@ -181,3 +187,50 @@ All nine federal citations used in the scenario set resolve against the ingested
 This is exactly the failure mode DL-3 was written to catch: a statement that is *nearly* right, drafted from recall, that would have produced a defensible-looking metric while resting on an overbroad premise. It cost one line to fix here. Left in place, a scenario about a wounded servicemember grandparent would have been scored backwards with no way to notice.
 
 **12 of 92 scenarios are now marked verified.** The rest depend on state law or on the Ohio absence records and stay unverified until Phase 3. Nothing is scored while its dependencies are unchecked.
+
+
+---
+
+## DL-10: The ingestion contract was federal-shaped, and mutation testing found the date tests proved nothing
+
+**Status:** decided and executed, Phase 2.5
+
+A second independent review, this time of Phase 2. Two findings changed how the project is built rather than what it contains.
+
+### The date tests asserted relationships, not values
+
+The reviewer mutated `end_dates_from_versions` in three ways: flipped the day offset from minus to plus, removed the offset entirely, and loosened a comparison operator. **The full suite passed every time.** The tests asserted `effective_to >= effective_from` and "some values are non-null", both of which survive an arithmetic that is simply wrong.
+
+The date arithmetic turned out to be correct, verified independently against the raw feed. That is not the point. The tests were not the reason it was correct, and would not have caught it becoming incorrect.
+
+Tests now pin actual derived values (`825.120` ends 2018-06-26; `825.300` ends 2018-01-01, the snapshot date itself; exactly two sections are superseded after a 2018-01-01 snapshot) and exercise `in_force_on` at both edges. All four mutations are now caught.
+
+**Adding a boundary case took two rounds.** After the first rewrite, one mutation still survived: no snapshot in the suite fell exactly on an amendment date, so the inclusive comparison was untested. A snapshot of 2018-06-27, a real amendment date, closed it.
+
+**The general lesson.** For derived values, assert the value. A relationship between two derived numbers is satisfied by an entire family of wrong derivations.
+
+### The contract would not have survived Phase 3
+
+`SourceDocument` was designed against one well-structured federal source and had absorbed its shape:
+
+- `source_id` and `citation` held the same string for all 79 sections, leaving no stable key distinct from the display citation, and no way to key two versions of one handbook policy.
+- No `version` or `supersedes` link, which the superseded scenario slice depends on.
+- `is_reserved` was a boolean expressing an eCFR concept, and could not represent an Ohio absence record, which is a different thing: a positive finding that a layer says nothing.
+- `section_path` repeated the document's own heading, duplicating it into every chunk.
+- Text extraction read `<P>` elements only, silently dropping anything held in another element.
+- `source_url` pointed at `/current/` even for point-in-time documents, so a provision that ceased in 2018 linked to today's wording.
+- No content hash, though two of the four sources are scraped HTML pages that can change under us with no error surfacing.
+
+All are fixed. `content_status` is now a three-way enum where `absent` carries retrievable text, so the agent can find "no provision exists" rather than getting an empty result and being unable to distinguish it from a retrieval failure.
+
+**Fixing a contract after one adapter is cheap. After four it is a migration.**
+
+### Tests could reach the network
+
+Adapters cache to a gitignored directory, so a stray call in a test would not fail: it would succeed, write a cache file, and every later run would pass off data nobody chose. `conftest.py` now blocks the socket layer outright.
+
+### Verification was claimed too early
+
+All 12 scenarios marked `verified: true` in Phase 2 have been reverted. Every one rests on something unbuilt: the Ohio absence records, or California and New York text not yet ingested. `control-004` claims an answer is "uniform across the corpus" while two thirds of the corpus does not exist yet.
+
+DL-3 says a scenario is verified when **all** its dependencies are checked. Federal-only was not the same as fully verified, and the distinction was collapsed under the satisfaction of having verified something.

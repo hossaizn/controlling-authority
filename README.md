@@ -56,6 +56,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-7** | Independent review found the ground truth partly unscoreable; three missing rules, not bad data | decided |
 | **DL-8** | Effective dating from amendment history, not the snapshot date | decided |
 | **DL-9** | Federal citations verified against ingested text; one claim was too broad | federal done |
+| **DL-10** | Mutation testing showed the date tests proved nothing; contract was federal-shaped | decided |
 
 ---
 

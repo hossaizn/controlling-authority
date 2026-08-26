@@ -11,7 +11,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.200"]
-  verified: true
+  verified: false
   notes: Ohio adds nothing above the federal floor and the handbook restates it.
 
 - scenario_id: straightforward-002
@@ -22,7 +22,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.302"]
-  verified: true
+  verified: false
   notes: Thirty days where foreseeable. Handbook and regulation agree.
 
 - scenario_id: straightforward-003
@@ -33,7 +33,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.209"]
-  verified: true
+  verified: false
   notes: Coverage continues on the same terms; employee share still owed.
 
 - scenario_id: straightforward-004
@@ -44,7 +44,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.214"]
-  verified: true
+  verified: false
   notes: Same or equivalent position. Distinguish from personal leave, which carries no such guarantee.
 
 - scenario_id: straightforward-005
@@ -125,7 +125,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.112"]
-  verified: true
+  verified: false
   notes: Enumerated qualifying reasons. A list answer rather than a single value.
 
 - scenario_id: straightforward-012
@@ -136,7 +136,7 @@
   expected_route: answer
   expected_authority: federal
   required_citations: ["29 CFR 825.305"]
-  verified: true
+  verified: false
   notes: Certification may be required. Handbook and regulation agree.
 
 - scenario_id: straightforward-013
