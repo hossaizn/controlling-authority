@@ -693,3 +693,54 @@ Recorded plainly so it can be judged: **a rule I wrote in advance pointed at fix
 Before the corrections, the two models agreed at +1.8 and the decision looked settled. After, they disagree and the reranking rule flips. **Five ground-truth errors were quietly steering the experiment**, and the corrections were the difference between a clean-looking wrong answer and a messy correct one.
 
 `mrr` fell across every configuration, from 0.723 to 0.674 at the best. That is expected and correct: `conflict-006` now requires `N.Y. Workers' Comp. Law 203`, a section added to the corpus hours ago and one the system has to find rather than being handed the more prominent 204 it was previously credited for.
+
+---
+
+## DL-21: Two of query rewriting's three jobs did not survive the scenario set, and a standing caveat was too strong
+
+**Status:** decided, Phase 6.2. Retracts the "oracle-filter" framing in DL-17 and DL-18.
+
+DL-16 committed query rewriting to `triage` and gave it three jobs: jurisdiction extraction, temporal resolution, and topic normalisation. Before implementing them I checked each against the 92 scenarios. Two do not survive.
+
+### Temporal resolution is not implementable, because the date is not in the text
+
+The superseded slice settles it. `superseded-001` and `superseded-002` are **word-identical questions with identical employee context**, differing only in `as_of_date`: one 2023, one 2026. The same holds for `-003`/`-004` and `-005`/`-006`. No amount of reading the question distinguishes them, because the distinguishing fact was never written in it.
+
+The date is an *input*, the way today's date is an input to any HR system, and the spec already treats it as one: the demo exposes it as a picker. Exactly one question in the set contains a past-period expression, `superseded-007`, "I was told last year I only had three sick days. Has that changed?", and its correct `as_of` is **unchanged**, because it asks what the position is now.
+
+So date extraction is not built. Building it would have added a component with no scenario able to hold it to account, whose only possible effect on this set is to move a correct date to a wrong one.
+
+DL-16 justified it by saying the filter would otherwise "silently use today and answer a question about 2023 with 2026 law". That risk is real in general and absent here: nothing asks about 2023 without being told to.
+
+### Jurisdiction extraction has no case that exercises it
+
+75 scenarios supply the state in `employee_context`; 17 withhold it. **Not one of the 17 names a state in its question.** The extraction path therefore has zero coverage.
+
+It is implemented anyway, because the demo has a free-text box and a reviewer will type "I work in California", and supplied context wins where the two disagree. But it is **unmeasured**, and this entry is the record of that rather than a coverage claim. Where jurisdiction is genuinely absent the correct behaviour is not to guess it: it is to decide whether the answer varies by state, which is a routing decision and is what the ambiguous and control slices measure.
+
+### The "oracle-filter" caveat was overstated, and the correction flatters my own numbers
+
+DL-17 and DL-18 both carry a standing caveat that Phase 5's figures are **oracle-filter numbers** because jurisdiction and date "come from scenario metadata, not from the question", and that end-to-end will be lower by whatever the missing component costs. `run_retrieval.py` says the same in its docstring, and so did `CLAUDE.md`.
+
+That is too strong. `employee_context` is defined in the schema as *"what the asker has volunteered"*, and `as_of_date` is the date the question is asked. Both are **caller inputs**, not ground truth leaked into the query. An HRIS knows which state an employee works in and what today's date is. Passing them is not privileged information; it is the ordinary operating condition.
+
+The check that settles it: of the 57 scoreable scenarios, 47 supply the state and 10 withhold it, and **retrieval already runs unfiltered on those 10**. There is no scenario where the harness applied a filter the running system could not.
+
+I am recording this carefully because the correction runs in my favour, which is the direction that deserves more scrutiny rather than less. What genuinely remains between these numbers and end-to-end:
+
+1. **The query text.** Retrieval was measured on the raw question; the agent will send a rewritten one. If rewriting produces worse queries, retrieval degrades. This is real, it is unmeasured until Phase 6 runs, and `eval/baseline_retrieval.json` exists precisely to catch it.
+2. **Routing.** All 57 scoreable scenarios expect `answer`. A mis-route to clarify, refuse or escalate means the scenario never retrieves at all, a failure the retrieval-only number cannot express.
+
+So the honest label is **raw-query numbers with ordinary inputs**, not oracle-filter numbers. The gap to end-to-end is the two items above, and both are measured rather than asserted.
+
+### What triage actually does
+
+Routing, and normalising the asker's vocabulary into the corpus's. That was always the substantive part: "grandma" has to reach "grandparent" and "time off" has to reach "family care and medical leave", and neither sparse matching nor a dense embedding does it reliably on a corpus of 300 chunks.
+
+Structured output comes from a **forced tool call** rather than parsed prose. Asking for JSON in a prompt returns JSON in a markdown fence often enough that the fence-stripping becomes load-bearing, and then one day prose arrives before the fence and the strip returns something unparseable.
+
+The query deliberately **excludes state names and dates**. Both are hard filters, and repeating them in the query text would turn a constraint into a ranking signal, which is the thing `store.py` is built to avoid.
+
+**Upgrade rule, unchanged and fixed in advance:** below **0.80** macro-averaged route accuracy, this node moves from Haiku to Sonnet and the change is recorded. Above it, Haiku stays.
+
+**Cost:** one full run over 92 scenarios is roughly 109,000 input and 8,000 output tokens, about **$0.15** at Haiku 4.5 rates. Decisions are cached on disk by prompt and question, so re-runs are free and each prompt edit costs one run.

@@ -1,11 +1,22 @@
 """Retrieval evaluation: run the scenario set against a configured store.
 
-**These are oracle-filter numbers.** Jurisdiction and as-of date are taken from
-each scenario's metadata rather than derived from its question, because query
-rewriting is not built (DL-16). So this measures retrieval *given perfect query
-understanding*, which is the right way to isolate one variable and is not the
-same as end-to-end performance. Reporting it as though it were would flatter the
-system by exactly the amount the unbuilt component would cost.
+**These are raw-query numbers, not oracle-filter numbers** (DL-21 corrects an
+earlier, stronger caveat here). Jurisdiction and as-of date come from the
+scenario's `employee_context` and `as_of_date`, which the schema defines as what
+the asker volunteered and the date they asked on. Both are ordinary caller
+inputs: an HRIS knows which state an employee works in and what today's date is.
+Of the 57 scoreable scenarios, 47 supply a state and 10 withhold it, and
+retrieval runs **unfiltered** on those 10, so there is no case where this harness
+applies a filter the running system could not.
+
+What separates these figures from end-to-end is therefore narrower than DL-17 and
+DL-18 claimed, and is two specific things:
+
+1. **The query text.** This sends the raw question; the agent sends a rewritten
+   one. `eval/baseline_retrieval.json` exists to detect that rewrite degrading
+   retrieval, which an end-to-end score can hide.
+2. **Routing.** Every scoreable scenario expects `answer`, so a mis-route means
+   the scenario never retrieves at all. Scored separately in `eval/run_routes.py`.
 
 Only scenarios carrying `required_citations` are scored. Clarify, refuse and
 escalate have no retrieval target: whether the agent should have asked a question
@@ -67,7 +78,8 @@ def run_scenarios(
     for scenario, vector in zip(scenarios, vectors, strict=True):
         hits = store.search(
             scenario.question,
-            # Oracle filters. See the module docstring.
+            # Caller-supplied, not oracular; None where the scenario withholds
+            # it, which leaves retrieval unfiltered. See the module docstring.
             jurisdiction=scenario.employee_context.state,
             as_of=scenario.as_of_date,
             limit=limit,
