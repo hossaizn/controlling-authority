@@ -35,7 +35,10 @@ dependencies = [
     "openai>=1.54,<2.0",
     "voyageai>=0.3,<1.0",
     # observability
-    "langfuse>=2.53",
+    # Upper-bounded, same reason as DL-15. The floor said >=2.53 while 4.14 was
+    # installed, and v3 replaced trace()/span() with start_observation: code
+    # written against the pinned floor would not have run at all.
+    "langfuse>=4.14,<5.0",
     "certifi>=2026.7.22",
 ]
 
