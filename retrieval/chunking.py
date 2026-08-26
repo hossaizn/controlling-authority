@@ -144,6 +144,18 @@ def chunk_structure_aware(
         else:
             units[-1] = f"{units[-1]}\n\n{block}"
 
+    # Not every source is written in numbered subdivisions. The nine handbook
+    # policies are prose under Markdown headings and contain no "(a)" markers at
+    # all, so the loop above folded each entire policy into a single unit and
+    # target_chars became inert: a 1,612 character policy emitted one oversized
+    # chunk while the fixed-size baseline correctly emitted two.
+    #
+    # With no structure to respect, fall back to paragraphs, which is the
+    # document's own structure at the next level down. Doing nothing here would
+    # have made the strategy comparison meaningless for the entire company layer.
+    if len(units) == 1 and len(blocks) > 1:
+        units = blocks
+
     return _emit(doc, _pack(units, target_chars, max_chars), "structure")
 
 

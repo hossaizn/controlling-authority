@@ -39,7 +39,10 @@ class EmbeddingSpec:
         similarity rather than an error, which is the kind of failure that looks
         like a bad retrieval strategy for a week.
         """
-        return f"{self.provider}_{self.model}".replace("-", "_").replace(".", "_")
+        # Dimensions are part of the identity. The same model at two widths
+        # produces incomparable vectors, so they cannot share a collection.
+        name = f"{self.provider}_{self.model}_{self.dimensions}"
+        return name.replace("-", "_").replace(".", "_")
 
 
 class EmbeddingProvider(ABC):
@@ -76,8 +79,11 @@ class OpenAIEmbeddings(EmbeddingProvider):
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
+        # dimensions must be sent, not merely stored. Without it, constructing
+        # OpenAIEmbeddings(dimensions=512) built a 512-wide collection and then
+        # wrote 1536-wide vectors into it, failing on the first real call.
         response = self._get_client().embeddings.create(
-            model=self.spec.model, input=texts
+            model=self.spec.model, input=texts, dimensions=self.spec.dimensions
         )
         return [item.embedding for item in response.data]
 

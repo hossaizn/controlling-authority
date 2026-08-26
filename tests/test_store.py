@@ -84,6 +84,20 @@ CORPUS = [
         effective_from=date(2024, 1, 1),
     ),
     doc(
+        doc_id="us:29-cfr-825.110",
+        citation="29 CFR 825.110",
+        heading="§ 825.110 Eligible employee.",
+        # Deliberately long and subdivided so it produces several chunks. Every
+        # other fixture document yields exactly one, which left point-id
+        # uniqueness within a document and the batching loop untested.
+        text=(
+            "(a) An eligible employee is an employee of a covered employer who "
+            + "meets both of the following requirements. " * 30
+            + "\n\n(b) The determination of whether an employee has worked the "
+            + "minimum hours is made under the principles of the FLSA. " * 30
+        ),
+    ),
+    doc(
         doc_id="oh:absence-family_medical_leave",
         citation="OH (no state provision: family_medical_leave)",
         authority_layer="state",
@@ -110,8 +124,36 @@ def _citations(hits):
 
 
 def test_everything_is_indexed(store) -> None:
-    hits = store.search("leave", limit=50)
-    assert len(hits) == 6
+    """Counted in chunks, not documents: one fixture is long enough to split,
+    which is what makes point-id uniqueness within a document meaningful."""
+    hits = store.search("leave", limit=200)
+    assert len({h.citation for h in hits}) == 7
+    assert len(hits) > 7, "at least one document must produce multiple chunks"
+
+
+def test_point_ids_are_stable_across_processes() -> None:
+    """Python randomises str hashing per process. The first version derived ids
+    from hash(), so the same chunk got a different id on every run: re-indexing
+    inserted duplicates instead of updating, confirmed on the live server where
+    a re-run left 12 points for 6 chunks with nothing erroring."""
+    from retrieval.store import point_id
+
+    assert point_id("us:29-cfr-825.200#structure-0") == "b818b3bf-5c40-520d-b0a8-127a37fedabb"
+    # Same input, same id, on any machine and in any process.
+    assert point_id("a") == point_id("a") and point_id("a") != point_id("b")
+
+
+def test_reindexing_does_not_duplicate_points() -> None:
+    """The behaviour the id fix exists to guarantee."""
+    s = ChunkStore(
+        DeterministicEmbeddings(), strategy="structure", client=QdrantClient(":memory:")
+    )
+    s.recreate()
+    chunks = [c for d in CORPUS for c in chunk_structure_aware(d)]
+    s.index(chunks)
+    first = s.client.count(s.collection).count
+    s.index(chunks)  # same chunks, no recreate
+    assert s.client.count(s.collection).count == first
 
 
 def test_jurisdiction_filter_excludes_other_states(store) -> None:

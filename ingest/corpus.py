@@ -19,6 +19,12 @@ from ingest.models import SourceDocument
 from ingest.state_ca import fetch_section as fetch_ca
 from ingest.state_ny import fetch_section as fetch_ny
 
+# The federal snapshot the corpus is built from. Pinned rather than defaulting
+# to today: the eCFR cache key embeds the snapshot date, so a floating default
+# means every run fetches a date nobody has cached, and two runs on different
+# days silently compare different text.
+FEDERAL_SNAPSHOT = date(2026, 8, 1)
+
 # Scoped by what the scenario set cites, per the plan's stopping rule.
 CA_SECTIONS = [("GOV", "12945.2"), ("GOV", "12945"), ("LAB", "227.3"), ("ELEC", "14000")]
 NY_SECTIONS = [("WKC", "204")]
@@ -38,7 +44,7 @@ def build_corpus(
     docs: list[SourceDocument] = []
 
     if include_federal:
-        docs += fetch_part(FEDERAL_PART, as_of=observed_on)
+        docs += fetch_part(FEDERAL_PART, as_of=FEDERAL_SNAPSHOT)
 
     for code, section in CA_SECTIONS:
         docs += [fetch_ca(code, section, observed_on=observed_on)]

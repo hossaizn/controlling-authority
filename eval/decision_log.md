@@ -332,7 +332,7 @@ Six `must_address` values were written as `[\"LEAVE-002\"]` by an f-string escap
 
 **Status:** Phase 4. DL-1 and the chunking comparison resolve in Phase 5.
 
-**Chunking is now a measured question, not an assumption.** Structure-aware splitting and a fixed-size window are both implemented behind one interface. The baseline overlaps, because beating a straw man proves nothing about the strategy that wins. On the real corpus, structure produces 299 chunks averaging 1,190 characters and fixed produces 313 averaging 1,276. Which is better is a Phase 5 number.
+**Chunking is now a measured question, not an assumption.** Structure-aware splitting and a fixed-size window are both implemented behind one interface. The baseline overlaps, because beating a straw man proves nothing about the strategy that wins. On the real corpus, structure produces 300 chunks averaging 1,186 characters and fixed produces 313 averaging 1,276. (299/1,190 before Phase 4.5 fixed the prose degeneration described in DL-15.) Which is better is a Phase 5 number.
 
 **Embedding likewise.** Both DL-1 candidates are implemented, neither is a default, and `get_provider()` has no fallback, so a choice cannot be made by omission. Both pin a model version rather than a floating alias: an index built against a silently updated model is not comparable with the numbers that justified adopting it.
 
@@ -360,12 +360,13 @@ This entry exists to be checked against a result that does not exist yet. A deci
 
 **Structure-aware wins overall on recall@10**, and the margin is concentrated rather than spread evenly.
 
-**Where it should win, and why.** Federal regulations state eligibility as separate numbered prongs:
+**The mechanism, corrected before the experiment ran.**
 
-> (1) Has been employed by the employer for at least 12 months, and
-> (2) Has been employed for at least 1,250 hours of service during the 12-month period...
+This entry originally claimed that a fixed window would separate the two eligibility prongs of `29 CFR 825.110`, leaving "(2) at least 1,250 hours" retrievable with nothing saying what it governs. **That was checked and it does not happen.** All four documents in the corpus containing "1,250 hours" keep both prongs inside a single fixed chunk: the prongs sit about 60 characters apart and the window is 1,500. The prediction as first written was unfalsifiable, because its mechanism could not occur.
 
-A fixed window has no reason to keep those together. Split between chunks, "(2)" retrieves as a bare hours requirement with nothing saying which entitlement it governs, and the chunk answering "am I eligible" holds half the test. The scenarios that turn on exactly this are `conflict-003`, `conflict-017`, `conflict-018`, `ambiguous-006` and `ambiguous-007`, all of which hinge on one prong being satisfied and the other not.
+The real mechanism is broader and much more common: **205 of 313 fixed chunks begin mid-sentence.** A window that opens with "or been paid for 60 percent of the applicable monthly guarantee" has lost the subject it modifies, and its embedding carries a fragment rather than a proposition. Structure-aware chunks begin at a subdivision boundary by construction.
+
+Correcting this before Phase 5 rather than after is the whole point of writing the prediction down. Had the original stood, a structure-aware win would have been credited to a cause that never operated.
 
 **Where it should not.** The `straightforward` slice mostly asks about handbook policies, which are short, already close to one chunk under either strategy, and structurally simple. Expect no meaningful difference there, and treat a large one as a signal that something else is going on.
 
@@ -373,7 +374,9 @@ A fixed window has no reason to keep those together. Split between chunks, "(2)"
 
 **Chunk-length variance.** Structure-aware inherits the corpus's lopsidedness: it produces chunks up to the 4,000 character cap, while fixed-size never exceeds 1,500. A long chunk dilutes its embedding, because one vector has to represent more distinct propositions. If structure loses overall, this is the most likely reason, and the check is whether its losses cluster on documents whose chunks run past roughly 2,500 characters.
 
-**A concrete number that would surprise me:** structure-aware losing the conflict slice. That is the slice its entire rationale is about, and losing it would mean the subdivision-splitting story is wrong rather than merely outweighed.
+**A concrete number that would surprise me:** structure-aware losing the conflict slice. That is the slice its entire rationale is about, and losing it would mean the fragment story is wrong rather than merely outweighed.
+
+**A second falsifier, added with the corrected mechanism.** If mid-sentence starts do not hurt retrieval, the 205 fragments cost nothing and the two strategies should land within noise, which the tie-break already resolves toward fixed-size.
 
 ### Tie-break, fixed now
 
@@ -384,3 +387,48 @@ The reasoning: structure-aware is the more complex implementation, carrying a su
 ### What is not on trial
 
 Both strategies keep the heading and nearest hierarchy level in the embedded text. That was settled in DL-13 for a separate reason: without it a bare subdivision is close to meaningless and an FMLA chunk reads almost identically to a CFRA one. It applies to both arms, so it is a constant here rather than a variable.
+
+---
+
+## DL-15: A spec requirement had been skipped without anyone recording it
+
+**Status:** decided and executed, Phase 4.5
+
+Fourth review, and a 63-mutant harness. Twenty-four survived.
+
+### The finding that mattered most was an omission
+
+The spec calls for **hybrid dense-plus-sparse retrieval with named vectors**, because statutory text is full of terms of art that carry exact meaning and a dense embedding places `825.200` next to its paraphrases. Phase 4 built a single unnamed dense vector and said nothing about it. Not deferred, not argued against: simply absent, while DL-13 discussed chunking and embedding as though retrieval design were settled.
+
+**Unnamed to named is a breaking change to a Qdrant collection.** Left until after Phase 5, it would have meant rebuilding every index, including the paid ones. Found by a reviewer reading the spec against the code, which is the only way an omission gets found: nothing fails when a requirement is missing, because there is no code to fail.
+
+Hybrid is now implemented. Dense and sparse are retrieved separately and fused with reciprocal rank fusion, with the jurisdiction and date filters applied to each prefetch rather than after fusion, so they stay hard constraints instead of a post-hoc trim that can silently return fewer results than asked for. Term frequencies are sent raw and IDF is computed by Qdrant across the collection, because computing it locally would mean recomputing on every corpus change and being silently stale whenever that was missed.
+
+### Point ids were not stable across processes
+
+Ids came from `abs(hash(chunk_id)) % 2**63`. Python randomises string hashing per process, so the same chunk received a different id on every run. Re-indexing inserted duplicates instead of updating, and this was confirmed on the live server: a re-run in a fresh process left **12 points for 6 chunks**, with nothing raising. Now `uuid5` over a fixed namespace, pinned in a test.
+
+The same reasoning applies to sparse dimension indices, which are a stable BLAKE2b hash for exactly this reason: a token that lands in a different dimension each run would never match anything indexed earlier.
+
+### The answer-key guard could be walked past
+
+`DEFECTS.md` must never be ingested. The allowlist was case-insensitive, so `LEAVE-009-defects.md`, `LEAVE-001-DEFECTS.md` and `leave-000-defects.MD` all satisfied it, and the test asserting the property only grepped documents that had already loaded, so it never presented a hostile filename.
+
+There are now two independent mechanisms: a case-sensitive pattern with a slug denylist, and a content check that refuses any body reading as answer-key material whatever it is called. Two rather than one because the failure is silent. An agent retrieving the answer key would score well on precisely the scenarios built to catch it, and nothing in the result would look wrong.
+
+### Structure-aware degenerated on prose
+
+The nine handbook policies are prose under Markdown headings with no `(a)` markers at all. Every block folded into one unit, `target_chars` became inert, and a 1,612 character policy emitted a single oversized chunk while the baseline correctly emitted two. The strategy comparison was meaningless for the entire company layer. It now falls back to paragraphs, which is the document's own structure one level down.
+
+### Tests that passed while proving nothing
+
+- The fixed-size dedup test used a length where the deduplication never executed, so removing it entirely, or flipping its comparison, passed. Resized so it fires.
+- `_pack`'s hard split had only an upper bound on chunk length, so a mutant that dropped half the text of every oversized unit survived. A conservation test now checks nothing is lost.
+- The `SUBDIVISION` regex was never tested. Loosening it to "anything starting with a bracket" survived.
+- Every fixture document in the store tests produced exactly one chunk, leaving point-id uniqueness within a document and the batching loop untested at the shape that matters.
+
+One mutant survives and should: `break` to `continue` in the window loop is **equivalent**, since once a window reaches the end of the text every later one does too. Chasing it would add a test that asserts nothing.
+
+### Smaller, real
+
+`dimensions` was accepted by the OpenAI provider and never sent, so a non-default value would have built a collection of one width and written vectors of another. The eCFR cache key embedded `date.today()`, so the default path fetched a snapshot nobody had cached and two runs on different days would have compared different text. The handbook stripped any leading blockquote rather than only the supersession banner. SDK dependencies had lower bounds but no upper ones, which contradicts the pinning discipline DL-1's reproducibility rests on.
