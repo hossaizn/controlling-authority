@@ -16,7 +16,7 @@
 
 **Jurisdiction-dependent:** For an Ohio employee, no state provision applies and federal FMLA's 12-month/1,250-hour test governs, so the same fault exists against the federal floor.
 
-- [ ] Verify CFRA eligibility threshold against ingested CA text
+- [x] Verify CFRA eligibility threshold — **verified 2026-08-26**. `Cal. Gov. Code 12945.2`: "more than 12 months of service" plus "at least 1,250 hours". **Note the asymmetry with federal**, which says "at least 12 months": at exactly twelve months the federal test is met and the state test is not. `conflict-017` was corrected as a result.
 - [x] Verify FMLA eligibility threshold against ingested 29 CFR 825 text — **verified 2026-08-25**. `29 CFR 825.110`: "at least 12 months" and "at least 1,250 hours of service". "At least" confirms the inclusive boundary reading in `conflict-017`.
 
 ---
@@ -68,7 +68,7 @@ The lesson is narrower than "verify claims". It is that a sweep which checks onl
 
 **Why this is the most valuable case in the set:** the same question has opposite correct answers in two states, and neither answer is retrievable from the most semantically relevant document.
 
-- [ ] Verify CFRA covered family members include grandparent
+- [x] Verify CFRA covered family members include grandparent — **verified 2026-08-26**. `12945.2` covers leave to care for a "child, parent, grandparent, grandchild, sibling, spouse, domestic partner, or designated person".
 - [x] Verify federal FMLA excludes grandparent care — **verified 2026-08-25**, corrected 2026-08-26. `29 CFR 825.206` states it explicitly. `825.122` covers spouse, parent, son or daughter for care leave, and mentions grandparent only in the military caregiver next-of-kin list. The term occurs in five ingested sections, not one.
 
 ---
@@ -89,14 +89,16 @@ The lesson is narrower than "verify claims". It is that a sweep which checks onl
 **Policy:** `LEAVE-008` Paid Time Off
 **Fault:** "Up to 5 unused days carry into the following year and must be used by 31 March. Days beyond that are forfeited."
 
-**Why it is a fault:** California treats accrued vacation as earned wages, which cannot be forfeited. A use-it-or-lose-it clause of this kind is unenforceable there. A cap on further accrual is permitted; retroactive forfeiture of already-accrued days is not.
+**Why it is a fault:** California treats vested vacation as wages. `Cal. Lab. Code 227.3` requires vested vacation to be paid out at termination and provides that a contract or policy "shall not provide for forfeiture of vested vacation time upon termination", so the handbook's forfeiture clause cannot be applied to an employee who leaves.
+
+**Narrowed in Phase 3 after verification.** This originally claimed that a use-it-or-lose-it clause is unenforceable in California generally. The ingested text does not say that: 227.3 addresses forfeiture and payout **upon termination** only, and is silent on annual carryover during employment. The broader proposition rests on vacation being vested plus agency interpretation, neither of which is in the corpus. Every scenario that depended on the wider claim was reframed onto termination, which the text does support.
 
 **Found rather than planned.** This clause was written to make the handbook read realistically, and the conflict was noticed afterwards. It is kept because it is the most realistic defect in the set: this is exactly how real multi-state handbooks break, by carrying a term that is lawful in one state and not in another without anyone noticing.
 
 **Correct resolution:** California employee, statute controls and accrued days cannot be forfeited. Ohio and New York employees, the handbook clause stands unless their state provides otherwise.
 
-- [ ] Verify California's treatment of accrued vacation as wages
-- [ ] Verify whether NY or OH restrict forfeiture, which would change the paired cases
+- [x] Verify California's treatment of accrued vacation as wages — **verified 2026-08-26** against ingested `Cal. Lab. Code 227.3`: vested vacation "shall be paid to him as wages at his final rate", and a policy "shall not provide for forfeiture of vested vacation time upon termination". Scope is termination only.
+- [ ] Verify whether NY or OH restrict forfeiture, which would change the paired cases. Ohio recorded as an absence, itself unverified.
 
 ---
 
@@ -128,8 +130,8 @@ The lesson is narrower than "verify claims". It is that a sweep which checks onl
 
 **Partly documented before, partly not.** D-4 covered grandparent only. Sibling and pregnancy disability were relied on by scenarios without appearing here.
 
-- [ ] Verify CFRA covered family members include sibling
-- [ ] Verify California pregnancy disability leave is separate from bonding leave
+- [x] Verify CFRA covered family members include sibling — **verified 2026-08-26**, same clause as grandparent.
+- [x] Verify California pregnancy disability leave is separate from bonding leave — **verified 2026-08-26**. `Cal. Gov. Code 12945` gives leave for an employee "disabled by pregnancy, childbirth, or a related medical condition" for up to four months, distinct from the bonding entitlement in 12945.2.
 
 ---
 

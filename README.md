@@ -34,7 +34,7 @@ Precedence is applied in order:
 | Layer | Source | Verified |
 |-------|--------|----------|
 | Federal | eCFR API, 29 CFR Part 825 (FMLA). Point-in-time by snapshot date. | 2026-08-25 |
-| State | California (CFRA, PDL, paid sick leave), New York (PFL, Workers' Comp Law art. 9), Ohio | 2026-08-25 |
+| State | California (4 sections), New York (WCL 204), Ohio (recorded absences only, no statute cited by any scenario) | 2026-08-26 |
 | Company | Synthetic handbook, seeded with deliberate conflicts | n/a |
 
 Ohio is the control case: it has no state family-leave statute for private employers. That absence is encoded as an explicit record, because a retrieval miss and a genuine absence must not look the same to the agent.
@@ -57,6 +57,7 @@ Written as each decision is made, not reconstructed afterwards. **Reverted exper
 | **DL-8** | Effective dating from amendment history, not the snapshot date | decided |
 | **DL-9** | Federal citations verified against ingested text; one claim was too broad | federal done |
 | **DL-10** | Mutation testing showed the date tests proved nothing; contract was federal-shaped | decided |
+| **DL-11** | Verification found two ground-truth errors; premature verification now enforced, not remembered | Phase 3 |
 
 ---
 

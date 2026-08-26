@@ -244,3 +244,41 @@ Adapters cache to a gitignored directory, so a stray call in a test would not fa
 All 12 scenarios marked `verified: true` in Phase 2 have been reverted. Every one rests on something unbuilt: the Ohio absence records, or California and New York text not yet ingested. `control-004` claims an answer is "uniform across the corpus" while two thirds of the corpus does not exist yet.
 
 DL-3 says a scenario is verified when **all** its dependencies are checked. Federal-only was not the same as fully verified, and the distinction was collapsed under the satisfaction of having verified something.
+
+---
+
+## DL-11: Verification caught two ground-truth errors, and I made the same premature-verification mistake twice
+
+**Status:** Phase 3. Federal and California verified; New York and the Ohio absences outstanding.
+
+### Ingestion scope collapsed once the scenarios defined it
+
+Reading the citation requirements off the scenario set before writing any adapter:
+
+| Jurisdiction | Citations required |
+|---|---|
+| California | 4 sections |
+| New York | 1 section |
+| **Ohio** | **0** |
+
+**Ohio needs no statutory adapter at all.** All 46 Ohio scenarios resolve to federal law, the handbook, or a recorded absence. The plan's stopping rule, that ingestion ends when the eval is answerable, eliminated an entire integration before a line of it was written. The Phase 3 plan had specified ingesting Ohio's military, jury duty and voting leave provisions; nothing asks about them.
+
+### Two scenarios asserted things the text does not say
+
+**`conflict-017` was backwards.** Federal `29 CFR 825.110` grants eligibility at "at least 12 months". California `Gov. Code 12945.2` says "more than 12 months of service". At exactly twelve months the federal test is met and the state test is not, so federal controls, not state. The scenario had been written assuming both floors read alike, with a note asserting the inclusive reading as though it settled both. It is now a better scenario than the original: a boundary case where the two layers genuinely diverge by a day of service.
+
+**`Cal. Lab. Code 227.3` does not say what D-6 claimed.** The defect asserted that a use-it-or-lose-it clause is unenforceable in California generally. The section addresses forfeiture and payout **upon termination** and is silent on annual carryover during employment. The wider proposition rests on vacation being vested plus agency interpretation, neither of which is in the corpus. `conflict-007`, `conflict-008` and `ambiguous-004` were reframed onto termination, which the text does support, and `conflict-009` moved to Ohio to become a deferral-into-silence case rather than a duplicate.
+
+Both errors are the same shape: **a claim that is true enough in general and not supported by the specific text cited.** Neither would have failed a plausibility check. Both would have scored a correct system as wrong.
+
+One near-miss worth recording: an early grep for CFRA's employer threshold searched for "five or more employees" and reported it missing. The statute says "five or more **persons**". Verification that greps for the phrasing you expect will report an absence that is not there.
+
+### The same mistake, twice, in one session
+
+Phase 2.5 reverted 12 scenarios marked `verified: true` that rested on unbuilt Ohio absence records. In Phase 3, with that correction freshly written into the log, **16 were marked verified and an audit found 8 resting on exactly the same unverified absences**, plus 2 claiming uniformity across a corpus that is only fractionally ingested.
+
+DL-3 was unambiguous. It had just been restated. Judgment failed anyway, in the same direction, because verifying something creates the feeling of having verified enough.
+
+So it is no longer a matter of judgment. Two tests now enforce it: no Ohio scenario may be verified while the Ohio absence records carry `verified_on: null`, and no scenario withholding jurisdiction may be verified at all, since such an answer claims something about every state and only a fraction of state law exists in the corpus.
+
+**Six of 92 scenarios are verified**, all California-plus-federal cases whose every dependency is checked. That number is lower than the 16 claimed an hour earlier, and it is the first one that is true.

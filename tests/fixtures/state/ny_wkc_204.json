@@ -1,0 +1,77 @@
+{
+ "success": true,
+ "message": "Law document for location 204 in WKC law.",
+ "responseType": "law-doc-info-detail",
+ "result": {
+  "lawId": "WKC",
+  "lawName": "Workers' Compensation",
+  "locationId": "204",
+  "title": "Disability and family leave during employment",
+  "docType": "SECTION",
+  "publishedDates": [
+   "2014-09-22",
+   "2016-04-08"
+  ],
+  "docLevelId": "204",
+  "activeDate": "2016-04-08",
+  "text": "  \u00a7 204. Disability and family leave during employment. 1. Disability\\nbenefits shall be payable to an eligible employee for disabilities,\\nbeginning with the eighth day of disability and thereafter during the\\ncontinuance of disability, subject to the limitations as to maximum and\\nminimum amounts and duration and other conditions and limitations in\\nthis section and in sections two hundred five and two hundred six of\\nthis article. Family leave benefits shall be payable to an eligible\\nemployee for the first full day when family leave is required and\\nthereafter during the continuance of the need for family leave, subject\\nto the limitations as to maximum and minimum amounts and duration and\\nother conditions and limitations in this section and in sections two\\nhundred five and two hundred six of this article. Successive periods of\\ndisability or family leave caused by the same or related injury or\\nsickness shall be deemed a single period of disability or family leave\\nonly if separated by less than three months.\\n  2. (a) The weekly benefit for family leave that occurs (i) on or after\\nJanuary first, two thousand eighteen shall not exceed eight weeks during\\nany fifty-two week calendar period and shall be fifty percent of the\\nemployee's average weekly wage but shall not exceed fifty percent of the\\nstate average weekly wage, (ii) on or after January first, two thousand\\nnineteen shall not exceed ten weeks during any fifty-two week calendar\\nperiod and shall be fifty-five percent of the employee's average weekly\\nwage but shall not exceed fifty-five percent of the state average weekly\\nwage, (iii) on or after January first, two thousand twenty shall not\\nexceed ten weeks during any fifty-two week calendar period and shall be\\nsixty percent of the employee's average weekly wage but shall not exceed\\nsixty percent of the state average weekly wage, and (iv) on or after\\nJanuary first of each succeeding year, shall not exceed twelve weeks\\nduring any fifty-two week calendar period and shall be sixty-seven\\npercent of the employee's average weekly wage but shall not exceed\\nsixty-seven percent of the New York state average weekly wage in effect.\\nThe superintendent of financial services shall have discretion to delay\\nthe increases in the family leave benefit level provided in\\nsubparagraphs (ii), (iii), and (iv) of this paragraph by one or more\\ncalendar years. In determining whether to delay the increase in the\\nfamily leave benefit for any year, the superintendent of financial\\nservices shall consider: (1) the current cost to employees of the family\\nleave benefit and any expected change in the cost after the benefit\\nincrease; (2) the current number of insurers issuing insurance policies\\nwith a family leave benefit and any expected change in the number of\\ninsurers issuing such policies after the benefit increase; (3) the\\nimpact of the benefit increase on employers' business and the overall\\nstability of the program to the extent that information is readily\\navailable; (4) the impact of the benefit increase on the financial\\nstability of the disability and family leave insurance market and\\ncarriers; and (5) any additional factors that the superintendent of\\nfinancial services deems relevant. If the superintendent of financial\\nservices delays the increase in the family leave benefit level for one\\nor more calendar years, the family leave benefit level that shall take\\neffect immediately following the delay shall be the same benefit level\\nthat would have taken effect but for the delay. The weekly benefits for\\nfamily leave that occurs on or after January first, two thousand\\neighteen shall not be less than one hundred dollars per week except that\\nif the employee's wages at the time of family leave are less than one\\nhundred dollars per week, the employee shall receive his or her full\\nwages. Benefits may be payable to employees for paid family leave taken\\nintermittently or for less than a full work week in increments of one\\nfull day or one fifth of the weekly benefit.\\n  (b) The weekly benefit which the disabled employee is entitled to\\nreceive for disability commencing on or after May first, nineteen\\nhundred eighty-nine shall be one-half of the employee's weekly wage, but\\nin no case shall such benefit exceed one hundred seventy dollars; except\\nthat if the employee's average weekly wage is less than twenty dollars,\\nthe benefit shall be such average weekly wage. The weekly benefit which\\nthe disabled employee is entitled to receive for disability commencing\\non or after July first, nineteen hundred eighty-four shall be one-half\\nof the employee's weekly wage, but in no case shall such benefit exceed\\none hundred forty-five dollars; except that if the employee's average\\nweekly wage is less than twenty dollars, the benefit shall be such\\naverage weekly wage. The weekly benefit which the disabled employee is\\nentitled to receive for disability commencing on or after July first,\\nnineteen hundred eighty-three and prior to July first, nineteen hundred\\neighty-four shall be one-half of the employee's average weekly wage, but\\nin no case shall such benefit exceed one hundred thirty-five dollars nor\\nbe less than twenty dollars; except that if the employee's average\\nweekly wage is less than twenty dollars the benefit shall be such\\naverage weekly wage. The weekly benefit which the disabled employee is\\nentitled to receive for disability commencing on or after July first,\\nnineteen hundred seventy-four, and prior to July first, nineteen hundred\\neighty-three, shall be one-half of the employee's average weekly wage,\\nbut in no case shall such benefit exceed ninety-five dollars nor be less\\nthan twenty dollars; except that if the employee's average weekly wage\\nis less than twenty dollars, the benefit shall be such average weekly\\nwage. The weekly benefit which the disabled employee is entitled to\\nreceive for disability commencing on or after July first, nineteen\\nhundred seventy and prior to July first, nineteen hundred seventy-four\\nshall be one-half of the employee's average weekly wage, but in no case\\nshall such benefit exceed seventy-five dollars nor be less than twenty\\ndollars; except that if the employee's average weekly wage is less than\\ntwenty dollars the benefit shall be such average weekly wage. For any\\nperiod of disability less than a full week, the benefits payable shall\\nbe calculated by dividing the weekly benefit by the number of the\\nemployee's normal work days per week and multiplying the quotient by the\\nnumber of normal work days in such period of disability. The weekly\\nbenefit for a disabled employee who is concurrently eligible for\\nbenefits in the employment of more than one covered employer shall,\\nwithin the maximum and minimum herein provided, be one-half of the total\\nof the employee's average weekly wages received from all such covered\\nemployers, and shall be allocated in the proportion of their respective\\naverage weekly wage payments.\\n",
+  "parentLocationIds": [
+   "-CH67",
+   "A9"
+  ],
+  "parents": [
+   {
+    "lawId": "WKC",
+    "lawName": "Workers' Compensation",
+    "locationId": "-CH67",
+    "title": "Workers' Compensation",
+    "docType": "CHAPTER",
+    "publishedDates": [
+     "2014-09-22",
+     "2022-09-16"
+    ],
+    "docLevelId": "67",
+    "activeDate": "2022-09-16"
+   },
+   {
+    "lawId": "WKC",
+    "lawName": "Workers' Compensation",
+    "locationId": "A9",
+    "title": "Disability Benefits",
+    "docType": "ARTICLE",
+    "publishedDates": [
+     "2014-09-22",
+     "2016-04-08"
+    ],
+    "docLevelId": "9",
+    "activeDate": "2016-04-08"
+   }
+  ],
+  "prevSibling": {
+   "lawId": "WKC",
+   "lawName": "Workers' Compensation",
+   "locationId": "203-C",
+   "title": "Health insurance during family leave",
+   "docType": "SECTION",
+   "publishedDates": [
+    "2016-04-08",
+    "2026-02-27"
+   ],
+   "docLevelId": "203-C",
+   "activeDate": "2026-02-27"
+  },
+  "nextSibling": {
+   "lawId": "WKC",
+   "lawName": "Workers' Compensation",
+   "locationId": "205",
+   "title": "Disabilities, family leave and periods for which benefits are not payable",
+   "docType": "SECTION",
+   "publishedDates": [
+    "2014-09-22",
+    "2016-04-08"
+   ],
+   "docLevelId": "205",
+   "activeDate": "2016-04-08"
+  }
+ }
+}
