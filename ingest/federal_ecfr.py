@@ -87,6 +87,18 @@ def effective_dates_from_versions(
     amendment date. Only amendments at or before the snapshot may apply: a later
     one describes text we did not fetch.
     """
+    # The feed marks 36 of 132 rows `substantive: false` and none `removed`.
+    # Both flags are deliberately ignored, and the reason differs.
+    #
+    # Non-substantive amendments (nomenclature changes, technical corrections)
+    # still alter the text, and this field answers "when did this wording take
+    # effect", not "when did the rule change". Filtering them would date a
+    # provision to before its current wording existed.
+    #
+    # `removed` never occurs in this part. A removed section would need to end
+    # rather than begin on that date, which this function cannot express. If a
+    # part with removals is ever ingested, that must be handled before trusting
+    # any point-in-time answer touching it.
     latest: dict[str, date] = {}
     for row in versions_payload.get("content_versions", []):
         identifier = row.get("identifier")
