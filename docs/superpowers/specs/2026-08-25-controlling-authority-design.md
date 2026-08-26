@@ -75,20 +75,37 @@ Authored by us as Markdown with front matter. Realistic in tone: vague where rea
 
 The metadata is what makes the vector store do real work rather than act as a lookup table.
 
+A chunk inherits its parent document's metadata and adds its own position. The
+document contract is `ingest/models.py`; this must not drift from it.
+
 ```jsonc
 {
   "chunk_id":        str,
+  "doc_id":          str,          // stable key, ours: "us:29-cfr-825.200"
+  "citation":        str,          // as the source states it, rendered in answers
   "authority_layer": "federal" | "state" | "company",
   "jurisdiction":    "US" | "CA" | "NY" | "OH",
-  "source_id":       str,          # e.g. "29 CFR 825.200"
-  "section_path":    list[str],    # hierarchy, for structure-aware chunking
+  "section_path":    list[str],    // ancestors only, never the own heading
+  "heading":         str,
+  "content_status":  "substantive" | "reserved" | "absent",
+  "version":         int | null,   // successive versions of one provision
+  "supersedes":      str | null,   // doc_id of the version this replaces
   "effective_from":  date,
-  "effective_to":    date | null,  # null means currently in force
-  "citation":        str,          # human-readable, rendered in answers
-  "source_url":      str,
+  "effective_to":    date | null,  // null means still in force
+  "effective_from_is_floor": bool, // date the source can attest to, not the
+                                   // date the provision began
+  "observed_on":     date,         // snapshot this was read from
+  "source_url":      str,          // dated, not /current/
+  "source_note":     str,          // provenance the source prints
+  "content_hash":    str,          // drift detection for scraped sources
   "text":            str
 }
 ```
+
+**`content_status` of `absent` carries text like any other document.** A record
+stating that Ohio has no family-leave provision must be retrievable, or the agent
+cannot tell "no provision exists" from "retrieval failed". Reserved sections
+carry no text; absent records do.
 
 ---
 

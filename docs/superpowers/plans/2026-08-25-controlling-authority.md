@@ -170,10 +170,11 @@ def test_scenario_slices_are_balanced():
 ```python
 def test_parses_section_hierarchy():
     sections = parse_ecfr_xml(FIXTURE)
-    s = next(x for x in sections if x.source_id == "29 CFR 825.200")
-    assert s.section_path[:2] == ["Part 825", "Subpart B"]
+    s = next(x for x in sections if x.doc_id == "us:29-cfr-825.200")
+    assert s.section_path == ["Part 825", "Subpart B"]  # ancestors only
     assert s.authority_layer == "federal"
     assert s.jurisdiction == "US"
+    assert s.citation == "29 CFR 825.200"
 ```
 
 - [ ] **Step 2: Save the fixture**

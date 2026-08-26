@@ -76,7 +76,7 @@ Entries are `DL-n`. Handbook defect identifiers are `D-n` and live in `corpus/ha
 
 ## DL-6: New York is underrepresented, and may not earn its ingestion cost
 
-**Status:** open, decide before Phase 3
+**Status:** decided 2026-08-26. Keep New York; scope the adapter to what the scenarios need.
 
 **Observation.** With all 90 scenarios written, the jurisdiction distribution is Ohio 39, California 29, withheld 16, **New York 6**.
 
@@ -92,7 +92,17 @@ Entries are `DL-n`. Handbook defect identifiers are `D-n` and live in `corpus/ha
 
 **Leaning toward 1**, because the mechanism difference is real: an eligibility test based on weeks worked rather than months-plus-hours is exactly the kind of thing a system trained on federal shapes gets wrong. But that is an argument for a handful of targeted cases, not for parity.
 
-**Not decided.** Recorded now so the choice is visible rather than made by default when Phase 3 ingestion turns out to be tedious.
+### Decision: option 1, narrowed
+
+Keep New York. Do **not** write more scenarios. Ingest only the Article 9 provisions the existing seven touch.
+
+**The reasoning changed while building Phase 2.** The value of New York was never scenario coverage. It is that it is a **third integration shape**. Federal is a structured XML API with a separate versioning feed. California and Ohio are server-rendered HTML that must be parsed. New York is an authenticated JSON API with a ragged tree traversed by depth. For a project whose subject is wiring a model into whatever heterogeneous systems a customer already runs, that variety is the substance rather than a detail. Three sources of one shape would demonstrate less than three sources of three shapes.
+
+Seven scenarios do not justify ingesting the whole Workers' Compensation Law. They comfortably justify the Paid Family Leave provisions they actually cite, which is also what the plan already requires: ingestion stops when the scenario set is answerable, not when the corpus feels complete.
+
+**Writing scenarios to justify a corpus would be backwards.** Cases manufactured to make an adapter look worthwhile are worse than thin coverage, because they inflate the set without testing anything a real user would ask. If NY ingestion proves cheap, cases can be added opportunistically; that is not a commitment.
+
+**Accepted cost.** The New York layer stays the most thinly tested of the three. Any claim about jurisdiction handling should say so rather than implying even coverage.
 
 ---
 
