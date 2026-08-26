@@ -31,7 +31,7 @@ from typing import Any
 
 from anthropic import Anthropic
 
-from ingest.settings import require
+from ingest.settings import optional, require
 from retrieval.ratelimit import RateBudget, estimate_tokens
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "model"
@@ -39,18 +39,63 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "model"
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-4-5"
 
+
+def open_model() -> str:
+    """The open-weights model id, chosen by environment rather than by code.
+
+    DL-24 pre-registered the comparison without naming a model, because free-tier
+    lineups change faster than this repo does. Setting `OPEN_MODEL_ID` and
+    `OPEN_MODEL_BASE_URL` is enough to point at Groq, Cerebras, OpenRouter,
+    Together or anything else speaking the OpenAI API, with no code change.
+    """
+    return optional("OPEN_MODEL_ID", "llama-3.3-70b-versatile")
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    api: str  # "anthropic" | "openai"
+    key_env: str
+    base_url: str | None = None
+
+
+def spec_for(model: str) -> ModelSpec:
+    """Which API a model id belongs to.
+
+    Dispatched on the id rather than on a registry key **so the cache survives**.
+    Every cached decision is keyed by the exact model string, and 500-odd of them
+    are Haiku's arm of the DL-24 comparison. Renaming the identifier would
+    invalidate all of them and make the control arm cost money to reproduce,
+    which is the one thing a comparison cannot afford.
+    """
+    if model.startswith("claude-"):
+        return ModelSpec(api="anthropic", key_env="ANTHROPIC_API_KEY")
+    return ModelSpec(
+        api="openai",
+        key_env="OPEN_MODEL_API_KEY",
+        base_url=optional("OPEN_MODEL_BASE_URL", "https://api.groq.com/openai/v1"),
+    )
+
+
 # USD per million tokens. Written down rather than inferred so a wrong number is
-# visible and correctable in one place; verify against Anthropic's pricing page
-# before quoting a cost anywhere it matters. Token counts below are reported by
-# the API and are the measured quantity; the dollar figure is derived from these.
+# visible and correctable in one place; verify against the provider's pricing
+# page before quoting a cost anywhere it matters. Token counts below are reported
+# by the API and are the measured quantity; the dollar figure is derived.
+#
+# An unlisted model prices at zero, which is right for a free tier and is why the
+# figure is always reported beside the raw token counts rather than alone.
 PRICE_PER_MTOK = {
     HAIKU: {"input": 1.00, "output": 5.00},
     SONNET: {"input": 3.00, "output": 15.00},
 }
 
-# Well inside any paid tier. The binding constraint on this project is not the
-# rate limit, it is not wanting a surprise, so calls are paced anyway.
-_BUDGET = RateBudget(max_tokens_per_minute=100_000, max_requests_per_minute=40)
+# Per API, because the constraints differ in kind. A paid Anthropic account is
+# nowhere near its ceiling and is paced only to avoid surprises; a free tier is
+# genuinely rate-limited and pacing it is what keeps a 92-scenario run alive.
+# Reactive backoff was tried on Voyage and died 264 chunks into 300.
+_BUDGETS = {
+    "anthropic": RateBudget(max_tokens_per_minute=100_000, max_requests_per_minute=40),
+    "openai": RateBudget(max_tokens_per_minute=25_000, max_requests_per_minute=25),
+}
 
 
 @dataclass
@@ -101,22 +146,79 @@ def _cache_key(model: str, system: str, user: str, tool: dict) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:32]
 
 
+def as_openai_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    """Anthropic's tool shape into OpenAI's.
+
+    The JSON Schema in `input_schema` is the same object in both; only the
+    wrapper differs. Written as a translation rather than by keeping two copies
+    of every tool definition, because two definitions of one contract is the
+    drift this project keeps finding.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "parameters": tool["input_schema"],
+        },
+    }
+
+
+def parse_arguments(raw: str, model: str) -> dict[str, Any]:
+    """Tool arguments should be raw JSON. Some providers still fence them.
+
+    Anthropic returns a parsed object, so this path only exists for the
+    OpenAI-compatible side, where `arguments` is a string. A fence should never
+    appear in a function-call payload and sometimes does, so it is stripped
+    rather than allowed to fail a whole run.
+    """
+    text = raw.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        text = text.rsplit("```", 1)[0]
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"{model} returned tool arguments that are not JSON: {raw[:200]!r}"
+        ) from exc
+
+
 class StructuredCaller:
-    """Calls a model and returns the arguments of a forced tool call."""
+    """Calls a model and returns the arguments of a forced tool call.
+
+    Two APIs behind one method. Anthropic and any OpenAI-compatible endpoint,
+    which covers every free open-weights host worth using, so DL-24's comparison
+    is a change of environment variable rather than a second implementation.
+
+    **The forced tool call is the invariant.** It is what keeps structured output
+    from degenerating into parsing prose, and a provider that cannot honour
+    `tool_choice` is not usable here regardless of how it scores.
+    """
 
     def __init__(self, usage: Usage | None = None, use_cache: bool = True):
-        self._client: Anthropic | None = None
+        self._clients: dict[str, Any] = {}
         self.usage = usage or Usage()
         self.use_cache = use_cache
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    @property
-    def client(self) -> Anthropic:
+    def client_for(self, spec: ModelSpec):
         # Built on first use, not on construction, so importing this module in a
         # test that never calls a model does not require a credential.
-        if self._client is None:
-            self._client = Anthropic(api_key=require("ANTHROPIC_API_KEY"))
-        return self._client
+        if spec.api not in self._clients:
+            if spec.api == "anthropic":
+                self._clients[spec.api] = Anthropic(api_key=require(spec.key_env))
+            else:
+                from openai import OpenAI
+
+                self._clients[spec.api] = OpenAI(
+                    api_key=require(spec.key_env), base_url=spec.base_url
+                )
+        return self._clients[spec.api]
 
     def call(
         self,
@@ -133,9 +235,25 @@ class StructuredCaller:
             self.usage.hit()
             return json.loads(path.read_text())["result"]
 
-        _BUDGET.acquire(estimate_tokens([system, user]))
+        spec = spec_for(model)
+        _BUDGETS[spec.api].acquire(estimate_tokens([system, user]))
+        client = self.client_for(spec)
 
-        response = self.client.messages.create(
+        if spec.api == "anthropic":
+            result, tokens = self._anthropic(client, system, user, tool, model, max_tokens)
+        else:
+            result, tokens = self._openai(client, system, user, tool, model, max_tokens)
+
+        self.usage.add(model, *tokens)
+
+        if self.use_cache:
+            path.write_text(
+                json.dumps({"model": model, "key": key, "result": result}, indent=2)
+            )
+        return result
+
+    def _anthropic(self, client, system, user, tool, model, max_tokens):
+        response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
             system=system,
@@ -145,21 +263,41 @@ class StructuredCaller:
             # has to handle two shapes, which is how a parser starts guessing.
             tool_choice={"type": "tool", "name": tool["name"]},
         )
-
-        self.usage.add(
-            model, response.usage.input_tokens, response.usage.output_tokens
-        )
-
         blocks = [b for b in response.content if b.type == "tool_use"]
         if not blocks:
             raise RuntimeError(
                 f"{model} returned no tool call despite tool_choice being forced; "
                 f"stop_reason={response.stop_reason}"
             )
-        result = blocks[0].input
+        return blocks[0].input, (
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+        )
 
-        if self.use_cache:
-            path.write_text(
-                json.dumps({"model": model, "key": key, "result": result}, indent=2)
+    def _openai(self, client, system, user, tool, model, max_tokens):
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            tools=[as_openai_tool(tool)],
+            # Same invariant as the Anthropic path. A provider that ignores this
+            # and answers in prose fails loudly below rather than being parsed.
+            tool_choice={"type": "function", "function": {"name": tool["name"]}},
+        )
+        message = response.choices[0].message
+        calls = message.tool_calls or []
+        if not calls:
+            raise RuntimeError(
+                f"{model} returned no tool call despite tool_choice being forced; "
+                f"finish_reason={response.choices[0].finish_reason}. "
+                "A provider that cannot honour tool_choice is not usable here."
             )
-        return result
+        result = parse_arguments(calls[0].function.arguments, model)
+        usage = response.usage
+        return result, (
+            getattr(usage, "prompt_tokens", 0),
+            getattr(usage, "completion_tokens", 0),
+        )
