@@ -182,3 +182,56 @@ def test_no_top_up_happens_when_the_handbook_already_ranked() -> None:
     store = FakeStore([hit("LEAVE-008", "company")] + [hit(f"29 CFR 825.{i}") for i in range(9)])
     out = run_retrieve(store, rewritten_query="q")
     assert sum(h.authority_layer == "company" for h in out["retrieved"]) == 1
+
+
+# --- stage 3: guaranteed presence -------------------------------------------
+
+
+def test_the_recorded_silence_guarantee_is_not_active() -> None:
+    """Built and measured in DL-28, then not adopted: it delivered zero against a
+    pre-registered bar of two scenarios. This pins that it stays out, so adding
+    it back is a deliberate act with a number attached rather than a drift."""
+    from agent.nodes.retrieve import GUARANTEES, UNADOPTED_RECORDED_SILENCE
+
+    assert [g.name for g in GUARANTEES] == ["handbook"]
+    assert UNADOPTED_RECORDED_SILENCE not in GUARANTEES
+
+
+def test_an_unadopted_guarantee_still_works_when_asked_for_explicitly() -> None:
+    """Carried rather than deleted, because the calculus changes with corpus
+    size. It has to keep working or re-adopting it means rewriting it."""
+    from agent.nodes.retrieve import UNADOPTED_RECORDED_SILENCE, apply_guarantees
+
+    ranked = [hit(f"29 CFR 825.{i}") for i in range(10)]
+    deeper = ranked + [hit("OH-absent-parental", "state", "absent")]
+    out, fired = apply_guarantees(ranked, deeper, (UNADOPTED_RECORDED_SILENCE,))
+    assert fired == ["recorded_silence"]
+    assert "OH-absent-parental" in [h.citation for h in out]
+
+
+def test_a_guarantee_with_nothing_to_add_is_not_an_error() -> None:
+    """Some questions have no handbook policy and some jurisdictions have no
+    absence record on the topic. Neither is a failure."""
+    store = FakeStore([hit(f"29 CFR 825.{i}") for i in range(10)])
+    out = run_retrieve(store, rewritten_query="q")
+    assert out["trace"][0].detail["guarantees_fired"] == []
+    assert len(out["retrieved"]) == 10
+
+
+def test_a_guarantee_never_displaces_a_ranked_passage() -> None:
+    """Appended, never substituted, so the ranking the frozen baseline measures
+    is untouched and a guarantee can only add evidence."""
+    ranked = [hit(f"29 CFR 825.{i}") for i in range(10)]
+    store = FakeStore(ranked + [hit("LEAVE-001", "company")])
+    out = run_retrieve(store, rewritten_query="q")
+    assert [h.citation for h in out["retrieved"]][:10] == [h.citation for h in ranked]
+
+
+def test_a_guarantee_does_not_duplicate_a_passage_another_already_added() -> None:
+    """An absence record in the company layer would satisfy both predicates."""
+    from agent.nodes.retrieve import apply_guarantees
+
+    ranked = [hit(f"29 CFR 825.{i}") for i in range(10)]
+    both = hit("LEAVE-000", "company", "absent")
+    out, fired = apply_guarantees(ranked, ranked + [both])
+    assert [h.chunk_id for h in out].count(both.chunk_id) == 1

@@ -1140,3 +1140,70 @@ So the ceiling is no longer `compose`. It is two other things:
 ### A structural note
 
 Fixing this created a circular import, `compose` needing the citation matcher from `verify` while `verify` reads the disclaimer from `compose`. That is the usual sign a helper belongs in neither, so `agent/citations.py` now owns citation matching. Both rules it encodes, the prefix trap and the subsection allowance, have been got wrong once each in this project, in opposite directions, and are now written down in one place.
+
+---
+
+## DL-28: Three-stage retrieval, and the latency case for it does not survive measurement
+
+**Status:** prediction written 2026-08-26 before the effect is measured. Result appended below.
+
+The proposal: stage 1 pre-filter on indexed, selective fields; stage 2 ANN vector search; stage 3 post-filter on non-indexed attributes. It is a standard and correct production RAG pattern, and it was worth checking against this system rather than adopting or dismissing on reputation.
+
+### Stages 1 and 2 already exist, including the part that is easy to get wrong
+
+`store.py` carries payload indexes on jurisdiction, authority_layer, content_status, citation and both effective-date ordinals, and applies jurisdiction plus the as-of window as a hard filter **inside each prefetch** rather than after fusion. That placement is the subtle half: a filter applied after RRF is a post-hoc trim that can silently return fewer than `k` results with no error, which looks like a worse answer rather than a bug.
+
+### The latency argument does not survive measurement
+
+| | |
+|---|---|
+| Qdrant search, with pre-filter | **5.8 ms** median, 10.8 ms p90 |
+| Qdrant search, no filter at all | 5.6 ms median |
+| Full graph, four live model calls | **13,198 ms** |
+| **Retrieval share of end-to-end** | **0.04%** |
+
+Filtering costs nothing measurable, and retrieval is four ten-thousandths of the time budget. At 307 chunks against an indexing threshold of 10,000 there is no ANN traversal to optimise. **Perfecting retrieval latency would save 6 ms out of 13 seconds.**
+
+If latency is the goal the levers are elsewhere: four sequential model calls, of which `verify` runs only when the deterministic checks pass, and the pre-computed curated responses already planned for Phase 8, which take the reviewer's path to zero calls.
+
+Recorded because the intuition was reasonable and the number settles it. **A latency optimisation aimed at 0.04% of the budget is not an optimisation.**
+
+### Stage 3 earns its place for a different reason
+
+Not speed. **Guaranteed presence.** Some documents must be in the candidate set for the agent to reason correctly, whatever their similarity rank, and that is a non-indexed condition about the *set* rather than a filter on individual chunks.
+
+One instance already exists and paid for itself: DL-27's handbook top-up, which is precisely an over-fetch-then-trim post-filter and moved three metrics.
+
+Measurement identified a second, larger one. **Five of 33 Ohio answer scenarios have an absence record reachable at rank 30 but not at rank 10.** Rule 4, silence is not permission, depends on the agent distinguishing a recorded silence from a retrieval miss, which is the entire reason absence records are documents rather than config. It cannot make that distinction about a record it never saw.
+
+A third candidate was measured and **rejected**: per-document diversity capping. One document takes four or more of ten slots in 7 of 57 scenarios, but only **2 of 57** have a required citation absent from the top ten and present in the top thirty. Two scenarios is the noise floor DL-23 established, and DL-14's precedent is that complexity has to be paid for in measured benefit.
+
+### Fixed in advance
+
+**Adopt the absence-record guarantee if precedence correctness improves by at least 2 scenarios and no slice regresses on the frozen retrieval baseline.** Two rather than one because the measurement's precision here is about one scenario.
+
+**Prediction:** it improves Ohio conflict and control scenarios, where the correct answer is "no state provision covers this, so the handbook governs", and does nothing elsewhere. **What would falsify it:** if surfacing more absence records makes the model read silence as denial, precedence correctness falls on scenarios where a layer genuinely denies.
+
+**Why post-filter rather than raise `limit` to 30:** every extra chunk is roughly 300 tokens in the `resolve` and `compose` prompts, which are the actual cost and latency, and 20 extra passages would triple both to surface one document. Over-fetching cheaply and trimming deliberately is the whole point of the stage.
+
+**Revisit at scale.** Below the indexing threshold Qdrant searches exhaustively, so pre-filter and post-filter selectivity are indistinguishable here. Past roughly 10,000 chunks HNSW engages, filter cardinality starts to decide whether a filtered traversal beats a full scan, and this decision should be measured again rather than assumed to hold.
+
+### Result: the prediction failed and the change is not adopted
+
+**Precedence correctness improved by zero scenarios.** 45 of 57 end to end and 50 of 57 isolated, both unchanged. Every other metric flat to three decimal places: fully correct 0.620, verification 0.672, required citations 0.544, named the beaten source 0.250. No regression anywhere, and the frozen retrieval baseline held at 0.9123.
+
+The pre-registered bar was two scenarios. It delivered none, so **the absence-record guarantee is not adopted**, and the code carries it as `UNADOPTED_RECORDED_SILENCE`, outside `GUARANTEES`, with a test pinning it out so re-adding it is a deliberate act with a number attached rather than a drift.
+
+**What the null result actually says.** Five Ohio scenarios had a rescuable absence record, and surfacing it changed nothing. So the agent was not losing those scenarios for want of the record: it either already had enough to answer, or it was failing for an unrelated reason. **The mechanism was available and the bottleneck was somewhere else**, which is the most common way a plausible optimisation turns out not to matter.
+
+The falsifier did not fire either. Surfacing more silence did not make the model read silence as denial, so the risk that argued against it was also not real.
+
+### What was adopted
+
+The three-stage structure itself, and only the handbook guarantee inside it, which DL-27 had already adopted on measured benefit. The refactor is behaviour-preserving: same lookahead, same top-up count, same appended-never-substituted rule. What it buys is that stage 3 is now a named list of `Guarantee` objects with a stated reason each, so the next one is a data change with a threshold rather than another special case wired into the node.
+
+### The part worth keeping from this
+
+Two of three candidate post-filters were rejected on measurement, one before building (per-document diversity, 2 of 57 rescuable, at the noise floor) and one after (absence records, zero effect). One was adopted and paid. **That ratio is the normal one**, and a pipeline where every proposed optimisation turns out to help is a pipeline whose measurements are not load-bearing.
+
+The latency finding stands on its own and is the more useful half: **retrieval is 0.04% of end-to-end time**, so the staged pattern is worth having for correctness and worth nothing here for speed.
