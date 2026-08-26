@@ -50,15 +50,23 @@
 
 - scenario_id: ambiguous-004
   slice: ambiguous
-  question: HR says I lose my carried-over vacation at the end of March. Can they do that?
+  question: >
+    I'm resigning next month and I've got unused vacation the handbook says I
+    already forfeited. Do I get paid for it?
   employee_context: {state: null, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-03-20
   expected_route: clarify
   missing_fact: state
   verified: false
   notes: >
-    Defect D-6 with jurisdiction withheld. Unenforceable in California, stands
-    in Ohio. Paired directly against conflict-007 and conflict-008.
+    Defect D-6 with jurisdiction withheld. In California, Cal. Lab. Code 227.3
+    requires vested vacation to be paid on termination and voids the forfeiture
+    clause; in Ohio nothing displaces the handbook. Opposite answers, so the
+    state has to be established first.
+
+    Reframed in Phase 3. The original asked about losing carryover each March,
+    which the ingested corpus cannot settle in either state: 227.3 speaks only
+    to termination.
 
 - scenario_id: ambiguous-005
   pairs_with: control-008

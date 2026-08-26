@@ -114,3 +114,41 @@ def test_superseded_slice_holds_jurisdiction_constant() -> None:
         s.employee_context.state for s in load_all() if s.slice == "superseded"
     }
     assert states == {"OH"}, states
+
+
+def test_no_ohio_scenario_is_verified_while_absence_records_are_unverified() -> None:
+    """Every Ohio answer rests on "Ohio adds nothing", which is an absence
+    record, and those carry verified_on: null.
+
+    This guard exists because the same premature-verification mistake was made
+    twice: once in Phase 2 and again in Phase 3, inside a single session. DL-3
+    was clear and judgment still failed, so the rule is now enforced rather
+    than remembered.
+    """
+    from ingest.absence import load_absence_records
+
+    absences = load_absence_records("OH")
+    absences_verified = all("verified_on=None" not in d.source_note for d in absences)
+    if absences_verified:
+        return  # once they are checked, Ohio scenarios may be verified
+
+    offenders = [
+        s.scenario_id
+        for s in load_all()
+        if s.verified and s.employee_context.state == "OH"
+    ]
+    assert not offenders, (
+        f"verified while Ohio absence records are not: {offenders}"
+    )
+
+
+def test_no_jurisdiction_withheld_scenario_is_verified_yet() -> None:
+    """Withholding the state means the answer claims something about every
+    jurisdiction. Only a fraction of state law is ingested, scoped to what the
+    scenarios cite, so no such claim can be checked yet."""
+    offenders = [
+        s.scenario_id
+        for s in load_all()
+        if s.verified and s.employee_context.state is None
+    ]
+    assert not offenders, f"uniformity claims cannot be verified yet: {offenders}"

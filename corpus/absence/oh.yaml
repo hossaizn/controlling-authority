@@ -1,0 +1,62 @@
+# Ohio: recorded absences.
+#
+# Ohio is the control jurisdiction. It adds nothing above the federal floor on
+# any topic the scenario set asks about, which is precisely why it is in the
+# corpus: it is the case where the answer is "no", and "no" is a real answer.
+#
+# THESE ARE DOCUMENTS, NOT CONFIGURATION. Each becomes a retrievable
+# SourceDocument with content_status "absent". A retrieval miss and a genuine
+# absence must not look the same to the agent: one means "I could not find it",
+# the other means "there is nothing to find, and that settles the question".
+# Returning nothing for an Ohio family-leave query would leave the agent unable
+# to tell those apart, and the honest answer is not silence.
+#
+# Scope note, and it is the plan's stopping rule working as intended: no
+# scenario in the set cites an Ohio statute. All 46 Ohio scenarios resolve to
+# federal law, the handbook, or an absence below. Ohio therefore needs no
+# statutory adapter at all, which is a whole integration that the eval said was
+# unnecessary before any of it was written.
+
+- topic: family_medical_leave
+  effect: federal_controls
+  text: >
+    Ohio has no state family and medical leave statute covering private
+    employers. Eligibility, entitlement and job protection for family and
+    medical leave in Ohio are governed by the federal Family and Medical Leave
+    Act. Where an employer's own policy is more generous than the federal
+    floor, the policy governs to that extent.
+  verified_on: null
+
+- topic: parental_leave
+  effect: federal_controls
+  text: >
+    Ohio has no state parental or bonding leave entitlement for employees of
+    private employers, and no state paid family leave benefit. Leave for the
+    birth, adoption or foster placement of a child is governed by the federal
+    Family and Medical Leave Act, or by an employer's own policy where that
+    policy is more generous.
+  verified_on: null
+
+- topic: paid_sick_leave
+  effect: employer_policy_controls
+  text: >
+    Ohio has no state paid sick leave statute requiring private employers to
+    provide or accrue paid sick leave. Entitlement is whatever the employer's
+    own policy provides.
+  verified_on: null
+
+- topic: vacation_forfeiture
+  effect: employer_policy_controls
+  text: >
+    Ohio has no state statute restricting the forfeiture of accrued vacation or
+    paid time off, and does not classify accrued vacation as wages that cannot
+    be forfeited. A use-it-or-lose-it provision in an employer's policy is not
+    displaced by Ohio law.
+  verified_on: null
+
+- topic: bereavement_leave
+  effect: employer_policy_controls
+  text: >
+    Ohio has no state bereavement leave entitlement for employees of private
+    employers. Bereavement leave is whatever the employer's own policy provides.
+  verified_on: null

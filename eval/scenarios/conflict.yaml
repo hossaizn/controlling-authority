@@ -23,7 +23,7 @@
   expected_authority: state
   required_citations: ["Cal. Gov. Code 12945.2"]
   must_address: [\"LEAVE-002\"]
-  verified: false
+  verified: true
   notes: >
     Defect D-1. The handbook (LEAVE-002) requires 18 months, so the most
     relevant document says no. CFRA sets eligibility at 12 months plus 1,250
@@ -73,7 +73,7 @@
   expected_authority: state
   required_citations: ["Cal. Gov. Code 12945.2"]
   must_address: [\"LEAVE-001\"]
-  verified: false
+  verified: true
   notes: >
     Defect D-4, California half. The handbook lists spouse, child and parent,
     mirroring federal scope, and is silent on grandparents. CFRA's family
@@ -128,7 +128,7 @@
   expected_authority: state
   required_citations: ["Cal. Lab. Code 227.3"]
   must_address: [\"LEAVE-008\"]
-  verified: false
+  verified: true
   notes: >
     Defect D-6. The handbook forfeits carryover beyond 5 days. California treats
     accrued vacation as earned wages that cannot be forfeited, so the clause is
@@ -139,8 +139,8 @@
   pairs_with: conflict-007
   slice: conflict
   question: >
-    I have 11 vacation days left over from last year and HR says I lose the
-    ones over 5 after March. Is that right?
+    I'm leaving at the end of the month with 11 unused vacation days. The
+    handbook says anything over 5 is forfeited. Do I get paid for them?
   employee_context: {state: OH, tenure_months: 48, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-04-10
   expected_route: answer
@@ -148,23 +148,28 @@
   required_citations: ["LEAVE-008"]
   verified: false
   notes: >
-    Defect D-6 paired. Identical question, Ohio employee. No state provision
-    restricts forfeiture, so the handbook clause stands and the answer is yes,
-    that is right. The pair is the test: same clause, opposite answers.
+    Defect D-6 paired. Identical question, Ohio employee. No Ohio provision
+    restricts forfeiture or classifies vacation as wages, so the handbook clause
+    stands and the answer is that the forfeited days are gone. The pair is the
+    test: same clause, opposite answers, on the strength of one state statute.
 
 - scenario_id: conflict-009
   slice: conflict
   question: Does the company have to pay out my unused vacation when I resign?
-  employee_context: {state: CA, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
+  employee_context: {state: OH, tenure_months: 24, hours_worked_12mo: 2000, employer_size: 400}
   as_of_date: 2026-08-01
   expected_route: answer
-  expected_authority: state
-  required_citations: ["Cal. Lab. Code 227.3"]
+  expected_authority: company
+  required_citations: ["LEAVE-008"]
   verified: false
   notes: >
-    The handbook defers to state law here rather than stating a rule, so the
-    retrieved passage is real but answers nothing. Tests that a deferral is
-    followed to the layer it defers to instead of being quoted back.
+    A deferral into silence, and moved to Ohio in Phase 3 so it no longer
+    duplicates conflict-007. The handbook says payout is "handled according to
+    the law of the state in which you work", which answers nothing on its own.
+    Following that deferral to Ohio finds no provision, so the question returns
+    to the employer's own policy. Tests both that a deferral is followed rather
+    than quoted back, and that arriving at a recorded absence is an answer
+    rather than a dead end.
 
 - scenario_id: conflict-010
   pairs_with: conflict-011
@@ -179,7 +184,7 @@
   required_citations: ["Cal. Gov. Code 12945.2"]
   forbidden_citations: ["29 CFR 825.104"]
   must_address: [\"LEAVE-001\"]
-  verified: false
+  verified: true
   notes: >
     Federal FMLA requires 50 employees within 75 miles, so it does not apply at
     all. CFRA reaches smaller employers. The correct answer comes from the state
@@ -245,12 +250,18 @@
   employee_context: {state: CA, tenure_months: 12, hours_worked_12mo: 2080, employer_size: 400}
   as_of_date: 2026-07-01
   expected_route: answer
-  expected_authority: state
-  required_citations: ["Cal. Gov. Code 12945.2"]
-  verified: false
+  expected_authority: federal
+  required_citations: ["29 CFR 825.110"]
+  forbidden_citations: ["Cal. Gov. Code 12945.2"]
+  verified: true
   notes: >
-    Boundary case at exactly the eligibility threshold. Tests that "at least 12
-    months" is read inclusively rather than as strictly greater than.
+    Corrected in Phase 3 after verification against ingested text, and it is a
+    better scenario than the one first written. The two eligibility tests differ
+    by a day of service: 29 CFR 825.110 says "at least 12 months", while Cal.
+    Gov. Code 12945.2 says "more than 12 months of service". At exactly twelve
+    months she meets the federal test and fails the state one, so federal
+    controls and CFRA is a forbidden citation. The original assumed both floors
+    read alike and labelled this state-controlled.
 
 - scenario_id: conflict-018
   slice: conflict
@@ -314,7 +325,7 @@
   expected_authority: state
   required_citations: ["Cal. Gov. Code 12945"]
   must_address: ["LEAVE-002"]
-  verified: false
+  verified: true
   notes: >
     Added during the 1.5 hardening pass to replace a case that contained no
     conflict. Defect D-8. California provides pregnancy disability leave as a
