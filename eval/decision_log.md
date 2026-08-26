@@ -432,3 +432,46 @@ One mutant survives and should: `break` to `continue` in the window loop is **eq
 ### Smaller, real
 
 `dimensions` was accepted by the OpenAI provider and never sent, so a non-default value would have built a collection of one width and written vectors of another. The eCFR cache key embedded `date.today()`, so the default path fetched a snapshot nobody had cached and two runs on different days would have compared different text. The handbook stripped any leading blockquote rather than only the supersession banner. SDK dependencies had lower bounds but no upper ones, which contradicts the pinning discipline DL-1's reproducibility rests on.
+
+---
+
+## DL-16: Query rewriting is committed; reranking is conditional on a number that does not exist yet
+
+**Status:** written 2026-08-26, before Phase 5 measures anything.
+
+Two pieces of standard retrieval design were absent from the spec and the plan entirely. Not deferred, not argued against: never written down. This is the second time that has happened, after hybrid search in DL-15, and both were found by someone asking what the system does rather than by anything failing.
+
+### Query rewriting: yes, and here is what it has to do
+
+**Committed.** It belongs in the agent's `triage` node in Phase 6, and it is not optional, because two of the system's hard filters cannot be applied without it.
+
+A real question is *"my grandma is ill and I'm her main carer, can I take time off?"* Three things have to happen before that reaches an index:
+
+1. **Jurisdiction extraction.** The store's jurisdiction filter is a hard constraint. If the state is not extracted from the question or the supplied context, the filter cannot be applied and every query runs against the whole corpus, which is precisely the failure `conflict-004` and `conflict-005` exist to catch. When it cannot be established, the correct output is a clarifying question rather than an unfiltered search.
+2. **Relation and topic normalisation.** "Grandma" has to reach text about a "grandparent"; "time off" has to reach "family care and medical leave". Sparse matching cannot bridge that gap and dense embedding does it unreliably for a corpus this small.
+3. **Temporal resolution.** "Last year" has to become an `as_of` date, or the effective-date filter silently uses today and answers a question about 2023 with 2026 law.
+
+None of this is retrieval sophistication for its own sake. Each one feeds a filter that already exists and is currently fed by scenario metadata rather than by anything the system derives.
+
+### Reranking: decide in Phase 5, by this rule
+
+**Not committed, and deliberately so.** The corpus is 300 chunks. Reranking earns its keep when a candidate pool is large and noisy, and adding it before a baseline exists means never learning which problem it solved.
+
+The measurement distinguishes two failures that look alike from outside:
+
+- **The right chunk is never retrieved.** Reranking cannot help. A reranker only reorders what retrieval already returned, so this is a retrieval or chunking problem.
+- **The right chunk is retrieved but ranked below the answer that gets used.** This is exactly what reranking fixes.
+
+The gap between `recall@10` and `recall@3` measures the second directly: passages the system found and then buried.
+
+**Pre-registered rule.** If `recall@10 - recall@3` **exceeds 10 points**, reranking has real headroom and gets built. At or below 10, it does not, and the effort goes to the agent instead.
+
+The threshold is a choice rather than a measurement, and it is fixed here for the same reason as DL-14's tie-break: chosen afterwards, it would justify whichever answer was more appealing at the time.
+
+**One caveat that would override the rule.** If recall@10 itself is poor, the rule does not apply, because ordering a set that lacks the answer improves nothing. Fix retrieval first.
+
+### Why neither of these is the interesting part
+
+Both are worth building and neither is what makes this project non-trivial. In this corpus the correct answer frequently **contradicts the most semantically relevant document**: the handbook is the closest match and, where it falls below a statutory floor, the wrong answer. Perfect retrieval returns it first and a perfect reranker keeps it there.
+
+That is a reasoning problem over retrieved evidence, not a retrieval problem, and no amount of tuning upstream of the agent touches it.
