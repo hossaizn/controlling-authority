@@ -514,3 +514,76 @@ def test_the_prompt_version_changed_so_cached_verdicts_are_reissued() -> None:
     from agent.nodes.verify import PROMPT_VERSION
 
     assert PROMPT_VERSION == "verify-v2"
+
+
+# --- holes mutation testing found: checks asserted, values and messages not ---
+
+
+def test_a_policy_id_cannot_supply_a_quantity() -> None:
+    """`LEAVE-008` followed by a unit word reads as "008 employees" to the
+    quantity pattern, because there is a word boundary after the hyphen.
+
+    The existing coverage stripped citations that sat next to a bracket, so
+    removing the stripping entirely still passed. This is the case where the
+    stripping is the only thing doing any work.
+    """
+    text = "Under LEAVE-008 employees may take 12 weeks."
+    assert figures_in(text, {"LEAVE-008"}) == {"12"}
+    assert "008" in figures_in(text, set()), (
+        "without stripping the policy id should leak a figure; if it no longer "
+        "does, this test is no longer exercising the stripping"
+    )
+
+
+def test_the_uncited_entitlement_check_records_false_not_just_a_failure() -> None:
+    """The failure message and the check are set on two different lines, and
+    only the message was asserted. Pinning `passed` and the prose left
+    `checks["answer_is_cited"]` free to be hardcoded True (DL-10: assert the
+    value, not that something happened)."""
+    out, _ = run("You are entitled to twelve workweeks.", citations=[], caller=Exploding())
+    assert out["verification"].checks["answer_is_cited"] is False
+
+
+def test_an_entitlement_with_a_citation_records_the_check_as_true() -> None:
+    """The other direction, so the assertion above cannot be satisfied by a
+    check hardcoded False."""
+    out, _ = run("You get 12 workweeks [29 CFR 825.200].")
+    assert out["verification"].checks["answer_is_cited"] is True
+
+
+def test_a_stray_citation_names_itself_in_the_failures() -> None:
+    """`passed` is computed from the checks, so dropping the `failures.append`
+    left the answer correctly rejected with no reason attached. A verification
+    that blocks an answer without saying which citation was unretrieved is not
+    reviewable, and the trace is the product here."""
+    out, _ = run(
+        "You get 12 workweeks [29 CFR 825.999].",
+        citations=["29 CFR 825.999"],
+        caller=Exploding(),
+    )
+    failures = out["verification"].failures
+    assert failures, "a rejected answer must say why"
+    assert any("not retrieved" in f for f in failures)
+    assert any("29 CFR 825.999" in f for f in failures)
+
+
+def test_the_controlling_provision_check_records_false_not_just_a_failure() -> None:
+    """Same shape as `answer_is_cited`: the failure message was asserted and the
+    check value was not, so the check could be hardcoded True while the answer
+    was still correctly rejected. Two lines, one of them untested."""
+    hits = [hit("29 CFR 825.200"), hit("LEAVE-008", layer="company")]
+    out, _ = run(
+        "You get 10 days [LEAVE-008].",
+        hits=hits,
+        res=resolution("federal", "29 CFR 825.200"),
+        citations=["LEAVE-008"],
+        caller=Exploding(),
+    )
+    assert out["verification"].checks["controlling_provision_cited"] is False
+
+
+def test_citing_the_controlling_provision_records_the_check_as_true() -> None:
+    """The other direction, so the assertion above cannot be satisfied by a
+    check hardcoded False."""
+    out, _ = run("You get 12 workweeks [29 CFR 825.200].")
+    assert out["verification"].checks["controlling_provision_cited"] is True

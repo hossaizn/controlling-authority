@@ -10,11 +10,11 @@ from datetime import date
 
 from agent.nodes.resolve import (
     LAYERS,
-    cap_per_layer,
     PROMPT_VERSION,
     READ_TOOL,
     _passages_by_layer,
     _to_findings,
+    cap_per_layer,
     make_resolve,
     resolve_citation,
 )

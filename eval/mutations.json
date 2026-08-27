@@ -23,8 +23,8 @@
   {
     "label": "P4 rule4 silence ignored (silent layers contend)",
     "file": "agent/precedence.py",
-    "old": "speaking = [f for f in findings if f.speaks_to_question and f.outcome != \"silent\"]",
-    "new": "speaking = [f for f in findings if f.outcome != \"silent\"]",
+    "old": "    speaking = [f for f in findings if f.outcome != \"silent\"]",
+    "new": "    speaking = list(findings)",
     "origin": "mutate.py"
   },
   {
@@ -72,15 +72,8 @@
   {
     "label": "V2 word->digit conversion removed",
     "file": "agent/nodes/verify.py",
-    "old": "    for word, digits in WORD_TO_DIGITS.items():\n        if word in lowered:\n            found.add(digits)\n",
-    "new": "",
-    "origin": "mutate.py"
-  },
-  {
-    "label": "V3 citation-digit exclusion removed",
-    "file": "agent/nodes/verify.py",
-    "old": "return {n for n in _NUMBER.findall(stripped) if n not in citation_digits}",
-    "new": "return set(_NUMBER.findall(stripped))",
+    "old": "    for word in _WORD_NUMBER.findall(corpus_text):\n        found.add(WORD_TO_DIGITS[\" \".join(word.lower().split())])",
+    "new": "    for word in []:\n        found.add(WORD_TO_DIGITS[\" \".join(word.lower().split())])",
     "origin": "mutate.py"
   },
   {
@@ -93,8 +86,8 @@
   {
     "label": "V5 controlling_provision_cited always true",
     "file": "agent/nodes/verify.py",
-    "old": "            controlling_citation in named if controlling_citation else True",
-    "new": "            True",
+    "old": "        checks[\"controlling_provision_cited\"] = (\n            bool(acceptable_citations & named) if acceptable_citations else True\n        )",
+    "new": "        checks[\"controlling_provision_cited\"] = True",
     "origin": "mutate.py"
   },
   {
@@ -212,7 +205,7 @@
   {
     "label": "V5b controlling-provision failure never appended",
     "file": "agent/nodes/verify.py",
-    "old": "        if controlling_citation and controlling_citation not in named:",
+    "old": "        if acceptable_citations and not (acceptable_citations & named):",
     "new": "        if False:",
     "origin": "mutate2.py"
   },
@@ -268,15 +261,15 @@
   {
     "label": "E4 e2e required_present always true",
     "file": "eval/run_end_to_end.py",
-    "old": "return all(c in self.answer for c in self.scenario.required_citations)",
-    "new": "return True",
+    "old": "        return all(self.cites(c) for c in self.scenario.required_citations)",
+    "new": "        return True",
     "origin": "mutate2.py"
   },
   {
     "label": "E5 e2e forbidden never detected",
     "file": "eval/run_end_to_end.py",
-    "old": "return any(c in self.answer for c in self.scenario.forbidden_citations)",
-    "new": "return False",
+    "old": "        return any(self.cites(c) for c in self.scenario.forbidden_citations)",
+    "new": "        return False",
     "origin": "mutate2.py"
   },
   {
@@ -331,8 +324,8 @@
   {
     "label": "matched_expectation->True",
     "file": "api/precomputed.py",
-    "old": "        return self.route == self.expected.get(\"route\")",
-    "new": "        return True",
+    "old": "        if self.route != self.expected.get(\"route\"):\n            return False",
+    "new": "        if False:\n            return False",
     "origin": "mut.py"
   },
   {
@@ -345,22 +338,22 @@
   {
     "label": "baseline correct->True",
     "file": "api/precomputed.py",
-    "old": "        \"correct\": resolution.controlling\n        in set(",
-    "new": "        \"correct\": True or resolution.controlling\n        in set(",
+    "old": "            \"correct\": resolution.controlling in acceptable_from(expected or {}),",
+    "new": "            \"correct\": True,",
     "origin": "mut.py"
   },
   {
     "label": "baseline correct->drop acceptable",
     "file": "api/precomputed.py",
-    "old": "            (expected or {}).get(\"acceptable_authorities\")\n            or ",
-    "new": "            [] or ",
+    "old": "    if expected.get(\"acceptable_authorities\"):\n        return set(expected[\"acceptable_authorities\"])",
+    "new": "    if False:\n        return set(expected[\"acceptable_authorities\"])",
     "origin": "mut.py"
   },
   {
     "label": "baseline correct->ignore expected_authority",
     "file": "api/precomputed.py",
-    "old": "            or ([(expected or {}).get(\"authority\")] if (expected or {}).get(\"authority\") else [])",
-    "new": "            or []",
+    "old": "    return {expected[\"authority\"]} if expected.get(\"authority\") else set()",
+    "new": "    return set()",
     "origin": "mut.py"
   },
   {
@@ -436,8 +429,8 @@
   {
     "label": "baseTag always right",
     "file": "api/static/index.html",
-    "old": "    markTag($(\"baseTag\"), b.correct, b.correct ? \"right, by luck\" : \"wrong\");",
-    "new": "    markTag($(\"baseTag\"), true, \"right, by luck\");",
+    "old": "      markTag($(\"baseTag\"), false, \"wrong\");",
+    "new": "      markTag($(\"baseTag\"), true, \"wrong\");",
     "origin": "mut.py"
   },
   {
@@ -457,8 +450,8 @@
   {
     "label": "slice box never shown",
     "file": "api/static/index.html",
-    "old": "  if (!sp || sp.n === undefined) { $(\"sliceBox\").classList.add(\"hidden\"); return; }",
-    "new": "  { $(\"sliceBox\").classList.add(\"hidden\"); return; }",
+    "old": "  $(\"sliceBox\").classList.remove(\"hidden\");",
+    "new": "  $(\"sliceBox\").classList.add(\"hidden\");",
     "origin": "mut.py"
   },
   {
@@ -592,20 +585,6 @@
     "file": "eval/run_end_to_end.py",
     "old": "        v = self.final.get(\"verification\")\n        if v is None:\n            return self.route in (\"clarify\", \"refuse\", \"escalate\")\n        return v.passed",
     "new": "        return True",
-    "origin": "mutate_hardening.py"
-  },
-  {
-    "label": "[review 1] `required_present` always true",
-    "file": "eval/run_end_to_end.py",
-    "old": "        return set(self.scenario.required_citations) <= self.cited_in_answer",
-    "new": "        return True",
-    "origin": "mutate_hardening.py"
-  },
-  {
-    "label": "[review 1] `forbidden_present` always false",
-    "file": "eval/run_end_to_end.py",
-    "old": "        return bool(set(self.scenario.forbidden_citations) & self.cited_in_answer)",
-    "new": "        return False",
     "origin": "mutate_hardening.py"
   },
   {

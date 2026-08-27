@@ -118,7 +118,7 @@ def main() -> int:
             print(f"no mutation matches {needle!r}")
             return 1
 
-    print(f"baseline: ", end="", flush=True)
+    print("baseline: ", end="", flush=True)
     if not suite_passes():
         print("SUITE IS ALREADY RED. Fix that first; every mutation would "
               "report 'caught' for the wrong reason.")
