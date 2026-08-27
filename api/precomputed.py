@@ -26,6 +26,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from agent.citations import mentions
+
 STORE = Path(__file__).resolve().parent / "precomputed"
 
 # The six the spec names, chosen so a reviewer sees something non-obvious without
@@ -85,7 +87,25 @@ class Precomputed:
 
     @property
     def matched_expectation(self) -> bool:
-        return self.route == self.expected.get("route")
+        """Route AND authority AND required citations, not route alone.
+
+        The page labels this "matches ground truth" in green. Checking only the
+        route would paint a run green that reached the right conclusion from the
+        wrong authority, which the spec calls luck rather than correctness, or
+        that omitted a citation the scenario requires.
+        """
+        if self.route != self.expected.get("route"):
+            return False
+        acceptable = acceptable_from(self.expected)
+        if acceptable:
+            defensible = set(self.defensible_authorities) or (
+                {self.controlling_authority} if self.controlling_authority else set()
+            )
+            if not defensible or not defensible <= acceptable:
+                return False
+        required = self.expected.get("required_citations") or []
+        answer = self.answer or ""
+        return all(mentions(answer, c) for c in required)
 
     @property
     def slice_performance(self) -> dict[str, Any]:
@@ -243,6 +263,18 @@ def save(
     return path
 
 
+def acceptable_from(expected: dict[str, Any]) -> set[str]:
+    """The authorities a scenario accepts.
+
+    Mirrors `eval/run_precedence.acceptable_set`: a scenario carries either a
+    single `expected_authority` or, where the answer is determinate and the
+    controlling layer is not, a set of `acceptable_authorities`.
+    """
+    if expected.get("acceptable_authorities"):
+        return set(expected["acceptable_authorities"])
+    return {expected["authority"]} if expected.get("authority") else set()
+
+
 def save_baseline(
     key: str,
     state: dict[str, Any],
@@ -254,26 +286,52 @@ def save_baseline(
     Resolution only. No composed answer, because the comparison the demo exists
     to make is which authority each arm selects, and that needs no model.
     """
-    resolution = state["resolution"]
+    resolution = state.get("resolution")
     top = state["retrieved"][0] if state.get("retrieved") else None
-    record = {
-        "scenario_id": CURATED[key],
-        "arm": "baseline",
-        "controlling_authority": resolution.controlling,
-        "precedence_rule": "none: the top-ranked passage was taken as authoritative",
-        "top_passage": {
-            "citation": top.citation if top else None,
-            "authority_layer": top.authority_layer if top else None,
-            "heading": top.heading if top else None,
-        },
-        "expected": expected or {},
-        "correct": resolution.controlling
-        in set(
-            (expected or {}).get("acceptable_authorities")
-            or ([(expected or {}).get("authority")] if (expected or {}).get("authority") else [])
-        ),
-        "provenance": provenance,
-    }
+    route = state.get("route")
+
+    if resolution is None:
+        # The baseline never reached a resolver: it took the same non-answering
+        # route the agent did, because they share a triage. There is no delta,
+        # and saying so is the honest thing. Inventing one here is how the demo
+        # came to assert that a naive system would answer three questions it
+        # actually refuses.
+        record = {
+            "scenario_id": CURATED[key],
+            "arm": "baseline",
+            "resolved": False,
+            "route": route,
+            "controlling_authority": None,
+            "precedence_rule": None,
+            "top_passage": {},
+            "expected": expected or {},
+            "correct": route == (expected or {}).get("route"),
+            "no_delta_reason": (
+                "The baseline shares the agent's triage, and only the answering "
+                f"path reaches a resolver. Both decline here ({route}), so "
+                "precedence never comes into it."
+            ),
+            "provenance": provenance,
+        }
+    else:
+        record = {
+            "scenario_id": CURATED[key],
+            "arm": "baseline",
+            "resolved": True,
+            "route": route,
+            "controlling_authority": resolution.controlling,
+            "precedence_rule": (
+                "none: the top-ranked passage was taken as authoritative"
+            ),
+            "top_passage": {
+                "citation": top.citation if top else None,
+                "authority_layer": top.authority_layer if top else None,
+                "heading": top.heading if top else None,
+            },
+            "expected": expected or {},
+            "correct": resolution.controlling in acceptable_from(expected or {}),
+            "provenance": provenance,
+        }
     STORE.mkdir(parents=True, exist_ok=True)
     path = _path(key, "baseline")
     path.write_text(json.dumps(record, indent=2, default=str))

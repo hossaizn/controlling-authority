@@ -7,6 +7,7 @@ would need Qdrant and a funded key, and would test the wrong thing.
 
 from __future__ import annotations
 
+import tempfile
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
@@ -84,6 +85,40 @@ def client(monkeypatch):
         c.agent = agent
         c.baseline = baseline
         yield c
+
+
+
+def hit_for(citation, layer="federal"):
+    from retrieval.store import SearchHit
+
+    return SearchHit(
+        chunk_id=f"c-{citation}", citation=citation, authority_layer=layer,
+        jurisdiction="US", content_status="substantive", heading="h",
+        text="t", score=0.5,
+    )
+
+
+def _baseline_record(state, expected):
+    """Drive `save_baseline` and read back what it wrote.
+
+    A review mutated `correct` to True and dropped both expectation fields, and
+    every mutation survived: the tests only read committed JSON, never the
+    function that produces it.
+    """
+    import json as _json
+    from unittest.mock import patch
+
+    # **Never writes near the real records.** An earlier version wrote over the
+    # committed conflict baseline and restored it in a `finally` that was
+    # initially a no-op; the damage then became self-perpetuating, because the
+    # fixed version captured the polluted file as its "original". The tell was
+    # the test's own fake provenance sitting in committed demo data.
+    #
+    # Redirecting STORE removes the possibility rather than managing it.
+    with tempfile.TemporaryDirectory() as tmp:
+        with patch.object(precomputed, "STORE", Path(tmp)):
+            path = precomputed.save_baseline("conflict", state, {"p": "v"}, expected)
+            return _json.loads(path.read_text())
 
 
 # --- the free path ----------------------------------------------------------
@@ -550,3 +585,173 @@ def test_health_exposes_the_measured_scores_for_the_footer(client) -> None:
 
 def test_an_unknown_baseline_key_is_a_404(client) -> None:
     assert client.get("/api/scenario/nope/baseline").status_code == 404
+
+
+# --- the baseline arm must describe the graph it claims to represent --------
+
+
+def test_the_baseline_only_resolves_on_the_answering_path() -> None:
+    """**The worst honesty failure in Phase 9.**
+
+    `build_baseline` shares the agent's triage and the graph gates retrieval
+    behind the route, so on clarify, refuse and escalate the baseline declines
+    identically. The first generator ran retrieve and naive_resolve
+    unconditionally and recorded an authority for scenarios the baseline never
+    resolves, so the demo asserted a naive system "would have answered" three
+    questions it actually refuses, contradicting `/api/ask {baseline: true}`.
+    """
+    for key in precomputed.available():
+        agent = precomputed.load(key)
+        base = precomputed.load_baseline(key)
+        if agent.route != "answer":
+            assert base["resolved"] is False, f"{key}: baseline cannot resolve here"
+            assert base["controlling_authority"] is None
+            assert base["no_delta_reason"]
+        else:
+            assert base["resolved"] is True, key
+
+
+def test_only_one_scenario_currently_shows_a_baseline_delta() -> None:
+    """Pinned as a value. DL-31 originally claimed four, which was wrong because
+    three of them were describing a code path that never runs. If a future
+    change makes more of them differ, this fails and the number gets updated
+    deliberately rather than drifting."""
+    wrong = [
+        k for k in precomputed.available()
+        if precomputed.load_baseline(k)["resolved"] and not precomputed.load_baseline(k)["correct"]
+    ]
+    assert wrong == ["conflict"]
+
+
+def test_a_declining_baseline_is_not_labelled_wrong(client) -> None:
+    b = client.get("/api/scenario/refuse/baseline").json()
+    assert b["resolved"] is False
+    assert b["correct"] is True, "declining correctly is not a failure"
+
+
+# --- save_baseline had no coverage at all -----------------------------------
+
+
+def test_save_baseline_marks_a_matching_authority_correct(tmp_path) -> None:
+    state = {
+        "route": "answer",
+        "resolution": Resolution(controlling="company", rule="not_reached"),
+        "retrieved": [hit_for("LEAVE-003", "company")],
+    }
+    rec = _baseline_record(state, {"authority": "company", "route": "answer"})
+    assert rec["correct"] is True
+
+
+def test_save_baseline_marks_a_mismatched_authority_wrong() -> None:
+    state = {
+        "route": "answer",
+        "resolution": Resolution(controlling="state", rule="not_reached"),
+        "retrieved": [hit_for("Cal. Gov. Code 12945.2", "state")],
+    }
+    rec = _baseline_record(state, {"authority": "company", "route": "answer"})
+    assert rec["correct"] is False
+
+
+def test_save_baseline_accepts_any_member_of_an_indeterminate_set() -> None:
+    """Mirrors `eval/run_precedence.acceptable_set`: where the answer is
+    determinate and the controlling layer is not, either is correct."""
+    state = {
+        "route": "answer",
+        "resolution": Resolution(controlling="federal", rule="not_reached"),
+        "retrieved": [hit_for("29 CFR 825.110")],
+    }
+    rec = _baseline_record(
+        state, {"acceptable_authorities": ["federal", "state"], "route": "answer"}
+    )
+    assert rec["correct"] is True
+
+
+def test_save_baseline_with_no_expectation_is_not_correct_by_default() -> None:
+    state = {
+        "route": "answer",
+        "resolution": Resolution(controlling="company", rule="not_reached"),
+        "retrieved": [],
+    }
+    assert _baseline_record(state, {})["correct"] is False
+
+
+# --- matched_expectation checks more than the route -------------------------
+
+
+def test_matched_expectation_requires_the_right_authority() -> None:
+    """The page paints this green as "matches ground truth". The right
+    conclusion from the wrong authority is what the spec calls luck."""
+    r = precomputed.load("conflict")
+    wrong_authority = replace(r, controlling_authority="state", defensible_authorities=["state"])
+    assert wrong_authority.matched_expectation is False
+
+
+def test_matched_expectation_requires_the_required_citations() -> None:
+    r = precomputed.load("conflict")
+    assert r.expected["required_citations"]
+    assert replace(r, answer="You get some leave.").matched_expectation is False
+
+
+# --- the page's honesty elements ---------------------------------------------
+#
+# A review mutated the rendering six ways and every one survived: the baseline
+# tag forced to "right, by luck", the agent tag forced true, the footer stats
+# blanked, the slice box permanently hidden. Only the PAYLOAD was tested, never
+# what the page does with it.
+#
+# These are structural checks on the source, not render tests. A real render
+# test needs a JS runtime, which is a dependency this project does not have and
+# does not need for one page. Structural checks catch deletion and inversion of
+# the honesty elements, which is what the mutations did; they would not catch a
+# subtle CSS change that hides one. That limit is stated rather than papered
+# over.
+
+
+def page_source() -> str:
+    return (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
+
+
+def test_the_page_renders_the_measured_overall_score() -> None:
+    src = page_source()
+    assert "fully_correct" in src
+    assert "route_accuracy_macro" in src
+    assert "including where it fails" in src
+
+
+def test_the_page_renders_the_slice_score() -> None:
+    """One working example is not a working slice."""
+    src = page_source()
+    assert "renderSlice" in src
+    assert "One working example is not a working slice" in src
+
+
+def test_the_page_distinguishes_all_three_baseline_outcomes() -> None:
+    """wrong, right-by-luck, and no-difference. Collapsing any two is how the
+    demo came to assert a delta that does not exist."""
+    src = page_source()
+    for label in ('"no difference"', '"right, by luck"', '"wrong"'):
+        assert label in src, label
+    assert "b.resolved === false" in src
+
+
+def test_the_page_labels_the_agent_against_ground_truth() -> None:
+    src = page_source()
+    assert "matched_expectation" in src
+    assert "differs from ground truth" in src
+
+
+def test_the_page_surfaces_staleness() -> None:
+    src = page_source()
+    assert "staleWarn" in src
+    assert "may not reflect current behaviour" in src
+
+
+def test_the_page_handles_a_missing_scores_snapshot() -> None:
+    """Otherwise the footer sits on "Loading measured results…" forever."""
+    assert "Measured results are not available" in page_source()
+
+
+def test_the_page_handles_a_non_json_error_response() -> None:
+    """A proxy 502 returns HTML; without this the promise rejects and the user
+    watches a spinner that never resolves."""
+    assert "unexpected response" in page_source()

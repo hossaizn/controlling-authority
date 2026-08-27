@@ -14,7 +14,7 @@
     "company"
   ],
   "precedence_rule": "silence_is_not_permission",
-  "answer": "You are entitled to accrue 3 days (24 hours) of paid sick leave per year [LEAVE-004-v1]. This accrual is calculated at one hour per 30 hours worked, up to that annual maximum. Any unused sick leave carries over to the following year, though your total balance cannot exceed 48 hours at any time [LEAVE-004-v1]. Federal and Ohio state law do not require paid sick leave, so the company policy controls your entitlement.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
+  "answer": "You are entitled to 24 hours, or 3 days, of paid sick leave per year under your company's policy [LEAVE-004-v1]. You accrue this leave at a rate of one hour for every 30 hours you work. Unused sick leave carries over to the following year, although your total accrual cannot exceed 48 hours at any time.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
   "citations": [
     "LEAVE-004-v1"
   ],
@@ -53,8 +53,8 @@
         ],
         "citations": [
           "LEAVE-004-v1",
-          "29 CFR 825.207",
           "OH (no state provision: paid_sick_leave)",
+          "29 CFR 825.207",
           "29 CFR 825.207",
           "OH (no state provision: vacation_forfeiture)",
           "29 CFR 825.701",

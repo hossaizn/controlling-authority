@@ -1366,14 +1366,13 @@ Composing one would have added two model calls per scenario to restate a conclus
 | scenario | agent | rule | naive | naive correct |
 |---|---|---|---|---|
 | conflict | **company** | policy_may_exceed | state | **no** |
-| refuse | (declines) | — | federal | **no** |
-| escalate | (declines) | — | federal | **no** |
 | straightforward | federal | — | federal | yes |
 | superseded | company | — | company | yes |
+| refuse / escalate / ambiguous | (declines) | — | *(never resolves)* | see DL-32 |
 
 The conflict row is the one the spec asks for, and it fails in the harder direction: the handbook grants ten paid bereavement days against a five-day statutory floor, so **policy** controls and the naive system reaches for the statute.
 
-The two rows below it were not planned and are arguably better. On `refuse` and `escalate` the naive baseline selects `federal` and would answer confidently, where the agent declines. **A naive system does not merely get precedence wrong; it answers questions it should not answer at all.**
+**The two rows below it were wrong and are corrected in DL-32.** They described a code path the baseline never executes.
 
 ### Honesty mechanisms carried into the page
 
@@ -1386,3 +1385,40 @@ Two of six scenarios show the baseline being **right by luck**, and they are lab
 Self-contained: no CDN, no build step, no framework. Every dependency is another thing that can be unavailable when someone opens it, and a test asserts no external `src` or `href` survives in the served HTML.
 
 **Nothing reaches the DOM through `innerHTML`.** The first draft used an escape helper covering `&<>`, which a security check flagged: it does not cover quotes and is one refactor away from being wrong on a public endpoint. Values now go in via `textContent` or a created node, and a test pins the absence of `innerHTML`.
+
+
+---
+
+## DL-32: The demo claimed a comparison the baseline never makes
+
+**Status:** corrected, Phase 9 review. Retracts two rows of DL-31's table.
+
+DL-31 reported that on `refuse` and `escalate` the naive baseline "selects federal and would answer confidently, where the agent declines", and called that finding better than the one the spec asked for.
+
+**It was false, and the generator produced it.**
+
+`build_baseline` is the same graph with only the resolver swapped. It therefore shares the agent's **triage**, and `agent/graph.py` gates retrieval behind the route: nothing downstream of `triage` runs unless the route is `answer`. On clarify, refuse and escalate the baseline declines identically and never reaches a resolver at all.
+
+The generator called `triage → retrieve → naive_resolve` **unconditionally**, so it recorded an authority for three scenarios the baseline never resolves. The demo then painted those panels red and told the reader that a naive system would have answered a question it in fact refuses. Asking the live API the same question with `baseline: true` would have contradicted the page.
+
+**The comment directly above the offending lines said "the only variable is how the authority is chosen", which was true of the design and false of the code four lines later.**
+
+### What it actually shows
+
+**One scenario of six has a genuine baseline delta, not four.** `conflict`, where the handbook exceeds the statutory floor so policy controls and the naive system reaches for the statute. Two are right by luck and were already labelled so. Three have **no delta at all**, and the page now says exactly that: both arms decline, precedence never comes into it.
+
+Recorded as a value in a test, so a future change that produces more deltas fails and the number is updated deliberately rather than drifting upward.
+
+### Three more from the same review
+
+**`save_baseline` had no test.** Mutating `correct` to `True`, and dropping each of the two expectation fields, all survived: the tests read committed JSON and never exercised the function that writes it. The logic was right; nothing proved it.
+
+**`matched_expectation` compared the route alone** while the page labelled it "matches ground truth" in green. A run reaching the right conclusion from the wrong authority, which the spec calls luck rather than correctness, would have rendered as a match. It now checks route, authority and required citations.
+
+**The page's rendering had no tests.** Six mutations survived, including forcing the baseline tag to "right, by luck" and blanking the footer's measured score. Every honesty element the page draws was unasserted; only the payload was tested. The checks added are **structural, on the source, not render tests** — a real one needs a JS runtime this project does not have. They catch deletion and inversion, which is what the mutations did, and would not catch a CSS change that hides an element. Stated rather than glossed.
+
+### And one the tests did to themselves
+
+The helper written to cover `save_baseline` wrote over the **committed** conflict record and restored it in a `finally` that was initially a no-op. Once fixed, it captured the already-polluted file as its "original", so the corruption became self-sustaining. The tell was the test's own fake provenance sitting in shipped demo data.
+
+The helper now redirects `STORE` to a temporary directory: **removing the possibility rather than managing it.** A test that writes to committed data poisons the repository even after the test is fixed.

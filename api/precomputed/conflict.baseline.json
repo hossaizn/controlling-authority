@@ -1,6 +1,8 @@
 {
   "scenario_id": "conflict-002",
   "arm": "baseline",
+  "resolved": true,
+  "route": "answer",
   "controlling_authority": "state",
   "precedence_rule": "none: the top-ranked passage was taken as authoritative",
   "top_passage": {

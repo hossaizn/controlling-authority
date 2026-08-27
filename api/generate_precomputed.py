@@ -120,14 +120,31 @@ def main() -> int:
         # what could not be generated when both providers were exhausted.
         naive_state = initial_state(s.question, s.employee_context, s.as_of_date)
         naive_state.update(triage(naive_state))
-        naive_state.update(retrieve(naive_state))
-        naive_state.update(naive_resolve(naive_state))
+
+        # **Only the answering path reaches a resolver at all.** `build_baseline`
+        # shares the agent's triage and the graph gates retrieval behind the
+        # route, so on clarify, refuse and escalate the baseline declines
+        # identically and there is no delta to show.
+        #
+        # The first version ran retrieve and naive_resolve unconditionally and
+        # recorded an authority for scenarios the baseline never resolves. The
+        # demo then asserted a naive system "would have answered" three
+        # questions that it in fact refuses, contradicting what
+        # `/api/ask {baseline: true}` does on the same input. Claiming a delta
+        # that does not exist is worse than having fewer of them.
+        if naive_state.get("route") == "answer":
+            naive_state.update(retrieve(naive_state))
+            naive_state.update(naive_resolve(naive_state))
         precomputed.save_baseline(key, naive_state, provenance, expected)
 
         got = final.get("route")
         mark = "ok " if got == s.expected_route else "MISS"
         agent_auth = (final.get("resolution").controlling if final.get("resolution") else None)
-        naive_auth = naive_state["resolution"].controlling
+        naive_auth = (
+            naive_state["resolution"].controlling
+            if naive_state.get("resolution")
+            else f"(declines: {naive_state.get('route')})"
+        )
         delta = " <- baseline differs" if agent_auth != naive_auth else ""
         print(
             f"  {mark} {key:16} {scenario_id:20} expected={s.expected_route:9} "

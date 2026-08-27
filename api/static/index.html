@@ -209,7 +209,11 @@ async function boot() {
   box.appendChild(pair);
 
   const o = health.overall_scores || {};
-  if (o.fully_correct !== undefined) {
+  if (typeof o.fully_correct !== "number") {
+    $("footStats").textContent =
+      "Measured results are not available in this deployment. The scores " +
+      "snapshot is missing, so no numbers are shown rather than stale ones.";
+  } else {
     $("footStats").textContent =
       `Measured end to end over ${o.n} hand-written scenarios: ` +
       `${(o.fully_correct * 100).toFixed(1)}% fully correct — right route, right ` +
@@ -245,7 +249,10 @@ function renderTrace(trace) {
 }
 
 function renderSlice(sliceName, sp) {
-  if (!sp || sp.n === undefined) { $("sliceBox").classList.add("hidden"); return; }
+  if (!sp || sp.n === undefined || typeof sp.fully_correct !== "number") {
+    $("sliceBox").classList.add("hidden");
+    return;
+  }
   $("sliceBox").classList.remove("hidden");
   $("sliceText").textContent =
     `This is one case from the ${sliceName || "?"} slice, which scores ` +
@@ -289,18 +296,33 @@ async function showScenario(key, btn) {
 
   if (b) {
     $("basePanel").classList.remove("hidden");
-    $("bAuth").textContent = b.controlling_authority || "—";
-    $("bRule").textContent = b.precedence_rule;
+    $("bAuth").textContent =
+      b.controlling_authority || (b.resolved === false ? `declines (${b.route})` : "—");
+    $("bRule").textContent = b.precedence_rule || "not reached";
     clear($("bTop"));
     if (b.top_passage && b.top_passage.citation) {
       $("bTop").appendChild(el("span", {className: "cite", text: b.top_passage.citation}));
     } else {
       $("bTop").textContent = "—";
     }
-    markTag($("baseTag"), b.correct, b.correct ? "right, by luck" : "wrong");
-    $("bNote").textContent = b.correct
-      ? "Here the closest passage happens to belong to the layer that governs, so a naive system is right without reasoning."
-      : "A system that trusts the most relevant passage selects this authority, and it is not the one that governs.";
+    if (b.resolved === false) {
+      // Both arms share a triage and only the answering path reaches a
+      // resolver, so here there is genuinely nothing to compare. Saying so is
+      // the point: an earlier version asserted a naive system "would have
+      // answered" three questions that it actually refuses.
+      markTag($("baseTag"), true, "no difference");
+      $("bNote").textContent = b.no_delta_reason || "";
+    } else if (b.correct) {
+      markTag($("baseTag"), true, "right, by luck");
+      $("bNote").textContent =
+        "Here the closest passage happens to belong to the layer that governs, " +
+        "so a naive system is right without reasoning.";
+    } else {
+      markTag($("baseTag"), false, "wrong");
+      $("bNote").textContent =
+        "A system that trusts the most relevant passage selects this authority, " +
+        "and it is not the one that governs.";
+    }
   } else {
     $("basePanel").classList.add("hidden");
   }
@@ -346,7 +368,14 @@ async function ask() {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({question, as_of: $("asof").value, session_id: sessionId()}),
     });
-    const body = await r.json();
+    let body;
+    try {
+      body = await r.json();
+    } catch {
+      // A proxy 502 returns HTML, not JSON. Without this the promise rejects
+      // and the user sees a spinner that never resolves.
+      body = {error: `The service returned an unexpected response (${r.status}).`};
+    }
     $("out").classList.remove("hidden");
     $("pairBox").classList.add("hidden");
     $("basePanel").classList.add("hidden");
