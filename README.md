@@ -2,113 +2,151 @@
 
 An agent that answers employee leave questions by working out **which authority controls**, federal law, state law, or the company handbook, then answering from that authority with citations.
 
-> *Controlling authority* is the legal term for the source that governs when several apply at once. Determining it is the actual work here. Retrieval is a means to that end.
-
-**[→ Live demo](https://controlling-authority.pages.dev)**  ·  **[→ Decision log](https://controlling-authority.pages.dev/decisions)**
+**[Live demo](https://controlling-authority.pages.dev)** · **[Decision log](https://controlling-authority.pages.dev/decisions)** · **[Implementation plan](https://controlling-authority.pages.dev/plan)**
 
 ---
 
-## The claim, and the measurement
+## What this is, and why this problem
 
-On this corpus the correct answer frequently contradicts the *most semantically relevant document*. The handbook is the closest match to the question and, where it falls below a statutory floor, the wrong answer. No amount of retrieval tuning fixes that: it is a reasoning problem over retrieved evidence.
+Ask how much leave you get and three authorities might answer. Federal law sets a floor. Your state may set a higher one. Your company handbook is the document that actually mentions your situation by name.
 
-So precedence lives in **code** rather than in a prompt. Measured against a system that trusts the top-ranked passage, with the same retrieval, the same run, and one component swapped:
+The handbook is almost always the closest semantic match to the question. When it promises less than the law requires, the closest match is the wrong answer, and nothing in the text of any of the three says which one wins.
 
-| | trusts top passage | precedence as code |
+I picked this because better retrieval does not fix it. Fetching the right passage is the easy half. Something still has to decide which authority governs, and I wanted to find out whether that decision belongs in code rather than in a prompt.
+
+It does, and the difference is measurable. Same retrieval, same runs, one component swapped:
+
+| | trusts the closest passage | precedence in code |
 |---|---|---|
 | conflict slice (n=18) | 0.556 | **0.833** |
 | control slice (n=10) | 0.300 | **0.800** |
 | overall (n=57) | 0.649 | **0.877** |
 
-**+22.8 points**, and the handbook is the top-ranked passage in 26 of 57 cases. The project's opening premise is a measured result rather than an assertion.
+**+22.8 points.** The handbook is the top-ranked passage in 26 of those 57 cases.
 
-## End to end
+End to end across all 92 scenarios, `fully_correct` is 0.620. That figure is a five-way conjunction: right route, right authority, required citations present, nothing forbidden cited, and grounded, all at once.
 
-`fully_correct` is a five-way conjunction. Right route, right authority, required citations present, nothing forbidden cited, and grounded, all at once, across all 92 scenarios.
+---
 
-| metric | value |
-|---|---|
-| **fully correct** | **0.620** |
-| route accuracy (macro) | 0.815 |
-| precedence correct | 0.789 |
-| verification pass rate | 0.672 *(n=58)* |
-| forbidden citation rate | 0.011 |
-| over-clarification | 0.052 |
-| under-clarification | 0.467 |
+## What it is built from
 
-Macro-averaged, never micro: a system that answers everything scores well on micro-average precisely by refusing to clarify. Over- and under-clarification are measured **in both directions**, because an agent that always asks *"which state?"* is trivially safe and unusable.
+Every technique below is one this project actually uses. The ones it does not use are listed further down.
 
-The weak numbers are here on purpose. `under_clarification` at 0.467 and `addressed_beaten_source` at 0.25 are the two worst results in the project, and they are reported beside the good ones.
+### Retrieval
 
-## Read the decision log first
+**Hybrid search with reciprocal rank fusion.** Dense vectors and sparse term vectors run as separate prefetches and fuse with RRF. Statutory text is full of terms of art that carry exact meaning, and a dense embedding places `825.200` near its paraphrases, which is the opposite of what a citation lookup needs. Sparse matching finds the literal token. See [`retrieval/store.py`](retrieval/store.py) and [`retrieval/sparse.py`](retrieval/sparse.py).
 
-[`eval/decision_log.md`](eval/decision_log.md) holds 39 entries, written as each decision was made rather than reconstructed afterwards. **Reverted experiments stay in.** A log holding only successes is a sales document.
+**Metadata filters as hard constraints, applied inside each prefetch.** Jurisdiction and effective date are filters, never ranking signals. A jurisdiction error is a correctness failure, and a superseded provision is not a slightly worse answer. Applying the filter after fusion would silently return fewer than `k` results, which reads as a worse answer rather than as a bug. Payload indexes back both fields.
 
-A few that show the method:
+**Domain-specific embeddings, chosen by measurement.** A legal-domain model and a general-purpose one were both embedded and scored before either was adopted. The legal model won at 0.895 recall@10. See DL-1 and DL-18.
 
-- **[DL-14/15]** Pre-registered the chunking winner, its mechanism, and a tie-break before data existed. The mechanism was then found wrong *before* the experiment ran and corrected, which is the only reason the result means anything.
-- **[DL-19/20]** Verification found five ground-truth errors, three of them false claims about *absent* law. The corrections flipped the chunking answer.
-- **[DL-16/18]** Reranking was built, measured at 7.0 points of headroom against a pre-registered 10-point bar, and **not adopted**. Choosing a legal-domain embedding model had already removed the headroom a reranker would have chased.
-- **[DL-28]** A retrieval guarantee was built, measured, and rejected: it delivered zero of a pre-registered two-scenario improvement. The code is kept, unwired, with a note that it must not be re-added without a number.
-- **[DL-34]** My diagnosis of the verification bottleneck was wrong. Measurement overturned it, and the entry says so.
-- **[DL-38]** A pre-registered experiment that has **not been run**, including the design that was rejected for being structurally biased toward its own conclusion.
-- **[DL-39]** The production concerns this deliberately does not address, with the reasoning for each.
+**Structure-aware chunking, also chosen by measurement**, against a fixed-size baseline. Headings and hierarchy travel with the chunk, so a bare subdivision is not stranded from the section that gives it meaning. [`retrieval/chunking.py`](retrieval/chunking.py) carries both strategies, because the comparison stays reproducible.
 
-## How it decides
+**Query rewriting**, folded into the routing step rather than run as a separate call. Measured at 0.895 to 0.912 recall@10, and watched by a regression gate. See [`agent/nodes/triage.py`](agent/nodes/triage.py) and DL-21.
 
-Precedence rules 1, 2, 4 and 5 are a pure function in [`agent/precedence.py`](agent/precedence.py). The model is asked only *what the retrieved text says* and *which provision is more generous*. It is never asked which layer controls.
+**A third filtering stage for guaranteed presence.** Some documents have to be in the candidate set regardless of rank, which is a condition on the set rather than a property of any chunk. Each guarantee over-fetches from a deeper search and appends, so nothing is displaced. [`agent/nodes/retrieve.py`](agent/nodes/retrieve.py) also carries one guarantee that was built, measured, and left unwired because it delivered zero of a pre-registered improvement.
 
-1. **Statutory floor.** Where federal and state both apply, the more employee-favourable governs. Not "state beats federal."
-2. **Company policy may exceed, never reduce.** Above statute it controls; below statute it is unenforceable.
-3. **Effective dating.** Only provisions in force on the query date are eligible. *(Not reimplemented, because the store's date filter already enforces it.)*
-4. **Silence is not permission.** A layer that does not address a topic cannot override one that does.
-5. **Concurrence tie-break.** A handbook restating a statute does not become the thing that compels it.
+**Absence is a document, not a config flag.** Ohio has no state family-leave statute for private employers, and that silence is retrievable text carrying `content_status: absent`. A retrieval miss and a genuine absence demand opposite responses and must not look alike to the agent. See [`ingest/absence.py`](ingest/absence.py).
 
-Rule 5 cannot be argued out of by a persuasively worded question, because it is not in the prompt.
+### The agent
 
-## Architecture
+**Routing before retrieval.** A LangGraph state machine sends each question to answer, clarify, refuse, or escalate. Sometimes the correct output is a question. Sometimes it is a refusal. Both are scored. See [`agent/graph.py`](agent/graph.py).
 
-```text
-ingest/     four adapters, one SourceDocument contract
-retrieval/  chunking, embeddings, sparse, Qdrant store, disk cache
-agent/      triage → retrieve → resolve → compose → verify (LangGraph)
-eval/       92 scenarios, seven slices, scorers, mutation harness, decision log
-api/        FastAPI + a self-contained demo page
-deploy/     static site build for Cloudflare Pages
+**The precedence rules are code, not a prompt.** This is the whole thesis. [`agent/precedence.py`](agent/precedence.py) is a pure function. The model is asked only what the retrieved text says and which provision is more generous to the employee. It is never asked which layer controls. The rule that fired is recorded, the same input always gives the same output, and a persuasively worded question cannot argue past a rule that is not in the prompt.
+
+**Forced tool calls for structured output.** Every node that needs a shape gets one through a required tool call rather than by parsing prose. A provider that cannot honour `tool_choice` fails loudly instead of being parsed. See [`agent/models.py`](agent/models.py).
+
+**Groundedness verification that is mostly deterministic.** Four of the five checks in [`agent/nodes/verify.py`](agent/nodes/verify.py) are code: citations resolve to something retrieved, an entitlement claim rests on a citation, the answer cites the provision precedence selected, and every quoted figure appears in its source. Only semantic entailment needs a model. Code cannot share a blind spot with the model that wrote the answer.
+
+**Citation validation against the retrieved set.** Model output is mapped back to a citation that was actually retrieved, longest match first, and rejected if it was not. See [`agent/nodes/resolve.py`](agent/nodes/resolve.py) and [`agent/citations.py`](agent/citations.py).
+
+**Provider-agnostic model access.** [`agent/models.py`](agent/models.py) speaks Anthropic and any OpenAI-compatible endpoint, which is what made it possible to measure an open-weights model against a hosted one without touching a node.
+
+### Evaluation
+
+**92 hand-written scenarios across seven slices**, written before the retrieval pipeline existed. Ground truth cannot be generated by the system it is meant to evaluate without becoming circular. See [`eval/scenarios/`](eval/scenarios/).
+
+| slice | n | what it tests |
+| --- | --- | --- |
+| conflict | 18 | the closest match is the wrong answer |
+| straightforward | 17 | one authority answers cleanly |
+| ambiguous | 15 | the correct output is a question |
+| out_of_scope | 12 | refusal and escalation |
+| adversarial | 10 | prompts that argue for the wrong layer |
+| control | 10 | paired with conflict, so caution is not free |
+| superseded | 10 | point-in-time answering |
+
+**An ablation with a real control arm.** The naive baseline is the same graph with precedence swapped out. One component, same retrieval, same run. Two separate implementations would differ for reasons nobody intended. See [`agent/build.py`](agent/build.py).
+
+**Pre-registration with falsifiers and thresholds fixed before data exists.** DL-14 predicted the chunking winner, its mechanism and a tie-break in advance. The mechanism was then found wrong before the experiment ran and corrected, which is the only reason the result means anything.
+
+**Macro-averaged routing accuracy, never micro.** A system that answers everything scores well on a micro average precisely by refusing to clarify. Over-clarification and under-clarification are measured in both directions, because an agent that always asks "which state?" is trivially safe and unusable. See [`eval/run_routes.py`](eval/run_routes.py).
+
+**Per-slice regression gates.** An overall number that holds steady hides a slice that collapsed. See [`eval/regression.py`](eval/regression.py).
+
+**Mutation testing as the primary review technique.** [`eval/mutation.py`](eval/mutation.py) breaks the source on purpose, 161 ways, and checks whether the suite notices. Every review that ran it found real defects, including eval scorers that could all be hardcoded to `True` with the whole suite green. A stale mutation counts as an error, not a skip: `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target moved reports "caught" while never having been applied.
+
+```bash
+uv run pytest                    # 597 tests
+uv run python -m eval.mutation   # 161 mutations, all currently caught
 ```
 
-- **Hybrid retrieval**: dense + sparse fused with RRF, filters applied *inside each prefetch* so they stay hard constraints rather than a post-hoc trim that silently returns fewer than `k`.
-- **Jurisdiction and effective date are filters, never ranking signals.** A jurisdiction error is a correctness failure; a superseded provision is not a slightly worse answer.
-- **Absence records are documents, not config.** Ohio's silence is retrievable text with `content_status: absent`, because a retrieval miss and a genuine absence demand opposite responses.
-- **`verify` is mostly deterministic by design.** Four of its five checks are code; only semantic entailment needs a model.
-- **The trace is append-only by construction**, via a LangGraph reducer, and is exported to Langfuse rather than instrumented a second time.
+### Running it in production terms
+
+**Tracing is exported, not instrumented.** [`agent/tracing.py`](agent/tracing.py) walks the finished state trace and mirrors it to Langfuse. Nodes stay unaware of it. A second instrumentation path would be a second description of one run, free to disagree with the first.
+
+**Prompt versioning.** Each node carries a version string that keys the cache and labels the run, so a scored result cannot be quietly attributed to a prompt that has since changed.
+
+**Content-hash caching of model calls.** Re-runs are free, which is why a killed evaluation resumes without paying twice.
+
+**Spend limits that are enforced rather than hoped for.** [`api/limits.py`](api/limits.py) has sliding-window rate limits per IP and per session, plus a global daily breaker. Budget is charged in a `finally`, because an earlier version recorded only on success, and a graph that raised after calling the model spent real tokens against an untouched counter.
+
+---
+
+## What this does not use
+
+Named because the list matters as much as the one above.
+
+- **No corrective RAG or self-RAG.** The graph does not grade its own retrieval and re-query. Verification runs after composition and degrades the answer to a referral rather than looping.
+- **No reranker, and that decision is currently reopened.** DL-16 fixed a rule in advance: build one only if `recall@10` minus `recall@3` exceeded 10 points. On raw questions the gap is 7.0, so none was built, and the reason was interesting rather than marginal: choosing a legal-domain embedding model removed the headroom a reranker would have chased. Then query rewriting was adopted, and on rewritten questions the gap is 14.0, because rewriting raises `recall@10` and lowers `recall@3`. The rule fires on the pipeline as shipped. DL-40 records that, and it was found while writing this README rather than by a review.
+- **No multi-hop or iterative retrieval.** One retrieval pass per question.
+- **No fine-tuning, no HyDE, no GraphRAG, no knowledge graph.**
+- **No agentic tool loop.** The graph is fixed and every path through it is enumerable, which is what makes the trace worth reading.
+- **No semantic caching.** The cache is exact content hashing.
+
+---
 
 ## Corpus
 
 104 documents: 79 federal (29 CFR 825), 6 California, 2 New York, 8 Ohio absence records, 9 handbook policies.
 
-| Layer | Source | Verified |
+| layer | source | verified |
 | --- | --- | --- |
-| Federal | eCFR API, 29 CFR Part 825 (FMLA), point-in-time by snapshot date | 2026-08-25 |
-| State | California (4 sections), New York (WCL 204), Ohio (recorded absences only) | 2026-08-26 |
-| Company | Synthetic handbook, seeded with deliberate conflicts | n/a |
+| federal | eCFR API, 29 CFR Part 825, point-in-time by snapshot date | 2026-08-25 |
+| state | California, New York WCL 204, Ohio recorded absences | 2026-08-26 |
+| company | synthetic handbook, seeded with deliberate conflicts | n/a |
 
-Ohio is the control case, with no state family-leave statute for private employers. **A negative claim cannot reach the same standard as a positive one**, because you cannot grep for the absence of a law. So absence records are marked *"searched, not found, scope stated"* and dated, never ticked like positive claims.
+**A negative claim cannot reach the same standard as a positive one.** You cannot grep for the absence of a law, so absence records are marked "searched, not found, scope stated" and dated, never ticked like a positive claim.
 
-`corpus/handbook/DEFECTS.md` states which handbook clauses are deliberately wrong. **It is never ingested**, and two independent guards enforce that: ingesting the answer key would make every conflict scenario answerable by lookup.
+`corpus/handbook/DEFECTS.md` records which handbook clauses are deliberately wrong. It is never ingested, and two independent guards enforce that. Putting the answer key inside the corpus being searched would make every conflict scenario answerable by lookup.
 
-## Testing
+---
 
-573 tests, and **mutation testing is the primary review technique**. Every review that used it found real defects.
+## Repository map
 
-```bash
-uv run pytest                    # 573 tests
-uv run python -m eval.mutation   # 147 mutations, all currently caught
+```text
+ingest/      four source adapters behind one SourceDocument contract
+retrieval/   chunking, embeddings, sparse vectors, Qdrant store, disk cache
+agent/       triage, retrieve, resolve, compose, verify, plus precedence.py
+eval/        92 scenarios, scorers, regression gate, mutation harness, decision log
+api/         FastAPI service and the self-contained demo page
+deploy/      static site build for Cloudflare Pages
+docs/        the implementation plan and the design spec
 ```
 
-The mutation catalogue is committed because running it reactively kept finding holes that review did not: eval scorers that could all be hardcoded `True` with the suite green, an XSS guard that two different bypasses walked straight past, a path-traversal guard with no coverage, and a naive baseline that could be swapped for the real resolver without a single test failing. That baseline is the control arm of the headline claim above.
+Start with [`agent/precedence.py`](agent/precedence.py) and [`eval/decision_log.md`](eval/decision_log.md).
 
-**A stale mutation is an error, not a skip.** `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target has moved reports "caught" while never being applied.
+---
 
 ## Running it
 
@@ -122,7 +160,7 @@ uv run pytest
 uv run uvicorn api.app:app --reload    # demo at http://localhost:8000
 ```
 
-The hosted demo is static, so its **Ask** box is off. A new question needs a model call. Running locally switches it on.
+The hosted demo is static, so its Ask box is off. A new question needs a model call. Running locally switches it on.
 
 To rebuild the static site:
 
@@ -130,12 +168,16 @@ To rebuild the static site:
 uv run python -m deploy.build_static   # writes dist/
 ```
 
-## What this deliberately does not do
+---
 
-Recorded in full in DL-39. No latency, throughput or availability SLOs were ever set. Only quality ones, which were pre-registered and honoured. There is no checkpointer, no load test, no provider failover, and the rate limiter's in-memory counters are correct for one instance and wrong for two.
+## What this deliberately does not address
 
-Each was raised, costed, and left undone on purpose. Naming them precisely is worth more here than closing them would be.
+DL-39 has it in full. No latency, throughput or availability targets were ever set, only quality ones, which were pre-registered and honoured. There is no checkpointer, no load test, no provider failover, and the rate limiter's in-memory counters are correct for one instance and wrong for two.
+
+Each was raised, costed, and left undone on purpose.
+
+---
 
 ## Not legal advice
 
-An information retrieval and reasoning system, not a compliance product. Scoped to leave and time-off only. The precedence rules are a simplification of real law.
+An information retrieval and reasoning system, not a compliance product. Scoped to leave and time off. The precedence rules are a simplification of real law.

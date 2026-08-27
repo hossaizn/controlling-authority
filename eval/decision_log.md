@@ -1797,3 +1797,36 @@ Two attempts were made, both on Groq's free tier. The pacer prices calls from `e
 **One finding does survive the pause, because it is not about the budget.** `conflict-006` and `conflict-009` fail with `BadRequestError` on every attempt, throttled or not. That is the same tool-contract failure DL-37 recorded for `gpt-oss-120b` on `verify` prompts, now observed on `resolve` prompts as well. It is a property of the model, it will recur on a funded account, and it strengthens rather than weakens DL-37's conclusion: **the open model cannot be relied on to hold forced structured output**, which is the contract every node in this system depends on.
 
 **What it would take to finish.** The full sweep is 36 calls at roughly 155,000 input tokens. On Haiku that is a few minutes and well under a dollar. The deferred capped-against-uncapped half needs the same thing, because uncapped prompts do not fit a free per-request ceiling at all. Both are blocked on the same trivially small amount of credit, and neither blocks the deployment.
+
+## DL-40: The reranking rule fires on the pipeline as shipped, and nobody noticed
+
+**Status:** open. Found while writing the README, not by a review.
+
+DL-16 fixed a rule before any data existed: build a reranker only if `recall@10` minus `recall@3` **exceeds 10 points**. DL-18 closed it at **7.0 points** on the adopted configuration and recorded the reason as interesting rather than marginal, because choosing a legal-domain embedding model had removed the headroom a reranker would have chased.
+
+**That measurement was taken on raw questions. The shipped pipeline does not send raw questions.**
+
+DL-21 adopted query rewriting in `triage` on the strength of recall@10 moving from 0.895 to 0.912. It reported the number the decision needed and did not look at the other end of the ranking.
+
+| queries | recall@3 | recall@10 | gap |
+|---|---|---|---|
+| raw | 0.825 | 0.895 | **7.0** |
+| rewritten | 0.772 | **0.912** | **14.0** |
+
+Rewriting **raises recall@10 and lowers recall@3**. It surfaces more of the right passages and ranks them worse. That is precisely the signature DL-16 wrote the rule to detect, and 14.0 clears the threshold by four points.
+
+### Why this went unseen
+
+The figure was in `eval/runs/rewrite_check_triage-v3.json` the whole time, under the key `rerank_headroom`. Nothing read it. DL-21 asked whether rewriting helped, got 0.912, and stopped.
+
+**A pre-registered threshold only works if something re-evaluates it when its inputs change.** DL-16's rule was applied once, to a pipeline that no longer exists, and then treated as settled. This is DL-26's pattern in a new place: *fixing an instance of a bug is not fixing the bug*, here as *evaluating a rule once is not honouring it*.
+
+### What this does not license saying
+
+It does not mean a reranker would help. The rule is a screen for whether headroom exists, not a measurement of what recovering it is worth, and DL-18's deeper point still stands: in this corpus the correct answer frequently contradicts the most semantically relevant document, so a reranker that pushes the closest match higher can move the wrong way. The conflict slice is where both the headroom and that risk live.
+
+It also does not retract anything. Every published number was measured as described.
+
+### Next
+
+Reopened, not answered. The honest test is the one DL-16 implies: build a reranker, run it on rewritten queries, and score it on the conflict slice specifically, against a pre-registered bar set before the run. Until that happens the system ships without one, and this entry is why that is a known gap rather than a closed question.

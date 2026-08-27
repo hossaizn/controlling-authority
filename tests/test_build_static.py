@@ -369,7 +369,10 @@ def test_the_preamble_cut_keeps_the_identifier_note(site) -> None:
     D-n distinction is the one thing in that preamble a reader needs."""
     html = (site / "decisions.html").read_text()
     assert "Handbook defect identifiers" in html
-    assert html.count('<h2 id="dl-') == 39
+    # Derived, not pinned. A hardcoded count turns every new entry into a
+    # failing test, which trains you to edit the number rather than read it.
+    assert html.count('<h2 id="dl-') == render_decisions.entry_count()
+    assert render_decisions.entry_count() >= 39
 
 
 def test_a_log_without_the_cut_anchor_fails_loudly(tmp_path, monkeypatch) -> None:
