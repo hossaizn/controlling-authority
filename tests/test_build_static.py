@@ -187,7 +187,11 @@ def test_the_decision_log_escapes_rather_than_passes_through_html(
     site changed nothing the test could see.
     """
     log = tmp_path / "log.md"
-    log.write_text("## DL-1: a heading\n\nA line with <script>alert(1)</script>.\n")
+    log.write_text(
+        "# Decision log\n\nPreamble that the page header already carries.\n\n"
+        "Entries are `DL-n`.\n\n## DL-1: a heading\n\n"
+        "A line with <script>alert(1)</script>.\n"
+    )
     monkeypatch.setattr(render_decisions, "LOG", log)
 
     page = render_decisions.render()
@@ -345,3 +349,29 @@ def test_build_rejects_a_page_that_would_load_off_origin(tmp_path, monkeypatch) 
 
     with pytest.raises(SystemExit, match="off-origin"):
         bs.build(tmp_path / "out")
+
+
+def test_the_log_page_shows_one_title_not_two(site) -> None:
+    """The markdown opens with its own `# Decision log` and a paragraph that
+    restates the page header. Rendering the file whole put two identical titles
+    and two near-identical intros on one screen."""
+    html = (site / "decisions.html").read_text()
+    assert html.count("<h1>") == 1
+    assert html.count("Decision log</h1>") == 1
+
+
+def test_the_preamble_cut_keeps_the_identifier_note(site) -> None:
+    """The cut drops the duplicated lines and nothing else. The DL-n against
+    D-n distinction is the one thing in that preamble a reader needs."""
+    html = (site / "decisions.html").read_text()
+    assert "Handbook defect identifiers" in html
+    assert html.count('<h2 id="dl-') == 39
+
+
+def test_a_log_without_the_cut_anchor_fails_loudly(tmp_path, monkeypatch) -> None:
+    """Slicing on a string that moved would silently swallow real entries."""
+    log = tmp_path / "log.md"
+    log.write_text("# Decision log\n\nNo anchor line here.\n\n## DL-1: x\n")
+    monkeypatch.setattr(render_decisions, "LOG", log)
+    with pytest.raises(SystemExit, match="preamble cut"):
+        render_decisions.render()

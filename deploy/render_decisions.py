@@ -62,6 +62,8 @@ EXTRA_CSS = """
 @media (max-width: 640px) { .toc { columns: 1; } }
 
 /* Each entry reads as its own card, the way a scenario does on the demo. */
+.doc { margin-top: 34px; }
+.doc > :first-child { margin-top: 0; }
 .doc h2 {
   font-size: 26px; margin: 56px 0 6px; padding-top: 28px;
   border-top: 2px solid var(--line);
@@ -106,7 +108,10 @@ EXTRA_CSS = """
 .doc blockquote p { margin: 0; }
 .doc a { color: var(--violet); text-underline-offset: 3px; }
 .doc img { max-width: 100%; }
-.doc hr { border: none; border-top: 2px solid var(--line); margin: 40px 0; }
+/* The log separates entries with `---` and each heading already carries a top
+   border, which drew two rules with a gap between them. The heading's border
+   wins, because it stays attached to the entry it opens. */
+.doc hr { display: none; }
 """
 
 
@@ -211,10 +216,27 @@ MAIL_JS = """
 """
 
 
+# The log opens with its own `# Decision log` heading and a paragraph restating
+# what this page already says above the contents. Rendering both puts two
+# identical titles and two near-identical intros on one screen. The cut starts
+# at the line that is NOT duplicated, so the useful part survives.
+BODY_STARTS_AT = "Entries are `DL-n`."
+
+
+def body_of(markdown: str) -> str:
+    if BODY_STARTS_AT not in markdown:
+        raise SystemExit(
+            f"render_decisions: {BODY_STARTS_AT!r} is not in the log, so the "
+            "preamble cut has nothing to anchor on. Fix this rather than "
+            "shipping a page with two headings or a missing paragraph."
+        )
+    return markdown[markdown.index(BODY_STARTS_AT):]
+
+
 def render() -> str:
     markdown = LOG.read_text()
     md = MarkdownIt("default", {"html": False, "linkify": False})
-    body = add_anchors(md.render(markdown), markdown)
+    body = add_anchors(md.render(body_of(markdown)), markdown)
     # The scroll container carries the card, not the table. A table that is
     # both the bordered card and the overflow box leaves dead space to the
     # right of any table narrower than the column.
