@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -93,6 +94,49 @@ def cost_of(state, cap) -> int:
     )
 
 
+# A 429 is not a measurement. The proactive pacer prices a call from
+# `estimate_tokens`, which is characters/4, and the provider counts real tokens;
+# where the estimate runs low the pacer lets a call through that the bucket
+# cannot take. The first run of this sweep lost 3 of its first 8 scenarios that
+# way, and a scenario missing from one arm leaves the paired comparison, which
+# is the only comparison DL-38 pre-registered as valid.
+#
+# So a rate-limited call WAITS rather than being recorded as a skip. Only a
+# scenario that fails for a reason other than throttling, or that runs out of
+# retries, is reported missing.
+RATE_LIMIT_RETRIES = 4
+RATE_LIMIT_SLEEP_SECONDS = 65
+
+
+def is_rate_limit(exc: Exception) -> bool:
+    """Matched on type NAME, not by importing the provider's exception class.
+
+    `agent/models.py` deliberately speaks to any OpenAI-compatible endpoint, so
+    binding this to one SDK's class would make the retry silently stop working
+    the moment the provider changes.
+    """
+    if type(exc).__name__ == "RateLimitError":
+        return True
+    return "rate limit" in str(exc).lower() or "429" in str(exc)
+
+
+def resolve_with_retry(resolve, state, scenario_id: str, sleeper=time.sleep):
+    last: Exception | None = None
+    for attempt in range(RATE_LIMIT_RETRIES):
+        try:
+            return resolve(state)
+        except Exception as exc:
+            if not is_rate_limit(exc):
+                raise
+            last = exc
+            if attempt < RATE_LIMIT_RETRIES - 1:
+                print(f"      throttled on {scenario_id}, waiting "
+                      f"{RATE_LIMIT_SLEEP_SECONDS}s "
+                      f"(attempt {attempt + 1}/{RATE_LIMIT_RETRIES})", flush=True)
+                sleeper(RATE_LIMIT_SLEEP_SECONDS)
+    raise last if last else RuntimeError("unreachable")
+
+
 def affordable(spent: int, price: int, cap: int = DAILY_TOKEN_CAP,
                headroom: int = BUDGET_HEADROOM) -> bool:
     """Whether this call fits without spending into the reserve.
@@ -146,7 +190,7 @@ def main() -> int:
                 continue
             state = dict(base_state)
             try:
-                state.update(resolve(state))
+                state.update(resolve_with_retry(resolve, state, s.scenario_id))
                 spent += price
             except Exception as exc:
                 skipped[cap].append({"scenario_id": s.scenario_id,

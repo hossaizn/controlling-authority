@@ -922,5 +922,40 @@
     "old": "    trimmed = {**state, \"retrieved\": cap_per_layer(state[\"retrieved\"], cap)}",
     "new": "    trimmed = {**state, \"retrieved\": state[\"retrieved\"]}",
     "origin": "DL-38"
+  },
+  {
+    "label": "throttled calls recorded as skips again",
+    "file": "eval/run_context_sweep.py",
+    "old": "            if not is_rate_limit(exc):\n                raise",
+    "new": "            if True:\n                raise",
+    "origin": "DL-38"
+  },
+  {
+    "label": "a real model failure retried as if throttled",
+    "file": "eval/run_context_sweep.py",
+    "old": "            if not is_rate_limit(exc):\n                raise",
+    "new": "            if False:\n                raise",
+    "origin": "DL-38"
+  },
+  {
+    "label": "retry never sleeps (hammers the limit)",
+    "file": "eval/run_context_sweep.py",
+    "old": "                sleeper(RATE_LIMIT_SLEEP_SECONDS)",
+    "new": "                pass",
+    "origin": "DL-38"
+  },
+  {
+    "label": "retry sleeps after the final attempt too",
+    "file": "eval/run_context_sweep.py",
+    "old": "            if attempt < RATE_LIMIT_RETRIES - 1:",
+    "new": "            if True:",
+    "origin": "DL-38"
+  },
+  {
+    "label": "credit exhaustion mistaken for throttling",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return \"rate limit\" in str(exc).lower() or \"429\" in str(exc)",
+    "new": "    return True",
+    "origin": "DL-38"
   }
 ]
