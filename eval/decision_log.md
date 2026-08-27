@@ -1656,3 +1656,80 @@ DL-24 pre-registered a cross-family verifier as the fix for verification, and tw
 ### Next
 
 The run is resumable from cache and Groq's daily budget is a rolling 24-hour window, so the 43 skipped scenarios cost nothing tomorrow. **The full-population comparison is deferred, not abandoned**, and the aggregate stays unclaimed until it exists.
+
+## DL-38: Minimum useful context for `resolve`, pre-registered before the run
+
+**Status:** pre-registration. Written and committed **before** any capped arm was scored. The mechanism below is measured; the outcome is not.
+
+`resolve` sends every retrieved passage. Nobody ever asked what it needs. That question was never posed because retrieval was tuned for recall and the prompt was whatever recall produced, which is how a context window becomes a default rather than a decision.
+
+### The mechanism, measured first
+
+DL-15's rule is that a wrong mechanism invalidates the experiment that rests on it, so the mechanism was measured before a threshold was fixed. All figures below cost **$0.00**: retrieval runs on cached embeddings and `resolve` was replayed cache-only.
+
+Across the 57 answer scenarios:
+
+| layer | mean passages | share of passage tokens | absent in |
+|---|---|---|---|
+| federal | 6.11 | **54.2%** | 0/57 |
+| state | 2.28 | 35.9% | 14/57 |
+| company | 1.74 | 9.8% | 4/57 |
+
+**Federal is the bulk**, which is what makes a *per-layer* cap the right lever rather than a global truncation. A global cut of k would shrink the layers that are already thin, and precedence needs one finding per layer to compare at all.
+
+Rank *within its own layer* of the passage `resolve` actually cited, over 88 citations:
+
+| rank | n | cumulative |
+|---|---|---|
+| 1 | 74 | 84.1% |
+| 2 | 9 | 94.3% |
+| 3 | 2 | 96.6% |
+| 4 | 2 | 98.9% |
+| 5 | 1 | 100.0% |
+
+**84% of the evidence `resolve` uses is the top passage of its layer.** The tail is small, and it is not randomly distributed: all three citations deeper than rank 3 are in the **conflict** slice (`conflict-006` federal rank 5, `conflict-011` federal rank 4, `conflict-020` state rank 4). The slice the project exists to get right is the slice that reads deepest.
+
+### The ceiling that actually binds
+
+Groq's free tier is 8,000 tokens per request and **charges reserved `max_tokens`, not tokens produced**. `resolve` reserves 2,048, so the prompt competes for **5,952**, not 8,000. Measuring against 8,000 would have understated the problem by half.
+
+| cap | mean | p95 | max | over ceiling | cited passages dropped |
+|---|---|---|---|---|---|
+| none | 5,570 | 9,178 | 10,242 | **17/57** | 0 |
+| 4 | 4,104 | 6,863 | 7,437 | 10/57 | 1 |
+| 3 | 3,491 | 5,706 | 6,280 | 2/57 | 3 |
+| 2 | 2,789 | 4,565 | 4,870 | **0/57** | 5 |
+
+30% of uncapped prompts exceed the binding ceiling, which reconciles with the 23% recorded in `CLAUDE.md` under a different prompt version.
+
+### The comparison that was designed and then rejected
+
+The obvious experiment is capped against uncapped on one model. **It is not runnable and running it would have been worse than not.**
+
+Anthropic is out of credits, so the arm has to be free, and uncapped prompts fit the free ceiling in only **10 of 18** conflict scenarios. Those 10 are systematically the evidence-light ones: precisely the scenarios where a cap removes nothing. A paired comparison on that subset is **structurally biased toward adopting the cap**.
+
+That is DL-24's bias with the sign flipped, and it was caught there by the same reasoning: *"the excluded ones are systematically the evidence-heaviest, so scoring the remainder would flatter the open model."* A result that can only come out one way is not a measurement.
+
+### What is being run instead
+
+**cap=2 makes all 57 scenarios fit the free tier** (conflict 18/18, control 10/10, straightforward 17/17, adversarial 2/2, superseded 10/10). cap=3 leaves 2 over. Both arms therefore run on **every** conflict scenario, and the comparison is unbiased in a way the uncapped one cannot be.
+
+So the question is not "is capping safe" but the sharper one: **where does trimming start to cost accuracy?**
+
+- **Arms:** per-layer cap 3 against per-layer cap 2, on `openai/gpt-oss-120b`, free.
+- **Population:** the conflict slice, n=18. Chosen because **every citation any cap drops is in it** — it carries the entire risk, and `run_precedence` already supports `only_slice` for exactly this budget reason.
+- **Primary metric:** precedence correctness, the existing scorer, unmodified.
+
+### Thresholds, fixed now
+
+- **Adopt cap=2** if its precedence correctness on the conflict slice is **no more than 1 scenario below cap=3**. The whole corpus then fits free infrastructure, which cap=3 does not.
+- **Reject cap=2 and adopt cap=3** if it loses 2 or more.
+- **Reject both** if cap=3 itself falls more than 2 scenarios below the cached Haiku conflict figure of 15/18. That figure is a **reference, not a paired comparator** — different model family — and it is used only as a floor, never quoted as a delta.
+
+### Falsifier
+
+If cap=2 and cap=3 score identically **and** both sit at or above the Haiku reference, the honest reading is not "capping is free". It is that **n=18 cannot resolve a one-scenario difference**, which DL-23 already established as this project's noise floor. That outcome gets reported as underpowered, not as a win.
+
+### The half that stays blocked
+
+Whether capped context matches **uncapped** context is unanswerable without a model that has both a wide context window and a free tier. It is deferred, not abandoned, and it is the one question a wide-context free provider would unblock.
