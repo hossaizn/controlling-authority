@@ -66,6 +66,7 @@ EXTRA_CSS = """
 .doc h2 {
   font-size: 26px; margin: 56px 0 6px; padding-top: 28px;
   border-top: 2px solid var(--line);
+  scroll-margin-top: 70px;
 }
 .doc h3 {
   font-family: var(--mono); font-size: 13px; font-weight: 700;

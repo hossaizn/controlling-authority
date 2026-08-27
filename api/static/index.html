@@ -55,7 +55,11 @@
     font-family: var(--serif); font-weight: 700;
     font-size: clamp(20px, 3.6vw, 24px);
     margin: 40px 0 14px; letter-spacing: -0.01em;
+    /* Clears the sticky nav. Without this every in-page anchor lands behind
+       the bar, which is most of the decision log's contents list. */
+    scroll-margin-top: 78px;
   }
+  :target { scroll-margin-top: 78px; }
   .sub { color: var(--muted); margin: 0 0 20px; max-width: 64ch; font-size: 17px; }
   .sub a { color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
@@ -201,6 +205,25 @@
     background: var(--panel); box-shadow: var(--shadow-sm);
   }
   .contact a:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 var(--line); }
+
+  .steps { margin: 0; padding-left: 22px; }
+  .steps li { margin-bottom: 10px; }
+  .steps li:last-child { margin-bottom: 0; }
+  strong.inline {
+    font-family: var(--mono); font-size: 13px; text-transform: none;
+    letter-spacing: 0; background: var(--code); border: 1.5px solid var(--line);
+    border-radius: 6px; padding: 1px 6px; font-weight: 600;
+  }
+  .keylist {
+    display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px;
+    margin: 14px 0 0; font-family: var(--mono); font-size: 12.5px;
+  }
+  .keylist dt { font-weight: 700; }
+  .keylist dd { margin: 0; color: var(--muted); }
+  @media (max-width: 560px) {
+    .keylist { grid-template-columns: 1fr; gap: 2px; }
+    .keylist dd { margin-bottom: 8px; }
+  }
 </style>
 </head>
 <body>
@@ -231,6 +254,30 @@
     measured, and then dropped.
   </p>
 
+
+  <h2>How to read this</h2>
+  <div class="panel">
+    <ol class="steps">
+      <li>Pick a scenario below. Each is a recorded run against the real corpus,
+        not a canned response.</li>
+      <li>Read the two cards side by side. The left card is this system, which
+        applies precedence rules in code. The right card is what a system that
+        trusts the closest matching passage concludes, from the same retrieval,
+        on the same run.</li>
+      <li>Look at the tag on each card. Violet means the run matched the
+        labelled ground truth. Red means the answer was wrong.</li>
+      <li>Open <strong class="inline">How it decided</strong> for the steps the
+        agent took, and open any step for the raw detail behind it.</li>
+      <li>Read the score under the trace. One working example proves nothing
+        about a slice, so the measured score for that slice sits beside it.</li>
+    </ol>
+    <p class="meta" style="margin:14px 0 0">
+      Start with <strong class="inline">conflict</strong>. That is the case this
+      project was built for: the handbook is the closest match to the question
+      and the wrong answer, so the two cards disagree.
+    </p>
+  </div>
+
   <h2>Example scenarios</h2>
   <div class="panel">
     <div class="buttons" id="scenarios"></div>
@@ -238,6 +285,15 @@
       Each one is a recorded run, not a canned response. They cost nothing to
       serve, so no rate limit applies to them.
     </p>
+    <dl class="keylist">
+      <dt>straightforward</dt><dd>federal law answers it, and both systems agree</dd>
+      <dt>ambiguous</dt><dd>the correct output is a question, not an answer</dd>
+      <dt>conflict</dt><dd>the handbook beats the statute, and the naive system picks the wrong layer</dd>
+      <dt>superseded</dt><dd>one layer speaks and the others are silent, so silence grants nothing</dd>
+      <dt>refuse</dt><dd>outside leave entirely, so the system declines rather than guessing</dd>
+      <dt>escalate</dt><dd>a person needs to handle this, not a policy lookup</dd>
+      <dt>point in time</dt><dd>the same question on two dates, answered from the law in force on each</dd>
+    </dl>
   </div>
 
   <h2>Ask your own</h2>
@@ -301,6 +357,19 @@
       <p class="meta" id="pairQ" style="margin-top:0"></p>
       <div class="cols" id="pairCols"></div>
     </div>
+  </div>
+
+
+  <h2>Where this falls short</h2>
+  <div class="panel">
+    <p style="margin-top:0">The weak numbers are on this page for the same reason
+      the failed experiments are in the decision log. A demo that shows only
+      what works is a brochure.</p>
+    <p style="margin-bottom:0">Under-clarification runs at 0.467 and naming the
+      source that lost runs at 0.25. Those are the two worst results in the
+      project. Verification also replaces about a third of answers with a
+      referral, which costs the reader the citations that answer carried. The
+      decision log covers each one and what was tried against it.</p>
   </div>
 
   <footer>
@@ -387,10 +456,12 @@ function disableAsk() {
   $("go").disabled = true;
   $("q").placeholder = "Live answering is off here";
   $("askNote").textContent =
-    "Live answering is off on this deployment. The scenarios above are " +
-    "recorded runs and work as they are. A new question needs a model call, " +
-    "so clone the repo and run docker compose up to switch this box on. " +
-    "The decision log explains the trade.";
+    "This box is off, and the reason is worth stating plainly. The site is " +
+    "static files on a CDN, so no server sits behind the page to run the " +
+    "agent, and the API credits that paid for the runs above are spent. Free " +
+    "container hosting that stays awake without a credit card ended during " +
+    "2026, which DL-39 in the decision log covers. Clone the repo and run " +
+    "docker compose up to switch this box on locally.";
 }
 
 function markTag(node, ok, label) {
