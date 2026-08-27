@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Controlling Authority</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%2314120f%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2224%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2221%22%20font-weight%3D%22700%22%20fill%3D%22%236c3bf5%22%20text-anchor%3D%22middle%22%3E%C2%A7%3C%2Ftext%3E%3C%2Fsvg%3E">
 <!--
   Self-contained on purpose: no CDN, no build step, no framework. The point of
   this page is one screen that makes an argument, and every dependency is
@@ -15,64 +16,150 @@
 -->
 <style>
   :root {
-    --ink: #1a1a1a; --muted: #6b6b6b; --line: #e2e2e2; --bg: #fbfbfa;
-    --panel: #fff; --accent: #1b4d3e; --wrong: #a33; --right: #1b6b3a;
-    --code: #f4f4f2;
+    /* joydrop-derived: warm cream ground, white cards, hard black edges,
+       solid offset shadows with no blur. Violet carries meaning here rather
+       than decoration: it marks the precedence arm and a correct outcome. */
+    --bg: #f2efe8;
+    --panel: #ffffff;
+    --ink: #14120f;
+    --muted: #6e6862;
+    --line: #14120f;
+    --violet: #6c3bf5;
+    --violet-soft: #efe9fe;
+    --wrong: #d6303a;
+    --wrong-soft: #fdeeef;
+    --right: #6c3bf5;
+    --amber: #f6c445;
+    --amber-soft: #fff6de;
+    --code: #f2efe8;
+    --shadow: 5px 5px 0 var(--line);
+    --shadow-sm: 3px 3px 0 var(--line);
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55;
-    font: 16px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 var(--serif);
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
-  .sub { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
-       color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
-  .panel { background: var(--panel); border: 1px solid var(--line);
-           border-radius: 10px; padding: 18px; }
-  .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; }
+  @media (max-width: 480px) { .wrap { padding: 28px 16px 60px; } }
+
+  h1 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(30px, 6.5vw, 42px);
+    margin: 0 0 10px; letter-spacing: -0.02em; line-height: 1.1;
+  }
+  h2 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(20px, 3.6vw, 24px);
+    margin: 40px 0 14px; letter-spacing: -0.01em;
+  }
+  .sub { color: var(--muted); margin: 0 0 20px; max-width: 64ch; font-size: 17px; }
+  .sub a { color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+  .panel {
+    background: var(--panel); border: 2px solid var(--line);
+    border-radius: 16px; padding: 20px; box-shadow: var(--shadow);
+  }
+
+  .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
   button {
-    font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 999px;
-    border: 1px solid var(--line); background: #fff; cursor: pointer;
-    transition: border-color .12s, background .12s;
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    padding: 9px 15px; border-radius: 10px;
+    border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer; box-shadow: var(--shadow-sm);
+    transition: transform .08s ease, box-shadow .08s ease, background .12s ease;
   }
-  button:hover { border-color: #bbb; }
-  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--line); }
+  button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--line); }
+  button.on { background: var(--violet); border-color: var(--line); color: #fff; }
+  button:disabled {
+    background: var(--bg); color: var(--muted); cursor: not-allowed;
+    transform: none; box-shadow: var(--shadow-sm); opacity: .65;
+  }
+
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   input[type=text], input[type=date] {
-    font: inherit; padding: 10px 12px; border: 1px solid var(--line);
-    border-radius: 8px; background: #fff;
+    font-family: var(--mono); font-size: 14px; padding: 11px 13px;
+    border: 2px solid var(--line); border-radius: 10px; background: #fff;
+    color: var(--ink); box-shadow: var(--shadow-sm);
   }
   input[type=text] { flex: 1 1 380px; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  input:focus { outline: none; transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--violet); }
+  input:disabled { background: var(--bg); color: var(--muted); box-shadow: none; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
   @media (max-width: 780px) { .cols { grid-template-columns: 1fr; } }
-  .tag { display: inline-block; font-size: 11px; letter-spacing: .05em;
-         text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
-         border: 1px solid var(--line); color: var(--muted); }
-  .tag.right { color: var(--right); border-color: #bcd9c6; background: #f2f9f4; }
-  .tag.wrong { color: var(--wrong); border-color: #e6c4c4; background: #fdf5f5; }
-  .answer { white-space: pre-wrap; }
-  .cite { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-          font-size: 13px; background: var(--code); padding: 1px 6px;
-          border-radius: 4px; margin-right: 6px; display: inline-block; }
-  .trace { border-left: 2px solid var(--line); padding-left: 14px; margin-top: 4px; }
-  .node { margin-bottom: 12px; }
-  .node .name { font-family: ui-monospace, monospace; font-size: 12px;
-                color: var(--accent); font-weight: 600; }
-  .node .why { font-size: 14px; }
-  details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
-  pre { background: var(--code); padding: 10px; border-radius: 6px;
-        overflow-x: auto; font-size: 12px; margin: 6px 0 0; }
-  .meta { color: var(--muted); font-size: 13px; }
-  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px;
-        font-size: 14px; margin: 12px 0; }
-  .kv dt { color: var(--muted); }
-  .kv dd { margin: 0; }
-  footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
-           color: var(--muted); font-size: 13px; }
-  .warn { background: #fff8e6; border: 1px solid #f0dfae; border-radius: 8px;
-          padding: 10px 12px; font-size: 14px; margin-bottom: 14px; }
+
+  /* The comparison the demo exists to make. The agent arm is always violet.
+     The baseline arm turns red only when it picks the wrong authority. */
+  #agentPanel { border-color: var(--violet); box-shadow: 5px 5px 0 var(--violet); }
+  #basePanel.is-wrong { border-color: var(--wrong); box-shadow: 5px 5px 0 var(--wrong); }
+
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 10px;
+    font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px;
+    border: 2px solid var(--line); background: var(--panel); color: var(--muted);
+  }
+  .tag.right { color: #fff; background: var(--violet); border-color: var(--violet); }
+  .tag.wrong { color: #fff; background: var(--wrong); border-color: var(--wrong); }
+
+  strong { font-family: var(--mono); font-size: 13px; text-transform: uppercase;
+           letter-spacing: .06em; }
+  .answer { white-space: pre-wrap; font-size: 16.5px; margin: 14px 0 10px; }
+
+  .cite {
+    font-family: var(--mono); font-size: 12px; background: var(--code);
+    border: 2px solid var(--line); padding: 2px 8px; border-radius: 7px;
+    margin: 0 6px 6px 0; display: inline-block; font-weight: 600;
+  }
+
+  .trace { border-left: 2px solid var(--line); padding-left: 18px; margin-top: 4px; }
+  .node { margin-bottom: 18px; position: relative; }
+  .node::before {
+    content: ""; position: absolute; left: -25px; top: 5px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--violet); border: 2px solid var(--line);
+  }
+  .node .name {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--violet);
+  }
+  .node .why { font-size: 15.5px; margin-top: 2px; }
+
+  details summary {
+    cursor: pointer; font-family: var(--mono); font-size: 11px;
+    color: var(--muted); margin-top: 6px; letter-spacing: .04em;
+  }
+  pre {
+    background: var(--code); border: 2px solid var(--line); padding: 12px;
+    border-radius: 10px; overflow-x: auto; font-family: var(--mono);
+    font-size: 11.5px; margin: 8px 0 0; line-height: 1.5;
+  }
+
+  .meta { color: var(--muted); font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  .kv {
+    display: grid; grid-template-columns: max-content 1fr; gap: 7px 16px;
+    font-family: var(--mono); font-size: 13.5px; margin: 14px 0;
+  }
+  .kv dt { color: var(--muted); font-size: 11px; text-transform: uppercase;
+           letter-spacing: .06em; padding-top: 2px; }
+  .kv dd { margin: 0; font-weight: 600; }
+
+  footer {
+    margin-top: 52px; padding-top: 22px; border-top: 2px solid var(--line);
+    color: var(--muted); font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+  }
+
+  .warn {
+    background: var(--amber-soft); border: 2px solid var(--line);
+    border-radius: 12px; padding: 13px 15px; font-size: 14.5px;
+    margin-bottom: 16px; box-shadow: var(--shadow-sm);
+  }
+  .warn ul { margin: 8px 0 0; padding-left: 20px; }
   .hidden { display: none; }
 </style>
 </head>
@@ -120,7 +207,7 @@
     <div id="staleWarn" class="warn hidden"></div>
 
     <div class="cols">
-      <div class="panel">
+      <div class="panel" id="agentPanel">
         <div class="row" style="justify-content:space-between">
           <strong>With precedence rules</strong>
           <span id="agentTag" class="tag"></span>
@@ -359,14 +446,17 @@ async function showScenario(key, btn) {
       // the point: an earlier version asserted a naive system "would have
       // answered" three questions that it actually refuses.
       markTag($("baseTag"), true, "no difference");
+      $("basePanel").classList.remove("is-wrong");
       $("bNote").textContent = b.no_delta_reason || "";
     } else if (b.correct) {
       markTag($("baseTag"), true, "right, by luck");
+      $("basePanel").classList.remove("is-wrong");
       $("bNote").textContent =
         "The closest passage belongs to the layer that governs, so a naive " +
         "system lands on the right answer without reasoning.";
     } else {
       markTag($("baseTag"), false, "wrong");
+      $("basePanel").classList.add("is-wrong");
       $("bNote").textContent =
         "A system that trusts the most relevant passage picks this authority. " +
         "The one that governs is different.";

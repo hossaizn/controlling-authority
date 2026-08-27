@@ -47,19 +47,66 @@ def stylesheet() -> str:
 
 
 EXTRA_CSS = """
-.wrap { max-width: 860px; }
-.doc h2 { margin-top: 2.4em; border-top: 1px solid var(--line, #2a2a2a); padding-top: 1.2em; }
-.doc h3 { margin-top: 1.8em; }
-.doc table { width: 100%; border-collapse: collapse; margin: 1em 0;
-             display: block; overflow-x: auto; }
-.doc th, .doc td { border: 1px solid var(--line, #2a2a2a); padding: 6px 10px; text-align: left; }
-.doc pre { overflow-x: auto; padding: 12px; border-radius: 6px; background: rgba(127,127,127,.12); }
-.doc code { font-size: .92em; }
-.doc blockquote { margin: 1em 0; padding-left: 1em; border-left: 3px solid var(--line, #2a2a2a); }
-.doc img { max-width: 100%; }
-.nav { margin: 0 0 24px; }
-.toc { columns: 2; font-size: .92em; }
+.wrap { max-width: 820px; }
+.nav { margin: 0 0 28px; font-family: var(--mono); font-size: 12.5px; }
+.nav a { color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+.toc {
+  columns: 2; column-gap: 28px; font-family: var(--mono); font-size: 12.5px;
+  line-height: 1.75; list-style: none; padding: 0; margin: 0;
+  background: var(--panel); border: 2px solid var(--line); border-radius: 16px;
+  padding: 20px 22px; box-shadow: var(--shadow);
+}
+.toc li { break-inside: avoid; margin-bottom: 4px; }
+.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
+.toc a:hover { border-bottom-color: var(--violet); color: var(--violet); }
 @media (max-width: 640px) { .toc { columns: 1; } }
+
+/* Each entry reads as its own card, the way a scenario does on the demo. */
+.doc h2 {
+  font-size: 26px; margin: 56px 0 6px; padding-top: 28px;
+  border-top: 2px solid var(--line);
+}
+.doc h3 {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--violet);
+  margin: 32px 0 10px;
+}
+.doc p { margin: 14px 0; }
+.doc ul, .doc ol { margin: 14px 0; padding-left: 22px; }
+.doc li { margin-bottom: 6px; }
+.doc strong { font-family: var(--serif); font-size: inherit; text-transform: none;
+              letter-spacing: normal; font-weight: 700; }
+
+.doc .tablewrap {
+  margin: 20px 0; overflow-x: auto;
+  background: var(--panel); border: 2px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.doc table {
+  border-collapse: separate; border-spacing: 0; width: 100%;
+  font-family: var(--mono); font-size: 12.5px;
+}
+.doc th, .doc td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+.doc thead th { background: var(--bg); font-weight: 700; text-transform: uppercase;
+                letter-spacing: .05em; font-size: 11px; }
+.doc tbody tr:last-child td { border-bottom: none; }
+
+.doc pre { margin: 18px 0; }
+.doc code {
+  font-family: var(--mono); font-size: .88em; background: var(--code);
+  border: 1.5px solid var(--line); border-radius: 6px; padding: 1px 6px;
+}
+.doc pre code { border: none; background: none; padding: 0; }
+.doc blockquote {
+  margin: 18px 0; padding: 14px 18px; border: 2px solid var(--line);
+  border-left-width: 6px; border-left-color: var(--violet);
+  border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-sm);
+}
+.doc blockquote p { margin: 0; }
+.doc a { color: var(--violet); text-underline-offset: 3px; }
+.doc img { max-width: 100%; }
+.doc hr { border: none; border-top: 2px solid var(--line); margin: 40px 0; }
 """
 
 
@@ -119,6 +166,11 @@ def render() -> str:
     markdown = LOG.read_text()
     md = MarkdownIt("default", {"html": False, "linkify": False})
     body = add_anchors(md.render(markdown), markdown)
+    # The scroll container carries the card, not the table. A table that is
+    # both the bordered card and the overflow box leaves dead space to the
+    # right of any table narrower than the column.
+    body = body.replace("<table>", '<div class="tablewrap"><table>')
+    body = body.replace("</table>", "</table></div>")
 
     return f"""<!doctype html>
 <html lang="en">

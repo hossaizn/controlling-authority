@@ -826,6 +826,8 @@ Fixed in code rather than in the prompt: a degenerate query falls back to the ra
 
 ## DL-23: Precedence as code beats the most relevant document by 24.6 points, and one prompt bug made every resolution look right
 
+> **Superseded in part by DL-26.** The figures below are what this run measured, and they stand as the record of it. A later fix replaced two implementations of the naive resolver with one, which moved the baseline from 0.632 to 0.649 and the delta from +24.6 to **+22.8**. The conclusion did not change. The current headline number is +22.8.
+
 **Status:** decided, Phase 6.3 and 6.4. Precedence correctness **0.877**, naive baseline **0.632**.
 
 ### The measurement the project was built to make
