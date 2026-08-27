@@ -189,9 +189,16 @@ def main() -> int:
                                      "cause": "daily budget guard"})
                 continue
             state = dict(base_state)
+            live_before = usage.calls
             try:
                 state.update(resolve_with_retry(resolve, state, s.scenario_id))
-                spent += price
+                # **Only a live call is charged.** Charging cache hits too would
+                # make a resumed run exhaust its own budget on work the provider
+                # never saw, which defeats the one durability property this
+                # project actually has (DL-39): the cache is why a killed run
+                # resumes for free.
+                if usage.calls > live_before:
+                    spent += price
             except Exception as exc:
                 skipped[cap].append({"scenario_id": s.scenario_id,
                                      "cause": f"{type(exc).__name__}: {str(exc)[:120]}"})
