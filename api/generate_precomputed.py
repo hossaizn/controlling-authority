@@ -21,8 +21,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent.build import build_agent
+from agent.build import build_agent, naive_resolve
 from agent.models import StructuredCaller, Usage
+from agent.nodes.retrieve import make_retrieve
+from agent.nodes.triage import make_triage
 from agent.state import initial_state
 from api import precomputed
 from eval.run_precedence import ADOPTED_MODEL, ADOPTED_STRATEGY
@@ -86,6 +88,10 @@ def main() -> int:
     caller = StructuredCaller(usage=usage)
     store = ChunkStore(get_provider(ADOPTED_MODEL), strategy=ADOPTED_STRATEGY)
     agent = build_agent(store, caller)
+    # The baseline's own triage and retrieval are identical to the agent's, so
+    # the only variable in the comparison is how the authority is chosen.
+    triage = make_triage(caller)
+    retrieve = make_retrieve(store)
     provenance = precomputed.current_provenance(CORPUS_SNAPSHOT)
 
     for key, scenario_id in precomputed.CURATED.items():
@@ -100,11 +106,32 @@ def main() -> int:
             "slice": s.slice,
         }
         precomputed.save(key, final, provenance, expected)
+
+        # **The baseline arm records its RESOLUTION only, and never composes.**
+        #
+        # The spec's argument is that the baseline picks the wrong authority and
+        # the agent catches that a statute overrides it. That delta lives
+        # entirely in `resolve`, which for the baseline is `naive_resolve`: take
+        # the top-ranked passage. It needs no model, so the comparison the demo
+        # is built around costs nothing and cannot be blocked by an unfunded key.
+        #
+        # Composing a baseline answer would add two model calls per scenario to
+        # restate a conclusion the resolution already shows, and it is exactly
+        # what could not be generated when both providers were exhausted.
+        naive_state = initial_state(s.question, s.employee_context, s.as_of_date)
+        naive_state.update(triage(naive_state))
+        naive_state.update(retrieve(naive_state))
+        naive_state.update(naive_resolve(naive_state))
+        precomputed.save_baseline(key, naive_state, provenance, expected)
+
         got = final.get("route")
         mark = "ok " if got == s.expected_route else "MISS"
+        agent_auth = (final.get("resolution").controlling if final.get("resolution") else None)
+        naive_auth = naive_state["resolution"].controlling
+        delta = " <- baseline differs" if agent_auth != naive_auth else ""
         print(
-            f"  {mark} {key:16} {scenario_id:20} "
-            f"expected={s.expected_route:9} got={got}"
+            f"  {mark} {key:16} {scenario_id:20} expected={s.expected_route:9} "
+            f"got={got:9} authority: agent={agent_auth} naive={naive_auth}{delta}"
         )
 
     print()

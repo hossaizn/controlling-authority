@@ -48,7 +48,16 @@ CURATED: dict[str, str] = {
     "superseded": "superseded-002",
     "refuse": "out-of-scope-001",
     "escalate": "out-of-scope-009",
+    # The supersession pair: superseded-001 and -002 are word-identical
+    # questions with identical employee context, differing ONLY in as_of_date
+    # (2023 against 2026). Shown side by side, they demonstrate point-in-time
+    # answering better than any explanation, and they are the same pair that
+    # proved in DL-21 that the date cannot be recovered from the question.
+    "superseded_before": "superseded-001",
 }
+
+#: Scenarios that are the same question at two dates. The spec asks for one.
+SUPERSESSION_PAIR = ("superseded_before", "superseded")
 
 
 @dataclass(frozen=True)
@@ -61,6 +70,12 @@ class Precomputed:
     answer: str
     citations: list[str]
     route: str
+    # The resolution itself, not just the answer. Without it the baseline
+    # comparison has nothing to compare: the delta the demo exists to show is
+    # WHICH AUTHORITY each arm selects.
+    controlling_authority: str | None
+    defensible_authorities: list[str]
+    precedence_rule: str | None
     trace: list[dict[str, Any]]
     provenance: dict[str, str]
     # Ground truth alongside what the agent produced. A demo that shows only
@@ -85,6 +100,9 @@ class Precomputed:
             "as_of": self.as_of,
             "employee_context": self.employee_context,
             "route": self.route,
+            "controlling_authority": self.controlling_authority,
+            "defensible_authorities": self.defensible_authorities,
+            "precedence_rule": self.precedence_rule,
             "answer": self.answer,
             "citations": self.citations,
             "trace": self.trace,
@@ -133,15 +151,26 @@ def overall_scores() -> dict[str, Any]:
         return {}
 
 
-def _path(key: str) -> Path:
-    return STORE / f"{key}.json"
+def _path(key: str, arm: str = "agent") -> Path:
+    """One file per (scenario, arm).
+
+    The baseline toggle is the demo's central comparison, so it has to work with
+    no funded key. Storing only the agent arm would mean the one screen the spec
+    calls "the entire argument" was the one screen that needed money.
+    """
+    suffix = "" if arm == "agent" else f".{arm}"
+    return STORE / f"{key}{suffix}.json"
 
 
 def available() -> list[str]:
     return [k for k in CURATED if _path(k).exists()]
 
 
-def load(key: str) -> Precomputed | None:
+def has_baseline(key: str) -> bool:
+    return _path(key, "baseline").exists()
+
+
+def load(key: str, arm: str = "agent") -> Precomputed | None:
     """Returns None rather than raising for an unknown or missing key.
 
     A missing record is a deployment gap, not a client error: the caller falls
@@ -149,7 +178,7 @@ def load(key: str) -> Precomputed | None:
     """
     if key not in CURATED:
         return None
-    path = _path(key)
+    path = _path(key, arm)
     if not path.exists():
         return None
     raw = json.loads(path.read_text())
@@ -162,6 +191,9 @@ def load(key: str) -> Precomputed | None:
         answer=raw["answer"],
         citations=raw.get("citations", []),
         route=raw["route"],
+        controlling_authority=raw.get("controlling_authority"),
+        defensible_authorities=raw.get("defensible_authorities", []),
+        precedence_rule=raw.get("precedence_rule"),
         trace=raw.get("trace", []),
         provenance=raw.get("provenance", {}),
         expected=raw.get("expected", {}),
@@ -173,6 +205,7 @@ def save(
     state: dict[str, Any],
     provenance: dict[str, str],
     expected: dict[str, Any] | None = None,
+    arm: str = "agent",
 ) -> Path:
     """Capture a live run. Called by the generator, never by the API."""
     context = state.get("employee_context")
@@ -186,6 +219,15 @@ def save(
             else {}
         ),
         "route": state.get("route"),
+        "controlling_authority": (
+            state["resolution"].controlling if state.get("resolution") else None
+        ),
+        "defensible_authorities": (
+            list(state["resolution"].defensible) if state.get("resolution") else []
+        ),
+        "precedence_rule": (
+            state["resolution"].rule if state.get("resolution") else None
+        ),
         "answer": state.get("answer"),
         "citations": state.get("citations", []),
         "trace": [
@@ -196,9 +238,55 @@ def save(
         "expected": expected or {},
     }
     STORE.mkdir(parents=True, exist_ok=True)
-    path = _path(key)
+    path = _path(key, arm)
     path.write_text(json.dumps(record, indent=2, default=str))
     return path
+
+
+def save_baseline(
+    key: str,
+    state: dict[str, Any],
+    provenance: dict[str, str],
+    expected: dict[str, Any] | None = None,
+) -> Path:
+    """Record what a system that trusts the top-ranked passage concludes.
+
+    Resolution only. No composed answer, because the comparison the demo exists
+    to make is which authority each arm selects, and that needs no model.
+    """
+    resolution = state["resolution"]
+    top = state["retrieved"][0] if state.get("retrieved") else None
+    record = {
+        "scenario_id": CURATED[key],
+        "arm": "baseline",
+        "controlling_authority": resolution.controlling,
+        "precedence_rule": "none: the top-ranked passage was taken as authoritative",
+        "top_passage": {
+            "citation": top.citation if top else None,
+            "authority_layer": top.authority_layer if top else None,
+            "heading": top.heading if top else None,
+        },
+        "expected": expected or {},
+        "correct": resolution.controlling
+        in set(
+            (expected or {}).get("acceptable_authorities")
+            or ([(expected or {}).get("authority")] if (expected or {}).get("authority") else [])
+        ),
+        "provenance": provenance,
+    }
+    STORE.mkdir(parents=True, exist_ok=True)
+    path = _path(key, "baseline")
+    path.write_text(json.dumps(record, indent=2, default=str))
+    return path
+
+
+def load_baseline(key: str) -> dict[str, Any] | None:
+    if key not in CURATED:
+        return None
+    path = _path(key, "baseline")
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
 
 
 def stale(current: dict[str, str]) -> list[str]:

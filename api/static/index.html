@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controlling Authority</title>
+<!--
+  Self-contained on purpose: no CDN, no build step, no framework. The point of
+  this page is one screen that makes an argument, and every dependency is
+  another thing that can be unavailable when someone opens it.
+
+  Every value from the server reaches the DOM through textContent or a created
+  node, never through innerHTML. An escape helper covering &<> is one refactor
+  away from being wrong, and this endpoint is public.
+-->
+<style>
+  :root {
+    --ink: #1a1a1a; --muted: #6b6b6b; --line: #e2e2e2; --bg: #fbfbfa;
+    --panel: #fff; --accent: #1b4d3e; --wrong: #a33; --right: #1b6b3a;
+    --code: #f4f4f2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55;
+    font: 16px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+       color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 18px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: #fff; cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  button:hover { border-color: #bbb; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  input[type=text], input[type=date] {
+    font: inherit; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff;
+  }
+  input[type=text] { flex: 1 1 380px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 780px) { .cols { grid-template-columns: 1fr; } }
+  .tag { display: inline-block; font-size: 11px; letter-spacing: .05em;
+         text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+         border: 1px solid var(--line); color: var(--muted); }
+  .tag.right { color: var(--right); border-color: #bcd9c6; background: #f2f9f4; }
+  .tag.wrong { color: var(--wrong); border-color: #e6c4c4; background: #fdf5f5; }
+  .answer { white-space: pre-wrap; }
+  .cite { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 13px; background: var(--code); padding: 1px 6px;
+          border-radius: 4px; margin-right: 6px; display: inline-block; }
+  .trace { border-left: 2px solid var(--line); padding-left: 14px; margin-top: 4px; }
+  .node { margin-bottom: 12px; }
+  .node .name { font-family: ui-monospace, monospace; font-size: 12px;
+                color: var(--accent); font-weight: 600; }
+  .node .why { font-size: 14px; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  pre { background: var(--code); padding: 10px; border-radius: 6px;
+        overflow-x: auto; font-size: 12px; margin: 6px 0 0; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px;
+        font-size: 14px; margin: 12px 0; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+  footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 13px; }
+  .warn { background: #fff8e6; border: 1px solid #f0dfae; border-radius: 8px;
+          padding: 10px 12px; font-size: 14px; margin-bottom: 14px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Controlling Authority</h1>
+  <p class="sub">
+    Employee leave questions have no answer until you know <em>which authority
+    governs</em>: federal law, state law, or the company handbook. The handbook is
+    usually the closest match to the question and, where it falls below a
+    statutory floor, the wrong answer. Determining precedence is the work;
+    retrieval is a means to it.
+  </p>
+
+  <h2>Example scenarios</h2>
+  <div class="panel">
+    <div class="buttons" id="scenarios"></div>
+    <p class="meta" style="margin:12px 0 0">
+      Pre-computed from real runs. Free, instant, and always available: they cost
+      nothing to serve, so they are exempt from every rate limit.
+    </p>
+  </div>
+
+  <h2>Ask your own</h2>
+  <div class="panel">
+    <div class="row">
+      <input type="text" id="q" placeholder="e.g. my grandmother died, how many days do I get?">
+      <input type="date" id="asof" value="2026-08-01" title="Answer as of this date">
+      <button id="go">Ask</button>
+    </div>
+    <p class="meta" style="margin:10px 0 0">
+      Rate limited, because live inference is real money. The as-of date changes
+      which law was in force.
+    </p>
+  </div>
+
+  <div id="out" class="hidden">
+    <h2>Result</h2>
+    <div id="staleWarn" class="warn hidden"></div>
+
+    <div class="cols">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between">
+          <strong>With precedence rules</strong>
+          <span id="agentTag" class="tag"></span>
+        </div>
+        <dl class="kv">
+          <dt>Controlling</dt><dd id="aAuth">—</dd>
+          <dt>Rule</dt><dd id="aRule">—</dd>
+          <dt>Route</dt><dd id="aRoute">—</dd>
+        </dl>
+        <p class="answer" id="aAnswer"></p>
+        <p id="aCites" class="meta"></p>
+      </div>
+
+      <div class="panel" id="basePanel">
+        <div class="row" style="justify-content:space-between">
+          <strong>Without them</strong>
+          <span id="baseTag" class="tag"></span>
+        </div>
+        <dl class="kv">
+          <dt>Controlling</dt><dd id="bAuth">—</dd>
+          <dt>Rule</dt><dd id="bRule">—</dd>
+          <dt>Top passage</dt><dd id="bTop">—</dd>
+        </dl>
+        <p class="meta" id="bNote"></p>
+      </div>
+    </div>
+
+    <h2>How it decided</h2>
+    <div class="panel"><div class="trace" id="trace"></div></div>
+
+    <div id="sliceBox" class="panel" style="margin-top:14px">
+      <p class="meta" id="sliceText"></p>
+    </div>
+  </div>
+
+  <div id="pairBox" class="hidden">
+    <h2>The same question, two dates</h2>
+    <div class="panel">
+      <p class="meta" id="pairQ" style="margin-top:0"></p>
+      <div class="cols" id="pairCols"></div>
+    </div>
+  </div>
+
+  <footer>
+    <p id="footStats">Loading measured results…</p>
+    <p>
+      Not legal advice. Corpus: 29 CFR 825, California and New York leave
+      statutes, Ohio absence records, and a company handbook seeded with
+      deliberate defects.
+    </p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+
+/** Build an element. Text always goes in via textContent, never as markup. */
+function el(tag, opts = {}, children = []) {
+  const node = document.createElement(tag);
+  if (opts.className) node.className = opts.className;
+  if (opts.text !== undefined) node.textContent = opts.text;
+  if (opts.title !== undefined) node.title = opts.title;
+  for (const child of children) node.appendChild(child);
+  return node;
+}
+
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+function citeNodes(citations) {
+  return (citations || []).map(c => el("span", {className: "cite", text: c}));
+}
+
+let SCENARIOS = [];
+
+async function boot() {
+  const [scen, health] = await Promise.all([
+    fetch("/api/scenarios").then(r => r.json()),
+    fetch("/api/health").then(r => r.json()),
+  ]);
+  SCENARIOS = scen.scenarios;
+  const box = $("scenarios");
+  for (const s of SCENARIOS) {
+    if (s.key === "superseded_before") continue;   // shown as the pair instead
+    const b = el("button", {text: s.key.replace(/_/g, " "), title: s.question});
+    b.onclick = () => showScenario(s.key, b);
+    box.appendChild(b);
+  }
+  const pair = el("button", {text: "point in time"});
+  pair.onclick = () => showPair(pair);
+  box.appendChild(pair);
+
+  const o = health.overall_scores || {};
+  if (o.fully_correct !== undefined) {
+    $("footStats").textContent =
+      `Measured end to end over ${o.n} hand-written scenarios: ` +
+      `${(o.fully_correct * 100).toFixed(1)}% fully correct — right route, right ` +
+      `authority, required citations present, nothing forbidden, and grounded — ` +
+      `with route accuracy ${(o.route_accuracy_macro * 100).toFixed(1)}% ` +
+      `macro-averaged. These are the real numbers, including where it fails.`;
+  }
+}
+
+function markTag(node, ok, label) {
+  node.textContent = label;
+  node.className = "tag " + (ok ? "right" : "wrong");
+}
+
+function renderTrace(trace) {
+  const box = $("trace");
+  clear(box);
+  if (!trace || !trace.length) {
+    box.appendChild(el("p", {className: "meta", text: "No trace recorded."}));
+    return;
+  }
+  for (const e of trace) {
+    const details = el("details", {}, [
+      el("summary", {text: "detail"}),
+      el("pre", {text: JSON.stringify(e.detail, null, 2)}),
+    ]);
+    box.appendChild(el("div", {className: "node"}, [
+      el("div", {className: "name", text: e.node}),
+      el("div", {className: "why", text: e.summary}),
+      details,
+    ]));
+  }
+}
+
+function renderSlice(sliceName, sp) {
+  if (!sp || sp.n === undefined) { $("sliceBox").classList.add("hidden"); return; }
+  $("sliceBox").classList.remove("hidden");
+  $("sliceText").textContent =
+    `This is one case from the ${sliceName || "?"} slice, which scores ` +
+    `${(sp.fully_correct * 100).toFixed(1)}% fully correct across ${sp.n} ` +
+    `scenarios (${(sp.route_accuracy * 100).toFixed(0)}% on routing alone). ` +
+    `One working example is not a working slice, so the measured score is ` +
+    `shown beside it.`;
+}
+
+function setCitations(node, citations) {
+  clear(node);
+  for (const c of citeNodes(citations)) node.appendChild(c);
+}
+
+async function showScenario(key, btn) {
+  document.querySelectorAll("#scenarios button").forEach(b => b.classList.remove("on"));
+  if (btn) btn.classList.add("on");
+  $("pairBox").classList.add("hidden");
+
+  const [a, b] = await Promise.all([
+    fetch(`/api/scenario/${encodeURIComponent(key)}`).then(r => r.json()),
+    fetch(`/api/scenario/${encodeURIComponent(key)}/baseline`).then(r => r.ok ? r.json() : null),
+  ]);
+  $("out").classList.remove("hidden");
+  $("q").value = a.question;
+  if (a.as_of) $("asof").value = a.as_of;
+
+  $("staleWarn").classList.toggle("hidden", !a.stale);
+  $("staleWarn").textContent = a.stale
+    ? "This record was generated under different prompt or corpus versions and may not reflect current behaviour."
+    : "";
+
+  $("aAuth").textContent =
+    a.controlling_authority || (a.defensible_authorities || []).join(" or ") || "—";
+  $("aRule").textContent = a.precedence_rule || "—";
+  $("aRoute").textContent = a.route;
+  $("aAnswer").textContent = a.answer || "";
+  setCitations($("aCites"), a.citations);
+  markTag($("agentTag"), a.matched_expectation,
+          a.matched_expectation ? "matches ground truth" : "differs from ground truth");
+
+  if (b) {
+    $("basePanel").classList.remove("hidden");
+    $("bAuth").textContent = b.controlling_authority || "—";
+    $("bRule").textContent = b.precedence_rule;
+    clear($("bTop"));
+    if (b.top_passage && b.top_passage.citation) {
+      $("bTop").appendChild(el("span", {className: "cite", text: b.top_passage.citation}));
+    } else {
+      $("bTop").textContent = "—";
+    }
+    markTag($("baseTag"), b.correct, b.correct ? "right, by luck" : "wrong");
+    $("bNote").textContent = b.correct
+      ? "Here the closest passage happens to belong to the layer that governs, so a naive system is right without reasoning."
+      : "A system that trusts the most relevant passage selects this authority, and it is not the one that governs.";
+  } else {
+    $("basePanel").classList.add("hidden");
+  }
+
+  renderTrace(a.trace);
+  renderSlice((a.expected || {}).slice, a.slice_performance);
+}
+
+async function showPair(btn) {
+  document.querySelectorAll("#scenarios button").forEach(b => b.classList.remove("on"));
+  btn.classList.add("on");
+  $("out").classList.add("hidden");
+
+  const rs = await Promise.all(
+    ["superseded_before", "superseded"].map(
+      k => fetch(`/api/scenario/${k}`).then(r => r.json())));
+
+  $("pairBox").classList.remove("hidden");
+  clear($("pairQ"));
+  $("pairQ").appendChild(document.createTextNode(
+    "Identical question, identical employee, different date: "));
+  $("pairQ").appendChild(el("em", {text: rs[0].question}));
+
+  const cols = $("pairCols");
+  clear(cols);
+  for (const r of rs) {
+    cols.appendChild(el("div", {className: "panel"}, [
+      el("div", {className: "tag", text: `as of ${r.as_of}`}),
+      el("p", {className: "answer", text: r.answer || ""}),
+      el("p", {className: "meta"}, citeNodes(r.citations)),
+    ]));
+  }
+}
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!question) return;
+  $("go").disabled = true;
+  $("go").textContent = "Thinking…";
+  try {
+    const r = await fetch("/api/ask", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question, as_of: $("asof").value, session_id: sessionId()}),
+    });
+    const body = await r.json();
+    $("out").classList.remove("hidden");
+    $("pairBox").classList.add("hidden");
+    $("basePanel").classList.add("hidden");
+    $("sliceBox").classList.add("hidden");
+    $("staleWarn").classList.add("hidden");
+
+    if (!r.ok) {
+      $("aAuth").textContent = "—";
+      $("aRule").textContent = "—";
+      $("aRoute").textContent = "—";
+      $("aAnswer").textContent = body.error || "Something went wrong.";
+      setCitations($("aCites"), []);
+      markTag($("agentTag"), false,
+              body.limit ? String(body.limit).replace(/_/g, " ") : "refused");
+      renderTrace([]);
+      return;
+    }
+    $("aAuth").textContent =
+      body.controlling_authority || (body.defensible_authorities || []).join(" or ") || "—";
+    $("aRule").textContent = body.precedence_rule || "—";
+    $("aRoute").textContent = body.route;
+    $("aAnswer").textContent = body.answer || "";
+    setCitations($("aCites"), body.citations);
+    const grounded = !!(body.verification && body.verification.passed);
+    markTag($("agentTag"), grounded, grounded ? "grounded" : "not verified");
+    renderTrace(body.trace);
+  } finally {
+    $("go").disabled = false;
+    $("go").textContent = "Ask";
+  }
+}
+
+function sessionId() {
+  let s = localStorage.getItem("ca-session");
+  if (!s) {
+    s = Math.random().toString(36).slice(2);
+    localStorage.setItem("ca-session", s);
+  }
+  return s;
+}
+
+$("go").onclick = ask;
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "scenario_id": "ambiguous-001",
+  "arm": "baseline",
+  "controlling_authority": "state",
+  "precedence_rule": "none: the top-ranked passage was taken as authoritative",
+  "top_passage": {
+    "citation": "Cal. Gov. Code 12945.2",
+    "authority_layer": "state",
+    "heading": "Cal. Gov. Code 12945.2"
+  },
+  "expected": {
+    "route": "clarify",
+    "authority": null,
+    "acceptable_authorities": [],
+    "required_citations": [],
+    "slice": "ambiguous"
+  },
+  "correct": false,
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  }
+}

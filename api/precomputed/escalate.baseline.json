@@ -1,0 +1,25 @@
+{
+  "scenario_id": "out-of-scope-009",
+  "arm": "baseline",
+  "controlling_authority": "federal",
+  "precedence_rule": "none: the top-ranked passage was taken as authoritative",
+  "top_passage": {
+    "citation": "29 CFR 825.307",
+    "authority_layer": "federal",
+    "heading": "\u00a7 825.307 Authentication and clarification of medical certification for leave taken because of an employee's own serious health condition or the serious health condition of a family member; second and third opinions."
+  },
+  "expected": {
+    "route": "escalate",
+    "authority": null,
+    "acceptable_authorities": [],
+    "required_citations": [],
+    "slice": "out_of_scope"
+  },
+  "correct": false,
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  }
+}

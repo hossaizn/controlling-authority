@@ -9,6 +9,11 @@
     "employer_size": 400
   },
   "route": "answer",
+  "controlling_authority": "company",
+  "defensible_authorities": [
+    "company"
+  ],
+  "precedence_rule": "policy_may_exceed",
   "answer": "You are entitled to 10 days of paid bereavement leave following your grandmother's death, to be taken within 3 months. [LEAVE-003] The company's policy provides 10 days of paid bereavement leave per occurrence for the death of a family member, including a grandparent, with no minimum service requirement. California law [Cal. Gov. Code 12945.7] requires a minimum of 5 days of bereavement leave for such deaths, but the company policy exceeds this legal minimum, so the more generous company policy controls.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
   "citations": [
     "LEAVE-003",

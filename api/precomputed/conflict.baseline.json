@@ -1,0 +1,27 @@
+{
+  "scenario_id": "conflict-002",
+  "arm": "baseline",
+  "controlling_authority": "state",
+  "precedence_rule": "none: the top-ranked passage was taken as authoritative",
+  "top_passage": {
+    "citation": "Cal. Gov. Code 12945.7",
+    "authority_layer": "state",
+    "heading": "Cal. Gov. Code 12945.7"
+  },
+  "expected": {
+    "route": "answer",
+    "authority": "company",
+    "acceptable_authorities": [],
+    "required_citations": [
+      "LEAVE-003"
+    ],
+    "slice": "conflict"
+  },
+  "correct": false,
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  }
+}

@@ -19,10 +19,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from agent.build import build_agent, build_baseline
@@ -39,6 +40,7 @@ from retrieval.embed import get_provider
 from retrieval.store import ChunkStore
 
 router = APIRouter(prefix="/api")
+STATIC = Path(__file__).resolve().parent / "static"
 
 
 class AskRequest(BaseModel):
@@ -146,6 +148,11 @@ def create_app(protection: Protection | None = None) -> FastAPI:
     app.state.protection = protection or Protection()
     app.state.agents = {}
     app.include_router(router)
+
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        return FileResponse(STATIC / "index.html")
+
     return app
 
 
@@ -160,6 +167,9 @@ def health(request: Request) -> dict:
             precomputed.current_provenance(CORPUS_SNAPSHOT)
         ),
         "tracing": tracing_configured(),
+        # The demo footer quotes these, so they come from the committed snapshot
+        # rather than being restated in the page.
+        "overall_scores": precomputed.overall_scores(),
     }
 
 
@@ -202,6 +212,23 @@ def scenario(key: str) -> JSONResponse:
         precomputed.current_provenance(CORPUS_SNAPSHOT)
     )
     return JSONResponse(content=payload)
+
+
+@router.get("/scenario/{key}/baseline")
+def scenario_baseline(key: str) -> JSONResponse:
+    """What a system that trusts the top-ranked passage concludes.
+
+    Resolution only, never a composed answer. The comparison the demo exists to
+    make is which authority each arm selects, and that needs no model, so the
+    screen the spec calls "the entire argument" is also the screen that cannot
+    be blocked by an unfunded key.
+    """
+    record = precomputed.load_baseline(key)
+    if record is None:
+        return JSONResponse(
+            status_code=404, content={"error": f"no baseline for {key!r}"}
+        )
+    return JSONResponse(content=record)
 
 
 @router.post("/ask")

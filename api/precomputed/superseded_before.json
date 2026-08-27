@@ -1,7 +1,7 @@
 {
-  "scenario_id": "superseded-002",
+  "scenario_id": "superseded-001",
   "question": "How many paid sick days do I get per year?",
-  "as_of": "2026-06-15",
+  "as_of": "2023-06-15",
   "employee_context": {
     "state": "OH",
     "tenure_months": 40,
@@ -14,14 +14,14 @@
     "company"
   ],
   "precedence_rule": "silence_is_not_permission",
-  "answer": "You are entitled to 5 paid sick days per year. Under the company policy [LEAVE-004-v2], you accrue one hour of paid sick leave for every 30 hours worked, up to a maximum of 40 hours or 5 days per year. Unused sick leave carries over to the following year, though your total accrual is capped at 80 hours at any time.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
+  "answer": "You are entitled to accrue 3 days (24 hours) of paid sick leave per year [LEAVE-004-v1]. This accrual is calculated at one hour per 30 hours worked, up to that annual maximum. Any unused sick leave carries over to the following year, though your total balance cannot exceed 48 hours at any time [LEAVE-004-v1]. Federal and Ohio state law do not require paid sick leave, so the company policy controls your entitlement.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
   "citations": [
-    "LEAVE-004-v2"
+    "LEAVE-004-v1"
   ],
   "trace": [
     {
       "node": "triage",
-      "summary": "The index contains the company's paid sick leave policy, which specifies the annual allocation of paid sick days.",
+      "summary": "The company handbook contains paid sick leave provisions that apply to all employees, and you've provided all facts needed to determine your entitlement.",
       "detail": {
         "route": "answer",
         "missing_fact": null,
@@ -35,11 +35,11 @@
     },
     {
       "node": "retrieve",
-      "summary": "10 passages across 3 authority layer(s), filtered to OH as of 2026-06-15",
+      "summary": "10 passages across 3 authority layer(s), filtered to OH as of 2023-06-15",
       "detail": {
         "query": "paid sick leave accrual per year",
         "jurisdiction_filter": "OH",
-        "as_of": "2026-06-15",
+        "as_of": "2023-06-15",
         "layers_found": [
           "company",
           "federal",
@@ -48,18 +48,19 @@
         "ranked": 10,
         "guarantees_fired": [],
         "absence_records": [
-          "OH (no state provision: paid_sick_leave)"
+          "OH (no state provision: paid_sick_leave)",
+          "OH (no state provision: vacation_forfeiture)"
         ],
         "citations": [
-          "LEAVE-004-v2",
-          "LEAVE-008",
+          "LEAVE-004-v1",
+          "29 CFR 825.207",
           "OH (no state provision: paid_sick_leave)",
           "29 CFR 825.207",
-          "29 CFR 825.207",
-          "LEAVE-002",
+          "OH (no state provision: vacation_forfeiture)",
           "29 CFR 825.701",
-          "LEAVE-006",
-          "LEAVE-001",
+          "29 CFR 825.207",
+          "29 CFR 825.200",
+          "29 CFR 825.215",
           "29 CFR 825.105"
         ]
       }
@@ -76,21 +77,21 @@
             "layer": "federal",
             "outcome": "silent",
             "citation": null,
-            "says": "The FMLA does not establish a minimum number of paid sick days; it only governs the substitution of accrued paid leave for unpaid FMLA leave.",
+            "says": "FMLA does not require paid sick leave; it concerns substitution of accrued paid leave with unpaid FMLA leave.",
             "generosity_rank": null
           },
           {
             "layer": "state",
             "outcome": "silent",
             "citation": null,
-            "says": "Ohio has no state paid sick leave statute requiring private employers to provide or accrue paid sick leave.",
+            "says": "Ohio has no statutory requirement that employers provide paid sick leave.",
             "generosity_rank": null
           },
           {
             "layer": "company",
             "outcome": "grants",
-            "citation": "LEAVE-004-v2",
-            "says": "Employees accrue one hour of paid sick leave for every 30 hours worked, up to a maximum of 40 hours or 5 days per year.",
+            "citation": "LEAVE-004-v1",
+            "says": "You accrue one hour of paid sick leave per 30 hours worked, up to a maximum of 24 hours or 3 days per year.",
             "generosity_rank": 1
           }
         ],
@@ -103,7 +104,7 @@
       "summary": "drafted from company, citing 1 source(s)",
       "detail": {
         "citations": [
-          "LEAVE-004-v2"
+          "LEAVE-004-v1"
         ],
         "citations_not_retrieved": [],
         "asked_to_address": [],
@@ -142,7 +143,7 @@
     "authority": "company",
     "acceptable_authorities": [],
     "required_citations": [
-      "LEAVE-004-v2"
+      "LEAVE-004-v1"
     ],
     "slice": "superseded"
   }

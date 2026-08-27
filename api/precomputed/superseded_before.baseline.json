@@ -1,0 +1,27 @@
+{
+  "scenario_id": "superseded-001",
+  "arm": "baseline",
+  "controlling_authority": "company",
+  "precedence_rule": "none: the top-ranked passage was taken as authoritative",
+  "top_passage": {
+    "citation": "LEAVE-004-v1",
+    "authority_layer": "company",
+    "heading": "Paid Sick Leave"
+  },
+  "expected": {
+    "route": "answer",
+    "authority": "company",
+    "acceptable_authorities": [],
+    "required_citations": [
+      "LEAVE-004-v1"
+    ],
+    "slice": "superseded"
+  },
+  "correct": true,
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  }
+}

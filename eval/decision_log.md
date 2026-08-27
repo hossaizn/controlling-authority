@@ -1342,3 +1342,47 @@ Now `Fly-Client-IP` first, which the platform sets and a client cannot forge, th
 Nine of the fifteen mutations survived the **first** round of fixes, because the tests I wrote alongside them asserted the wrong things: `matched_expectation` checked for the key's presence rather than its value, key growth asserted `<= 500` which no-eviction also satisfies, staleness asserted only `is False`, and the scoped-usage test wrote to the ContextVar by hand instead of driving `call`.
 
 **Writing a test at the same time as the fix is not the same as writing a test that would fail without the fix.** Mutation is the only thing that has reliably told the two apart in this project.
+
+---
+
+## DL-31: The demo's central comparison had to work without a funded key, so it does not compose an answer
+
+**Status:** decided, Phase 9.
+
+The spec calls the baseline toggle "the single highest-leverage feature" and says the delta "is the entire argument". Building it ran straight into the constraint the rest of this project has been living with: **both model providers were exhausted.** Anthropic is out of credits and the Groq free tier's daily cap was spent.
+
+Generating a baseline arm the obvious way, by running `build_baseline` end to end, needs `compose` and `verify` per scenario. It failed on the first call.
+
+### What the argument actually requires
+
+The claim is that a system trusting the most relevant passage picks the wrong authority, and one applying precedence picks the right one. **That delta lives entirely in `resolve`**, and the baseline's resolver is `naive_resolve`: take the top-ranked passage. It calls no model.
+
+So the baseline arm records its **resolution only**: the authority it selects, the passage it selected it from, and whether that is correct. No composed answer.
+
+Composing one would have added two model calls per scenario to restate a conclusion the resolution already shows, and it is precisely what could not be generated. **The screen the spec calls the entire argument is now also the screen that cannot be blocked by an unfunded key.**
+
+### What it shows
+
+| scenario | agent | rule | naive | naive correct |
+|---|---|---|---|---|
+| conflict | **company** | policy_may_exceed | state | **no** |
+| refuse | (declines) | — | federal | **no** |
+| escalate | (declines) | — | federal | **no** |
+| straightforward | federal | — | federal | yes |
+| superseded | company | — | company | yes |
+
+The conflict row is the one the spec asks for, and it fails in the harder direction: the handbook grants ten paid bereavement days against a five-day statutory floor, so **policy** controls and the naive system reaches for the statute.
+
+The two rows below it were not planned and are arguably better. On `refuse` and `escalate` the naive baseline selects `federal` and would answer confidently, where the agent declines. **A naive system does not merely get precedence wrong; it answers questions it should not answer at all.**
+
+### Honesty mechanisms carried into the page
+
+Every scenario shows the ground-truth expectation beside the result, the slice's measured score (conflict is 0.278 fully correct), and the overall figure in the footer: **0.620 fully correct across 92 scenarios**, read from the committed snapshot rather than restated in the markup where it could drift.
+
+Two of six scenarios show the baseline being **right by luck**, and they are labelled that way rather than dropped. A demo that only showed the four wins would be a brochure.
+
+### The page
+
+Self-contained: no CDN, no build step, no framework. Every dependency is another thing that can be unavailable when someone opens it, and a test asserts no external `src` or `href` survives in the served HTML.
+
+**Nothing reaches the DOM through `innerHTML`.** The first draft used an escape helper covering `&<>`, which a security check flagged: it does not cover quotes and is one refactor away from being wrong on a public endpoint. Values now go in via `textContent` or a created node, and a test pins the absence of `innerHTML`.

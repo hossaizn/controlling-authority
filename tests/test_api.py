@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -458,3 +459,94 @@ def test_the_global_key_survives_eviction_even_when_expired() -> None:
     for i in range(10):
         window.record(f"noise{i}")
     assert "all" in window._events, "the budget key must never be evicted"
+
+
+# --- the demo (Phase 9) ------------------------------------------------------
+
+
+def test_the_page_is_served_and_self_contained(client) -> None:
+    """No CDN, no build step. Every dependency is another thing that can be
+    unavailable when someone opens it."""
+    import re
+
+    r = client.get("/")
+    assert r.status_code == 200
+    html = r.text
+    assert "<title>Controlling Authority</title>" in html
+
+    # Anything that would load from another origin at render time. Matching on
+    # the word "cdn" tripped on this file's own comment saying it uses none,
+    # which is the shape of test that checks the prose rather than the code.
+    external = re.findall(
+        r'(?:src|href)\s*=\s*["\']((?:https?:)?//[^"\']+)', html, re.I
+    )
+    assert external == [], f"page loads external resources: {external}"
+    assert not re.search(r"url\(\s*[\"\']?(?:https?:)?//", html, re.I)
+    assert "import(" not in html
+
+
+def test_the_page_never_builds_html_from_data() -> None:
+    """An escape helper covering &<> is one refactor away from being wrong, and
+    this endpoint is public. Values reach the DOM via textContent or a created
+    node."""
+    html = (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
+    assert ".innerHTML" not in html
+
+
+def test_the_baseline_arm_is_served_for_every_scenario(client) -> None:
+    """The toggle is the demo's central comparison; it cannot be the one screen
+    that needs a funded key."""
+    for key in precomputed.available():
+        r = client.get(f"/api/scenario/{key}/baseline")
+        assert r.status_code == 200, key
+
+
+def test_the_baseline_arm_records_no_answer_only_a_resolution(client) -> None:
+    """Composing a baseline answer would add two model calls per scenario to
+    restate a conclusion the resolution already shows."""
+    b = client.get("/api/scenario/conflict/baseline").json()
+    assert "answer" not in b
+    assert b["controlling_authority"]
+    assert "top-ranked passage" in b["precedence_rule"]
+
+
+def test_the_conflict_scenario_shows_a_real_delta(client) -> None:
+    """If the agent and the naive baseline agreed here, the demo's central
+    screen would be blank. conflict-002 is chosen precisely because they do
+    not: the handbook exceeds the statutory floor, so policy controls, and a
+    system that trusts the closest passage picks the statute."""
+    a = client.get("/api/scenario/conflict").json()
+    b = client.get("/api/scenario/conflict/baseline").json()
+    assert a["controlling_authority"] == "company"
+    assert b["controlling_authority"] == "state"
+    assert b["correct"] is False
+    assert a["matched_expectation"] is True
+
+
+def test_the_agent_record_carries_its_resolution(client) -> None:
+    """Without it the baseline comparison has nothing to compare."""
+    a = client.get("/api/scenario/conflict").json()
+    assert a["precedence_rule"] == "policy_may_exceed"
+    assert "defensible_authorities" in a
+
+
+def test_the_supersession_pair_is_the_same_question_at_two_dates() -> None:
+    """The clearest demonstration of point-in-time answering, and the same pair
+    that proved in DL-21 that the date cannot be recovered from the question."""
+    before, after = (precomputed.load(k) for k in precomputed.SUPERSESSION_PAIR)
+    assert before.question == after.question
+    assert before.employee_context == after.employee_context
+    assert before.as_of != after.as_of
+    assert before.answer != after.answer
+
+
+def test_health_exposes_the_measured_scores_for_the_footer(client) -> None:
+    """The page quotes them, so they come from the committed snapshot rather
+    than being restated in the markup where they could drift."""
+    scores = client.get("/api/health").json()["overall_scores"]
+    assert scores["n"] == 92
+    assert 0.0 < scores["fully_correct"] < 1.0
+
+
+def test_an_unknown_baseline_key_is_a_404(client) -> None:
+    assert client.get("/api/scenario/nope/baseline").status_code == 404

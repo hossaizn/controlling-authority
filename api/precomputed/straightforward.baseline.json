@@ -1,0 +1,27 @@
+{
+  "scenario_id": "straightforward-001",
+  "arm": "baseline",
+  "controlling_authority": "federal",
+  "precedence_rule": "none: the top-ranked passage was taken as authoritative",
+  "top_passage": {
+    "citation": "29 CFR 825.200",
+    "authority_layer": "federal",
+    "heading": "\u00a7 825.200 Amount of leave."
+  },
+  "expected": {
+    "route": "answer",
+    "authority": "federal",
+    "acceptable_authorities": [],
+    "required_citations": [
+      "29 CFR 825.200"
+    ],
+    "slice": "straightforward"
+  },
+  "correct": true,
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  }
+}
