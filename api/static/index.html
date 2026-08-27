@@ -268,13 +268,13 @@
         labelled ground truth. Red means the answer was wrong.</li>
       <li>Open <strong class="inline">How it decided</strong> for the steps the
         agent took, and open any step for the raw detail behind it.</li>
-      <li>Read the score under the trace. One working example proves nothing
-        about a slice, so the measured score for that slice sits beside it.</li>
+      <li>Read the score under the trace. That is how the whole slice scores,
+        not how this one case went.</li>
     </ol>
     <p class="meta" style="margin:14px 0 0">
-      Start with <strong class="inline">conflict</strong>. That is the case this
-      project was built for: the handbook is the closest match to the question
-      and the wrong answer, so the two cards disagree.
+      Start with <strong class="inline">conflict</strong>. The handbook is the
+      closest match to that question and the wrong answer, so the two cards
+      disagree.
     </p>
   </div>
 
@@ -362,14 +362,12 @@
 
   <h2>Where this falls short</h2>
   <div class="panel">
-    <p style="margin-top:0">The weak numbers are on this page for the same reason
-      the failed experiments are in the decision log. A demo that shows only
-      what works is a brochure.</p>
-    <p style="margin-bottom:0">Under-clarification runs at 0.467 and naming the
-      source that lost runs at 0.25. Those are the two worst results in the
-      project. Verification also replaces about a third of answers with a
-      referral, which costs the reader the citations that answer carried. The
-      decision log covers each one and what was tried against it.</p>
+    <p style="margin-top:0">Under-clarification runs at 0.467, so it answers
+      when asking would serve you better. Naming the source that lost runs at
+      0.25. Those two are the worst numbers here.</p>
+    <p style="margin-bottom:0">Verification also swaps about a third of answers
+      for a referral, and the citations go with them. The decision log covers
+      what I tried against each.</p>
   </div>
 
   <footer>
@@ -456,12 +454,11 @@ function disableAsk() {
   $("go").disabled = true;
   $("q").placeholder = "Live answering is off here";
   $("askNote").textContent =
-    "This box is off, and the reason is worth stating plainly. The site is " +
-    "static files on a CDN, so no server sits behind the page to run the " +
-    "agent, and the API credits that paid for the runs above are spent. Free " +
-    "container hosting that stays awake without a credit card ended during " +
-    "2026, which DL-39 in the decision log covers. Clone the repo and run " +
-    "docker compose up to switch this box on locally.";
+    "This box is off. The site is static files, so there is no server here " +
+    "to run the agent. I also spent the API credits that paid for the runs " +
+    "above. Every free host that stays awake now wants a card, so keeping " +
+    "this live would be a monthly bill. Clone the repo and run docker " +
+    "compose up if you want to ask your own questions.";
 }
 
 function markTag(node, ok, label) {
