@@ -111,6 +111,20 @@ class VerificationResult:
     passed: bool
     checks: dict[str, bool] = field(default_factory=dict)
     failures: list[str] = field(default_factory=list)
+    #: Judgment-call problems that annotate rather than discard. See
+    #: `agent/nodes/verify.py`: entailment was silently destroying answers that
+    #: passed every decidable check, 15 of 19 rejections having the correct
+    #: controlling authority.
+    advisories: list[str] = field(default_factory=list)
+
+    @property
+    def fully_grounded(self) -> bool:
+        """Passed everything, including the judgment call.
+
+        The strict reading, and the one the evaluation headlines, so that
+        relaxing what blocks an answer cannot quietly improve the metric.
+        """
+        return self.passed and not self.advisories
 
 
 @dataclass(frozen=True)

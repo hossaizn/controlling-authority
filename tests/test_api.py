@@ -755,3 +755,34 @@ def test_the_page_handles_a_non_json_error_response() -> None:
     """A proxy 502 returns HTML; without this the promise rejects and the user
     watches a spinner that never resolves."""
     assert "unexpected response" in page_source()
+
+
+# --- advisories reach the surface -------------------------------------------
+
+
+def test_the_api_reports_blocking_and_grounded_separately(client) -> None:
+    """`passed` means nothing blocked the answer; `fully_grounded` also requires
+    the judgment call. Collapsing them would hide the relaxation."""
+    r = client.post("/api/ask", json={"question": "am I eligible?", "session_id": "s"})
+    v = r.json()["verification"]
+    assert "passed" in v and "fully_grounded" in v and "advisories" in v
+
+
+def test_a_precomputed_record_carries_its_advisories(client) -> None:
+    body = client.get("/api/scenario/conflict").json()
+    assert "advisories" in body
+
+
+def test_the_page_renders_flagged_claims() -> None:
+    """An answer with a flagged claim gives the reader the provision, the
+    reasoning, and the sentence to be careful about. A referral gives nothing."""
+    src = page_source()
+    assert "renderFlags" in src
+    assert "could not be tied to its cited passage" in src
+    assert "aFlags" in src
+
+
+def test_the_page_labels_a_flagged_answer_as_such() -> None:
+    src = page_source()
+    assert '"claims flagged"' in src
+    assert "fully_grounded" in src

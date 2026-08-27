@@ -31,8 +31,23 @@ from agent.citations import mentions, resolves_to_retrieved
 from agent.models import HAIKU, StructuredCaller
 from agent.nodes.compose import DISCLAIMER
 from agent.state import AgentState, TraceEvent, VerificationResult
+from ingest.settings import optional
 
 PROMPT_VERSION = "verify-v1"
+
+
+def entailment_blocks() -> bool:
+    """Whether an unsupported claim discards the answer.
+
+    Off by default. A referral saying "I could not confirm an answer" gives the
+    reader nothing: no answer, no citations, no way to check. An answer with a
+    flagged claim gives them the provision, the reasoning, and a specific thing
+    to be careful about.
+
+    `VERIFY_ENTAILMENT_BLOCKS=1` restores the strict posture, which a deployment
+    weighing an unsupported claim as worse than no answer should set.
+    """
+    return bool(optional("VERIFY_ENTAILMENT_BLOCKS"))
 
 # Same model as compose, for now. See the module docstring and DL-24.
 VERIFY_MODEL = HAIKU
@@ -174,6 +189,7 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
         named = citations_in(answer, retrieved)
         checks: dict[str, bool] = {}
         failures: list[str] = []
+        advisories: list[str] = []
 
         # 1. Nothing cited that was not retrieved.
         #
@@ -249,15 +265,16 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
             checks["claims_follow_from_the_sources"] = supported
             if not supported:
                 unsupported = [c for c in result.get("unsupported", []) if c][:3]
-                failures.extend(
+                notes = [
                     f"claim not supported by its source: {c}" for c in unsupported
-                )
-                if not unsupported:
-                    failures.append("a claim is not supported by its source")
+                ] or ["a claim is not supported by its source"]
+                # Advisory by default: this is a judgment call, and it was
+                # discarding answers that passed every decidable check.
+                (failures if entailment_blocks() else advisories).extend(notes)
 
         passed = not failures
         verification = VerificationResult(
-            passed=passed, checks=checks, failures=failures
+            passed=passed, checks=checks, failures=failures, advisories=advisories
         )
 
         update: dict = {
@@ -266,13 +283,15 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
                 TraceEvent(
                     node="verify",
                     summary=(
-                        f"{sum(checks.values())}/{len(checks)} checks passed"
-                        if passed
-                        else f"failed: {failures[0]}"
+                        f"failed: {failures[0]}"
+                        if failures
+                        else f"{sum(checks.values())}/{len(checks)} checks passed"
+                        + (f", {len(advisories)} claim(s) flagged" if advisories else "")
                     ),
                     detail={
                         "checks": checks,
                         "failures": failures,
+                        "advisories": advisories,
                         "entailment_checked": entailment_ran,
                         "model": model if entailment_ran else None,
                         "usage": getattr(caller, "last_call", None) if entailment_ran else None,

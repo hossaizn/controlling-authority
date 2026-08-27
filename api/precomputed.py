@@ -78,6 +78,7 @@ class Precomputed:
     controlling_authority: str | None
     defensible_authorities: list[str]
     precedence_rule: str | None
+    advisories: list[str]
     trace: list[dict[str, Any]]
     provenance: dict[str, str]
     # Ground truth alongside what the agent produced. A demo that shows only
@@ -123,6 +124,7 @@ class Precomputed:
             "controlling_authority": self.controlling_authority,
             "defensible_authorities": self.defensible_authorities,
             "precedence_rule": self.precedence_rule,
+            "advisories": self.advisories,
             "answer": self.answer,
             "citations": self.citations,
             "trace": self.trace,
@@ -214,6 +216,7 @@ def load(key: str, arm: str = "agent") -> Precomputed | None:
         controlling_authority=raw.get("controlling_authority"),
         defensible_authorities=raw.get("defensible_authorities", []),
         precedence_rule=raw.get("precedence_rule"),
+        advisories=raw.get("advisories", []),
         trace=raw.get("trace", []),
         provenance=raw.get("provenance", {}),
         expected=raw.get("expected", {}),
@@ -247,6 +250,9 @@ def save(
         ),
         "precedence_rule": (
             state["resolution"].rule if state.get("resolution") else None
+        ),
+        "advisories": (
+            list(state["verification"].advisories) if state.get("verification") else []
         ),
         "answer": state.get("answer"),
         "citations": state.get("citations", []),

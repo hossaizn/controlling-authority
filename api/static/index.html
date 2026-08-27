@@ -127,6 +127,7 @@
         </dl>
         <p class="answer" id="aAnswer"></p>
         <p id="aCites" class="meta"></p>
+        <div id="aFlags" class="warn hidden"></div>
       </div>
 
       <div class="panel" id="basePanel">
@@ -262,6 +263,28 @@ function renderSlice(sliceName, sp) {
     `shown beside it.`;
 }
 
+/**
+ * Claims the verifier could not tie to their cited passage.
+ *
+ * Shown rather than allowed to discard the answer. A referral saying "I could
+ * not confirm an answer" gives the reader nothing; this gives them the answer,
+ * the provisions, and the specific sentence to be careful about.
+ */
+function renderFlags(advisories) {
+  const box = $("aFlags");
+  clear(box);
+  if (!advisories || !advisories.length) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  box.appendChild(el("strong", {
+    text: advisories.length === 1
+      ? "One claim could not be tied to its cited passage:"
+      : `${advisories.length} claims could not be tied to their cited passages:`,
+  }));
+  const list = el("ul", {className: "meta"});
+  for (const a of advisories) list.appendChild(el("li", {text: a}));
+  box.appendChild(list);
+}
+
 function setCitations(node, citations) {
   clear(node);
   for (const c of citeNodes(citations)) node.appendChild(c);
@@ -291,6 +314,7 @@ async function showScenario(key, btn) {
   $("aRoute").textContent = a.route;
   $("aAnswer").textContent = a.answer || "";
   setCitations($("aCites"), a.citations);
+  renderFlags(a.advisories);
   markTag($("agentTag"), a.matched_expectation,
           a.matched_expectation ? "matches ground truth" : "differs from ground truth");
 
@@ -388,6 +412,7 @@ async function ask() {
       $("aRoute").textContent = "—";
       $("aAnswer").textContent = body.error || "Something went wrong.";
       setCitations($("aCites"), []);
+      renderFlags([]);
       markTag($("agentTag"), false,
               body.limit ? String(body.limit).replace(/_/g, " ") : "refused");
       renderTrace([]);
@@ -399,8 +424,9 @@ async function ask() {
     $("aRoute").textContent = body.route;
     $("aAnswer").textContent = body.answer || "";
     setCitations($("aCites"), body.citations);
-    const grounded = !!(body.verification && body.verification.passed);
-    markTag($("agentTag"), grounded, grounded ? "grounded" : "not verified");
+    renderFlags(body.verification && body.verification.advisories);
+    const grounded = !!(body.verification && body.verification.fully_grounded);
+    markTag($("agentTag"), grounded, grounded ? "grounded" : "claims flagged");
     renderTrace(body.trace);
   } finally {
     $("go").disabled = false;

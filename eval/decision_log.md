@@ -1422,3 +1422,47 @@ Recorded as a value in a test, so a future change that produces more deltas fail
 The helper written to cover `save_baseline` wrote over the **committed** conflict record and restored it in a `finally` that was initially a no-op. Once fixed, it captured the already-polluted file as its "original", so the corruption became self-sustaining. The tell was the test's own fake provenance sitting in shipped demo data.
 
 The helper now redirects `STORE` to a temporary directory: **removing the possibility rather than managing it.** A test that writes to committed data poisons the repository even after the test is fixed.
+
+---
+
+## DL-33: Entailment now annotates instead of discarding, and the headline number is defined so that cannot flatter it
+
+**Status:** decided and implemented, Step 4. Effect projected from the last scored run; not yet re-measured (credits).
+
+`verify` runs five checks and they are not the same kind of thing.
+
+| check | kind |
+|---|---|
+| citations were retrieved | decidable |
+| controlling provision cited | decidable |
+| figures appear in sources | decidable |
+| the answer cites something | decidable |
+| **claims follow from their sources** | **judgment** |
+
+The first four are settled by set membership and string search. A citation that was not retrieved was not retrieved, and no reading makes shipping it acceptable. The fifth is one model's reading of whether a sentence follows from a passage, and it was allowed to **silently discard answers that passed all four**.
+
+### The measurement that prompted this
+
+Of 19 scenarios that reached `verify` and failed it, **15 had the correct controlling authority**, and **9 of those were the conflict slice**. The precedence machinery worked, the answer was drafted from the right provision, and a judgment call threw it away. That is why conflict scores 1.000 on routing and 0.278 fully correct.
+
+**This does not prove the verifier is biased**, and the alternative reading is live: one flagged claim was *"Federal law [29 CFR 825.200] provides twelve weeks of FMLA leave for birth or bonding"*, where 825.200 gives the twelve weeks and the birth-or-bonding link is 825.120. The verifier may simply be right that `compose` makes compound claims while citing one provision. **Step 1 will settle it by hand.** What the measurement does establish is that the verifier, not composition, is the binding constraint.
+
+### The change
+
+Decidable failures block. Judgment failures annotate: the answer ships with the claim flagged, in a structured `advisories` field rather than appended prose, because mixing a system caveat into the answer text makes the model's words and ours indistinguishable.
+
+**The reader argument.** A referral saying "I could not confirm an answer to this" gives the reader nothing: no answer, no citations, no way to check. An answer with a flagged claim gives them the provision, the reasoning, and a specific sentence to be careful about.
+
+`VERIFY_ENTAILMENT_BLOCKS=1` restores the strict posture. The risk appetite is a product decision rather than an engineering one, and a real HCM deployment might well weigh an unsupported claim as worse than no answer.
+
+### The metric guard, which is the part to judge this entry on
+
+**Relaxing what blocks an answer raises `fully_correct` without improving anything.** This project has caught itself at that move repeatedly, so it is not made silently.
+
+Two numbers are now reported. `fully_correct` counts what blocks. **`fully_correct_strict` counts advisories as failures and is the headline.** By construction this change cannot move the headline: an answer that ships with a flagged claim is still a failure under the strict reading. What it changes is what the *reader* gets, which was the point.
+
+The gap between them is itself the finding, and it is printed on every run: **how many answers are correct in every decidable respect and carry a claim the verifier could not tie to its source.** Projected from the last scored run, that is 15 of 92.
+
+### Not measured yet, and why
+
+Re-running the evaluation needs live `compose` calls: the beaten-source fix in DL-27 changed one resolution, which changed its prompt, which invalidated its cache entry. Both providers are exhausted. **The 15 figure is therefore a projection from the saved run, not a measurement of the new behaviour**, and it is labelled that way until it can be re-run.

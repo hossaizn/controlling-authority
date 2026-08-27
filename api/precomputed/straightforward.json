@@ -14,6 +14,7 @@
     "federal"
   ],
   "precedence_rule": "concurrence_tie_break",
+  "advisories": [],
   "answer": "You are entitled to up to 12 workweeks of unpaid family and medical leave in any 12-month period under federal law [29 CFR 825.200]. The company policy [LEAVE-001] specifies that the 12-month period is measured backward from the date leave is used (a \"rolling\" method), which complies with federal law [29 CFR 825.200(b)(4)] and does not reduce your entitlement. The company policy is therefore consistent with and does not override the federal requirement.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
   "citations": [
     "29 CFR 825.200",
@@ -131,6 +132,7 @@
           "claims_follow_from_the_sources": true
         },
         "failures": [],
+        "advisories": [],
         "entailment_checked": true,
         "model": "claude-haiku-4-5-20251001",
         "usage": null

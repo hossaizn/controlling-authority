@@ -14,6 +14,7 @@
     "company"
   ],
   "precedence_rule": "silence_is_not_permission",
+  "advisories": [],
   "answer": "You are entitled to 24 hours, or 3 days, of paid sick leave per year under your company's policy [LEAVE-004-v1]. You accrue this leave at a rate of one hour for every 30 hours you work. Unused sick leave carries over to the following year, although your total accrual cannot exceed 48 hours at any time.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
   "citations": [
     "LEAVE-004-v1"
@@ -126,6 +127,7 @@
           "claims_follow_from_the_sources": true
         },
         "failures": [],
+        "advisories": [],
         "entailment_checked": true,
         "model": "claude-haiku-4-5-20251001",
         "usage": null

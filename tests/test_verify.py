@@ -291,24 +291,72 @@ def test_the_model_is_not_called_when_a_deterministic_check_already_failed() -> 
     assert not out["verification"].passed
 
 
-def test_an_unsupported_claim_fails_verification() -> None:
+def test_an_unsupported_claim_annotates_rather_than_discards() -> None:
+    """**The Step 4 change.** Entailment is one model's reading of whether a
+    sentence follows from a passage, and it was silently destroying answers that
+    passed every decidable check: 15 of 19 rejections had the correct
+    controlling authority, 9 of them in the conflict slice.
+
+    A referral saying "I could not confirm an answer" gives the reader nothing.
+    An answer with a flagged claim gives them the provision, the reasoning, and
+    a specific thing to be careful about.
+    """
     out, _ = run(
         "You are entitled to 12 workweeks [29 CFR 825.200].",
         caller=FakeCaller(supported=False, unsupported=["leave is fully paid"]),
     )
-    assert not out["verification"].passed
-    assert "leave is fully paid" in out["verification"].failures[0]
+    v = out["verification"]
+    assert v.passed is True, "the decidable checks all passed"
+    assert v.fully_grounded is False, "but it is not fully grounded"
+    assert "leave is fully paid" in v.advisories[0]
+    assert v.failures == []
+    assert "answer" not in out, "the answer survives"
 
 
-def test_an_unsupported_verdict_with_no_detail_still_fails() -> None:
-    """`list.extend` returns None, so an `extend(...) or append(...)` idiom
-    appends unconditionally. This pins the branch that bug lived in."""
+def test_a_deterministic_failure_still_discards_the_answer() -> None:
+    """The split is not severity. A citation that was not retrieved was not
+    retrieved, and no reading makes shipping it acceptable."""
+    out, _ = run(
+        "You get 26 workweeks [29 CFR 825.200].", caller=Exploding()
+    )
+    assert out["verification"].passed is False
+    assert REFERRAL in out["answer"]
+
+
+def test_strict_mode_restores_blocking(monkeypatch) -> None:
+    """A deployment weighing an unsupported claim as worse than no answer sets
+    this. The posture is a product decision, so it is configurable rather than
+    decided once in code."""
+    monkeypatch.setenv("VERIFY_ENTAILMENT_BLOCKS", "1")
+    out, _ = run(
+        "You are entitled to 12 workweeks [29 CFR 825.200].",
+        caller=FakeCaller(supported=False, unsupported=["leave is fully paid"]),
+    )
+    assert out["verification"].passed is False
+    assert out["verification"].advisories == []
+    assert REFERRAL in out["answer"]
+
+
+def test_an_unsupported_verdict_with_no_detail_is_still_flagged() -> None:
     out, _ = run(
         "You are entitled to 12 workweeks [29 CFR 825.200].",
         caller=FakeCaller(supported=False, unsupported=[]),
     )
-    assert not out["verification"].passed
-    assert out["verification"].failures == ["a claim is not supported by its source"]
+    assert out["verification"].advisories == ["a claim is not supported by its source"]
+    assert out["verification"].fully_grounded is False
+
+
+def test_a_clean_answer_is_fully_grounded() -> None:
+    out, _ = run("You are entitled to 12 workweeks [29 CFR 825.200].")
+    assert out["verification"].fully_grounded is True
+
+
+def test_the_trace_says_how_many_claims_were_flagged() -> None:
+    out, _ = run(
+        "You are entitled to 12 workweeks [29 CFR 825.200].",
+        caller=FakeCaller(supported=False, unsupported=["a", "b"]),
+    )
+    assert "2 claim(s) flagged" in out["trace"][0].summary
 
 
 def test_a_supported_answer_records_the_entailment_check_as_having_run() -> None:
@@ -338,3 +386,15 @@ def test_a_referral_from_compose_is_not_failed_for_having_no_citation() -> None:
         caller=Exploding(),
     )
     assert out["verification"].passed
+
+
+def test_advisories_are_kept_apart_from_failures() -> None:
+    """Two channels, not one list with severities. The eval reports a strict and
+    a blocking number from them, and merging them would make that impossible."""
+    out, _ = run(
+        "You are entitled to 12 workweeks [29 CFR 825.200].",
+        caller=FakeCaller(supported=False, unsupported=["x"]),
+    )
+    detail = out["trace"][0].detail
+    assert detail["failures"] == []
+    assert detail["advisories"]

@@ -99,9 +99,13 @@ def serialise(state: dict[str, Any], usage: Usage, trace_url: str | None) -> dic
         "defensible_authorities": list(resolution.defensible) if resolution else [],
         "precedence_rule": resolution.rule if resolution else None,
         "verification": {
+            # `passed` means nothing BLOCKED the answer. `fully_grounded` also
+            # requires the judgment call, and is the stricter reading.
             "passed": bool(verification and verification.passed),
+            "fully_grounded": bool(verification and verification.fully_grounded),
             "checks": dict(verification.checks) if verification else {},
             "failures": list(verification.failures) if verification else [],
+            "advisories": list(verification.advisories) if verification else [],
         },
         "trace": [
             {"node": e.node, "summary": e.summary, "detail": e.detail}

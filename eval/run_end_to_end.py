@@ -111,9 +111,21 @@ class EndToEnd:
         return bool(got) and got <= expected
 
     @property
+    def fully_grounded(self) -> bool:
+        """Verification with the judgment call counted as a failure.
+
+        `verified` reflects the checks that BLOCK an answer. This also counts
+        entailment advisories, which merely annotate it.
+        """
+        v = self.final.get("verification")
+        if v is None:
+            return self.verified
+        return v.fully_grounded
+
+    @property
     def fully_correct(self) -> bool:
-        """The only measure a user would recognise: right route, right authority,
-        required citations present, nothing forbidden, and it passed verify."""
+        """Right route, right authority, required citations present, nothing
+        forbidden, and nothing blocked it."""
         return (
             self.route_correct
             and self.precedence_correct
@@ -121,6 +133,18 @@ class EndToEnd:
             and not self.forbidden_present
             and self.verified
         )
+
+    @property
+    def fully_correct_strict(self) -> bool:
+        """The same, with entailment advisories counted as failures.
+
+        **Reported as the headline.** Making entailment advisory raises
+        `fully_correct` by relaxing a criterion rather than by improving the
+        system, and a project that keeps catching itself at that move should not
+        make it silently. The two numbers sit side by side and the stricter one
+        leads.
+        """
+        return self.fully_correct and self.fully_grounded
 
 
 def run(limit: int | None = None, model: str = HAIKU) -> dict:
@@ -173,17 +197,26 @@ def report(results: list[EndToEnd], usage: Usage, model: str = HAIKU) -> dict:
         f"(n={len(reached)} that reached verify)"
     )
     print()
-    print(f"FULLY CORRECT               {_rate(results, 'fully_correct'):.3f}")
+    strict = _rate(results, "fully_correct_strict")
+    relaxed = _rate(results, "fully_correct")
+    print(f"FULLY CORRECT (strict)      {strict:.3f}   <- the headline")
+    print(f"fully correct (blocking)    {relaxed:.3f}   entailment advisory")
+    print(
+        f"  difference                {relaxed - strict:+.3f}   "
+        "answers shipped with a flagged claim"
+    )
     print()
 
     by_slice: dict[str, list[EndToEnd]] = defaultdict(list)
     for r in results:
         by_slice[r.scenario.slice].append(r)
-    print(f"{'slice':16} {'n':>3} {'route':>7} {'full':>7}")
+    print(f"{'slice':16} {'n':>3} {'route':>7} {'strict':>7} {'block':>7}")
     for name, items in sorted(by_slice.items()):
         print(
             f"{name:16} {len(items):>3} "
-            f"{_rate(items, 'route_correct'):>7.3f} {_rate(items, 'fully_correct'):>7.3f}"
+            f"{_rate(items, 'route_correct'):>7.3f} "
+            f"{_rate(items, 'fully_correct_strict'):>7.3f} "
+            f"{_rate(items, 'fully_correct'):>7.3f}"
         )
 
     leaks = [r for r in results if r.forbidden_present]
@@ -217,11 +250,14 @@ def report(results: list[EndToEnd], usage: Usage, model: str = HAIKU) -> dict:
         "verification_pass_rate": _rate(reached, "verified"),
         "verification_n": len(reached),
         "fully_correct": _rate(results, "fully_correct"),
+        "fully_correct_strict": _rate(results, "fully_correct_strict"),
+        "fully_grounded": _rate(results, "fully_grounded"),
         "by_slice": {
             name: {
                 "n": len(items),
                 "route": _rate(items, "route_correct"),
                 "fully_correct": _rate(items, "fully_correct"),
+                "fully_correct_strict": _rate(items, "fully_correct_strict"),
             }
             for name, items in sorted(by_slice.items())
         },
