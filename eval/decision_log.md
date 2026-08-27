@@ -1601,3 +1601,58 @@ DL-19 defined a negative finding as "searched, not found, **scope stated**", and
 ### The two New York boxes stay open
 
 Both are marked "no scenario turns on it". Closing them means either research the eval does not fund, which DL-6's stopping rule forbids, or an assertion from recall, which DL-3 forbids. **An open box with a stated reason is a stronger artifact than a closed one with a guess behind it.**
+
+---
+
+## DL-37: A partial measurement that cannot be compared, and one that can
+
+**Status:** partial run, 49 of 92 scenarios. Aggregate deliberately unclaimed.
+
+The first run with a cross-family verifier: Haiku composing from cache, `gpt-oss-120b` verifying live. 43 scenarios could not run.
+
+| cause | n |
+|---|---|
+| Groq per-minute rate limit | 37 |
+| **gpt-oss did not call the tool** | **2** |
+| other 400s | 3 |
+| Anthropic credits | 1 |
+
+### The aggregate is not comparable, and quoting it would be dishonest
+
+The run reports `fully_correct_strict` of 0.612. **That number must not be set beside the 0.620 baseline.** Only 49 scenarios scored, only 15 reached `verify` against 58 before, and the slices are badly skewed: `straightforward` fell from n=17 to n=2, `conflict` from 18 to 7.
+
+Two figures over different populations are two different measurements. **The partial-run machinery did its job** — a result with a stated denominator beats an outage — but a stated denominator is a warning, not a licence.
+
+### The paired comparison, which is valid
+
+On the 49 scenarios scored in both runs:
+
+| | |
+|---|---|
+| fully correct before | **31 / 49** |
+| fully correct after | **32 / 49** |
+| recovered | **2** |
+| regressed | 1 |
+
+Net +1 is inside the one-scenario noise floor DL-23 established, so **the fixes cannot be claimed to have improved the aggregate.** What can be said is which two recovered:
+
+- **`conflict-001`**, the spec's flagship handbook-conflict case, the one that degraded to a referral and forced the demo's conflict button to be swapped in DL-29.
+- **`conflict-007`**, the *"I'm leaving with 11 unused vacation days"* case, which is precisely the figures false positive DL-35 fixed.
+
+Both fixes did the specific thing they were built to do, on a sample too small to say more. `control-010` regressed and is unexplained.
+
+### The finding that was not on the plan
+
+**`gpt-oss-120b` intermittently refuses to call the tool on the verify prompt**, returning `"Tool choice is required, but model did not call a tool"`. That is the exact 400 that disqualified `gpt-oss-20b` as a provider in DL-24.
+
+Two of 43, so intermittent rather than fatal. But **forced structured output is the contract every node in this system depends on**, and a verifier that sometimes declines to answer cannot be deployed as one. DL-24 fixed the adoption threshold on accuracy; it did not anticipate a model failing the interface.
+
+### What this does to DL-24
+
+DL-24 pre-registered a cross-family verifier as the fix for verification, and two independent measurements now point away from it. **DL-34** showed the verifier was mostly right and the defects were a false-positive figures check and a withheld evidence set. **This run** shows the open model cannot reliably hold the tool contract on that prompt.
+
+**The arm is worth reporting as a finding rather than adopting.** That is a negative result on a pre-registered plan, which is the outcome the pre-registration existed to make reportable.
+
+### Next
+
+The run is resumable from cache and Groq's daily budget is a rolling 24-hour window, so the 43 skipped scenarios cost nothing tomorrow. **The full-population comparison is deferred, not abandoned**, and the aggregate stays unclaimed until it exists.
