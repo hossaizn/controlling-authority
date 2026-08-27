@@ -1259,3 +1259,46 @@ The three-stage structure itself, and only the handbook guarantee inside it, whi
 Two of three candidate post-filters were rejected on measurement, one before building (per-document diversity, 2 of 57 rescuable, at the noise floor) and one after (absence records, zero effect). One was adopted and paid. **That ratio is the normal one**, and a pipeline where every proposed optimisation turns out to help is a pipeline whose measurements are not load-bearing.
 
 The latency finding stands on its own and is the more useful half: **retrieval is 0.04% of end-to-end time**, so the staged pattern is worth having for correctness and worth nothing here for speed.
+
+---
+
+## DL-29: The demo's flagship scenario did not work, and choosing a different one is not the same as hiding it
+
+**Status:** decided, Phase 8.
+
+The spec names six curated scenarios and calls the handbook-conflict case "the entire argument". Running it end to end showed **a referral**:
+
+> "I could not confirm an answer to this from the policies on record. Please ask your HR team."
+
+`conflict-001` is the canonical D-1 case: the handbook demands 18 months, CFRA grants at 12, she has 14. The precedence rules resolve it correctly. `verify` then rejects the composed answer and the whole thing degrades. It traces to the same self-grading entailment problem that produced 20 of 26 verification failures in DL-25.
+
+### What was chosen, and why it is a representative rather than a winner
+
+The conflict button now shows **`conflict-002`**, and the reason is not that it passes.
+
+| | naive baseline | truth |
+|---|---|---|
+| conflict-002 | state | **company** |
+| conflict-004 | state | state |
+| conflict-010 | state | state |
+| conflict-021 | state | state |
+
+Of the five conflict scenarios that are fully correct end to end, **only `conflict-002` and `conflict-009` are ones the naive baseline gets wrong.** The other three it gets right by luck, so the baseline toggle would show no difference and the demo's central comparison would be empty.
+
+`conflict-002` is also the better teaching case. The handbook grants ten paid bereavement days against a five-day statutory floor, so **policy controls and the naive intuition fails in the harder direction**: this system is not "always prefer the law", and D-2 exists precisely to punish an agent that learned that.
+
+### The line between selecting a representative and cherry-picking
+
+Choosing which of eighteen conflict cases to show is unavoidable; six buttons cannot show eighteen. What makes it honest is that **the slice's measured score travels with the payload**:
+
+```json
+"slice_performance": {"n": 18, "route_accuracy": 1.0, "fully_correct": 0.278}
+```
+
+Read from `eval/runs/end_to_end.json` rather than restated, so the demo cannot quote a number the evaluation no longer produces. A reviewer sees one working example and, beside it, that the slice is **0.278 fully correct**. Every payload also carries `expected` and `matched_expectation`, so a scenario the agent gets wrong displays as wrong rather than being quietly dropped.
+
+The dishonest version of this is picking winners and implying the slice is solved. The honest version is picking a representative that demonstrates the mechanism while reporting what the slice actually scores.
+
+### The blocker this exposes
+
+**The demo's headline case cannot be shown because verification rejects a correct answer.** That is now the highest-value open item in the project, above anything in Phase 9, and it has a known cause and a pre-registered fix: DL-24's open-weights arm supplies a cross-family verifier, and `verify` prompts are small enough to fit the free tier's per-request ceiling even though `resolve` prompts are not.

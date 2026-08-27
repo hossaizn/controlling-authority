@@ -1,0 +1,49 @@
+{
+  "scenario_id": "ambiguous-001",
+  "question": "I need to take about six weeks off to sort out a family situation that isn't a medical thing. Can I do that?\n",
+  "as_of": "2026-04-01",
+  "employee_context": {
+    "state": "CA",
+    "employer_size": 400
+  },
+  "route": "clarify",
+  "answer": "How long have you worked for the company?\n\nWhether you can take six weeks depends on how long you have worked for the company and the exact nature of the family situation\u2014some family matters qualify for protected leave and some do not.",
+  "citations": [],
+  "trace": [
+    {
+      "node": "triage",
+      "summary": "Whether you can take six weeks depends on how long you have worked for the company and the exact nature of the family situation\u2014some family matters qualify for protected leave and some do not.",
+      "detail": {
+        "route": "clarify",
+        "missing_fact": "tenure_months",
+        "jurisdiction": "CA",
+        "query_sent_to_index": "protected leave for family matters other than medical care",
+        "query_fell_back_to_raw": false,
+        "raw_question": "I need to take about six weeks off to sort out a family situation that isn't a medical thing. Can I do that?\n",
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    },
+    {
+      "node": "clarify",
+      "summary": "asked for tenure_months",
+      "detail": {
+        "missing_fact": "tenure_months",
+        "question": "How long have you worked for the company?"
+      }
+    }
+  ],
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  },
+  "expected": {
+    "route": "clarify",
+    "authority": null,
+    "acceptable_authorities": [],
+    "required_citations": [],
+    "slice": "ambiguous"
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "scenario_id": "straightforward-001",
+  "question": "How many weeks of unpaid family and medical leave can I take in a year?",
+  "as_of": "2026-04-01",
+  "employee_context": {
+    "state": "OH",
+    "tenure_months": 30,
+    "hours_worked_12mo": 2000,
+    "employer_size": 400
+  },
+  "route": "answer",
+  "answer": "You are entitled to up to 12 workweeks of unpaid family and medical leave in any 12-month period under federal law [29 CFR 825.200]. The company policy [LEAVE-001] specifies that the 12-month period is measured backward from the date leave is used (a \"rolling\" method), which complies with federal law [29 CFR 825.200(b)(4)] and does not reduce your entitlement. The company policy is therefore consistent with and does not override the federal requirement.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
+  "citations": [
+    "29 CFR 825.200",
+    "LEAVE-001"
+  ],
+  "trace": [
+    {
+      "node": "triage",
+      "summary": "You are eligible for federal FMLA leave as an employee at a covered employer with 12 months of tenure and 1,250+ hours worked in the past 12 months. The index contains the rules on the duration of FMLA leave per year.",
+      "detail": {
+        "route": "answer",
+        "missing_fact": null,
+        "jurisdiction": "OH",
+        "query_sent_to_index": "how many weeks of unpaid family and medical leave per year under FMLA",
+        "query_fell_back_to_raw": false,
+        "raw_question": "How many weeks of unpaid family and medical leave can I take in a year?",
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    },
+    {
+      "node": "retrieve",
+      "summary": "11 passages across 2 authority layer(s), filtered to OH as of 2026-04-01, topped up for: handbook",
+      "detail": {
+        "query": "how many weeks of unpaid family and medical leave per year under FMLA",
+        "jurisdiction_filter": "OH",
+        "as_of": "2026-04-01",
+        "layers_found": [
+          "company",
+          "federal"
+        ],
+        "ranked": 10,
+        "guarantees_fired": [
+          "handbook"
+        ],
+        "absence_records": [],
+        "citations": [
+          "29 CFR 825.200",
+          "29 CFR 825.100",
+          "29 CFR 825.701",
+          "29 CFR 825.200",
+          "29 CFR 825.120",
+          "29 CFR 825.215",
+          "29 CFR 825.200",
+          "29 CFR 825.127",
+          "29 CFR 825.201",
+          "29 CFR 825.207",
+          "LEAVE-001"
+        ]
+      }
+    },
+    {
+      "node": "resolve",
+      "summary": "federal law controls: the handbook restates the statute, so the statute is what compels this",
+      "detail": {
+        "controlling": "federal",
+        "acceptable": [],
+        "rule": "concurrence_tie_break",
+        "considered": [
+          {
+            "layer": "federal",
+            "outcome": "grants",
+            "citation": "29 CFR 825.200",
+            "says": "An eligible employee is entitled to up to 12 workweeks of unpaid FMLA leave during any 12-month period for family and medical reasons.",
+            "generosity_rank": 1
+          },
+          {
+            "layer": "state",
+            "outcome": "silent",
+            "citation": null,
+            "says": "No state law provisions were retrieved regarding family and medical leave.",
+            "generosity_rank": null
+          },
+          {
+            "layer": "company",
+            "outcome": "grants",
+            "citation": "LEAVE-001",
+            "says": "Eligible employees may take up to 12 workweeks of unpaid leave in a rolling 12-month period.",
+            "generosity_rank": 1
+          }
+        ],
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    },
+    {
+      "node": "compose",
+      "summary": "drafted from federal, citing 2 source(s)",
+      "detail": {
+        "citations": [
+          "29 CFR 825.200",
+          "LEAVE-001"
+        ],
+        "citations_not_retrieved": [],
+        "asked_to_address": [
+          "LEAVE-001"
+        ],
+        "usage": null,
+        "addressed_by_model": [
+          "LEAVE-001"
+        ],
+        "addressed_by_fallback": [],
+        "model": "claude-haiku-4-5-20251001"
+      }
+    },
+    {
+      "node": "verify",
+      "summary": "5/5 checks passed",
+      "detail": {
+        "checks": {
+          "citations_were_retrieved": true,
+          "answer_is_cited": true,
+          "controlling_provision_cited": true,
+          "figures_appear_in_the_sources": true,
+          "claims_follow_from_the_sources": true
+        },
+        "failures": [],
+        "entailment_checked": true,
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    }
+  ],
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  },
+  "expected": {
+    "route": "answer",
+    "authority": "federal",
+    "acceptable_authorities": [],
+    "required_citations": [
+      "29 CFR 825.200"
+    ],
+    "slice": "straightforward"
+  }
+}
