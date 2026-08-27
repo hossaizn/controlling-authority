@@ -1830,3 +1830,31 @@ It also does not retract anything. Every published number was measured as descri
 ### Next
 
 Reopened, not answered. The honest test is the one DL-16 implies: build a reranker, run it on rewritten queries, and score it on the conflict slice specifically, against a pre-registered bar set before the run. Until that happens the system ships without one, and this entry is why that is a known gap rather than a closed question.
+
+## DL-41: No sampling parameters are set, and fixing that now would invalidate every number here
+
+**Status:** open, and deliberately not fixed today. Found by an audit against a list of standard techniques, not by a review.
+
+Every model call in this project runs at the provider default temperature. `agent/models.py` sets `model`, `max_tokens`, `tools` and `tool_choice`, and nothing else. No `temperature`, no `top_p`, no `top_k`, no frequency or presence penalty, on either the Anthropic path or the OpenAI-compatible one.
+
+**For most of this graph the standard choice is temperature 0.** `triage` is classification. `resolve` is extraction against a fixed schema. Neither benefits from sampling, and both feed code that treats their output as fact.
+
+### Two things partly cover for it, and neither is the same as setting it
+
+**Forced tool calls.** Every node answers through a required tool with a constrained schema, so the output space is small and typed. Sampling cannot turn `"federal"` into prose. It can still flip a layer, a generosity rank, or a citation.
+
+**The disk cache.** Re-runs replay from `corpus/raw/model` by content hash, which is why the numbers in this log reproduce. **That reproducibility is caching, not determinism.** A cache miss re-runs at temperature 1.0, and the first run of any prompt was a sample of one from a distribution nobody bounded.
+
+### Why it is not being fixed in this commit
+
+Setting temperature now would produce a system whose published numbers describe a configuration that no longer exists. Every score in this log was measured at the default, so the honest sequence is: set it, re-run the evals, and record what moved. Re-running needs Anthropic credits this account does not have.
+
+**There is a second defect underneath it.** `_cache_key` hashes model, system, user and tool. It does not include sampling parameters. So a future change to temperature would silently serve results generated at the old one, and the run would look consistent while mixing two configurations. Adding the parameters to the key is correct and makes all 1,127 cached entries unreachable, which is the same credits problem again.
+
+### What fixing it looks like
+
+1. Add `temperature` to `StructuredCaller.call` and to `_cache_key`, defaulting to 0 for `triage`, `resolve` and `verify`.
+2. Leave `compose` open for discussion. It writes prose for a person to read, which is the one place sampling might earn its keep, and the entailment check already grades the result.
+3. Re-run `run_triage`, `run_precedence` and `run_end_to_end`, and record the deltas as a paired comparison rather than replacing the numbers.
+
+**Pre-registered prediction, so this cannot be graded after the fact:** routing accuracy moves by less than 2 points and precedence correctness by less than 2 scenarios, because the forced schema already collapses most of the variance. If either moves more than that, the current numbers were noisier than this log has been treating them.

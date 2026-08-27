@@ -116,6 +116,73 @@ Named because the list matters as much as the one above.
 
 ---
 
+## Choices, including the ones I skipped
+
+A reviewer will look for these. Each is either a thing this project does, with the reasoning, or a thing it does not, with the reason.
+
+### Latency
+
+Measured once, reactively, when a filtering decision needed it. Qdrant search runs at **5.8 ms** median against a **13,198 ms** end-to-end, so retrieval is **0.04%** of the budget. Perfecting it would save 6 ms out of 13 seconds.
+
+The cost is four sequential model calls, and no amount of retrieval tuning moves that. Two things were done about it. The graph is built once at startup rather than per request, and the curated scenarios are pre-computed, which takes the path most reviewers walk down to zero model calls and zero wait.
+
+**No latency target was ever set.** Had a p95 been fixed on day one, the serial chain would have been a design constraint rather than an observation. DL-28 and DL-39.
+
+### Token cost
+
+Retrieval returns 10 passages, not the 30 it searches. Every extra chunk is roughly 300 tokens in the `resolve` and `compose` prompts, so fetching 30 to surface one document triples the bill and the latency.
+
+`verify` sends targeted evidence rather than everything: about 1,000 tokens instead of 6,700, selected from the citations actually under test.
+
+DL-38 asked the sharper question, what is the minimum context `resolve` needs, and pre-registered an experiment with thresholds. It is built and **not yet run**, because it needs either credits or a free-tier window that has not reset.
+
+### Guardrails
+
+Layered, and most of them are code rather than prompt instructions.
+
+- **Forced tool calls.** Every structured output comes back through a required tool. A provider that answers in prose fails loudly instead of being parsed.
+- **Citation validation.** Model output is mapped to a citation that was actually retrieved, and rejected otherwise.
+- **Precedence in code.** A persuasively worded question cannot argue past a rule that is not in the prompt. The adversarial slice tests exactly that.
+- **Spend limits.** Sliding-window caps per IP and per session, a global daily breaker, and an input length cap. Budget is charged in a `finally`, because an earlier version charged only on success and a mid-graph failure spent real tokens against an untouched counter.
+- **Corpus integrity.** `DEFECTS.md` is the answer key and two independent guards keep it out of the ingested corpus.
+- **The public page.** One sink where data reaches the DOM, no HTML built from strings, and a build-time check for off-origin loads.
+
+### Hallucination
+
+`verify` is the guard, and four of its five checks need no model: citations resolve to retrieved text, an entitlement claim rests on a citation, the answer cites the provision precedence chose, and every quoted figure appears in its source. Only entailment uses a model.
+
+The figures check took three attempts. It exempted `29` corpus-wide because every federal citation starts with it, matched `"ten"` inside `"written"`, and compared `1,250` against `1250` as different numbers. DL-35.
+
+A failed check degrades the answer to a referral rather than shipping it. That costs the reader the citations, which is the honest downside, and it is reported at 0.672 rather than hidden.
+
+### Sampling parameters
+
+**None are set.** No temperature, no top-p, no top-k, no frequency or presence penalty. Every call runs at the provider default.
+
+For `triage` and `resolve` the standard choice is temperature 0, and this project should be making it. Forced tool calls with a constrained schema absorb some of the variance, and the disk cache is why runs reproduce, but **that reproducibility is caching, not determinism**. A cache miss re-runs at default sampling.
+
+Not fixed retroactively, because every published number was measured at the default and changing it silently would make the numbers describe a system that no longer exists. DL-41 has the fix, the second defect underneath it, and a pre-registered prediction about how much it will move.
+
+### Data drift
+
+**Provenance drift is handled. Statistical drift is not.**
+
+Pre-computed records carry the prompt and corpus versions they were generated under, and a record generated under different ones is served marked stale rather than passed off as current. Prompt versions key the cache. Corpus documents carry snapshot dates, and absence records carry a `verified_on` date and the scope that was searched.
+
+There is no monitoring of embedding or query distribution over time, because the corpus is a fixed 104-document snapshot and nothing arrives after ingestion. On a live corpus that would be the first thing to add.
+
+### Deployment
+
+The demo ships as static files on Cloudflare Pages: the six scenarios, both comparison arms and the traces are all pre-computed, and the argument the project makes needs no server.
+
+Free container hosting that stays awake without a credit card ended during 2026. Fly retired its free tier, Hugging Face moved Docker Spaces to a paid plan, and the rest want a card. A server whose one dynamic feature is rate-limited into single digits a day was not worth a cold start on every first click. DL-39.
+
+### Knowledge graph
+
+Not used, and not close. Three authority layers with a precedence order between them is a rule set, not a graph problem. The relationships that matter are "is more generous than" and "was in force on", and both are computed from fields the documents already carry.
+
+---
+
 ## Corpus
 
 104 documents: 79 federal (29 CFR 825), 6 California, 2 New York, 8 Ohio absence records, 9 handbook policies.

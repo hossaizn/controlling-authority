@@ -411,6 +411,28 @@
     </p>
   </div>
 
+
+  <h2>Engineering choices</h2>
+  <div class="panel">
+    <dl class="keylist">
+      <dt>hybrid search</dt><dd>dense plus sparse vectors, fused with RRF, because statutory text is full of exact terms a dense embedding blurs</dd>
+      <dt>filters</dt><dd>jurisdiction and date are hard constraints inside each search, never ranking signals</dd>
+      <dt>chunking</dt><dd>structure-aware, picked over fixed-size by measurement</dd>
+      <dt>reranking</dt><dd>not built. The rule said build one only above 10 points of headroom, and it measured 7.0. Reopened in DL-40</dd>
+      <dt>latency</dt><dd>retrieval is 0.04% of the budget. The cost is four sequential model calls, so these scenarios are pre-computed</dd>
+      <dt>tokens</dt><dd>10 passages retrieved, not 30. Verification sees 1,000 tokens of targeted evidence, not 6,700</dd>
+      <dt>guardrails</dt><dd>forced tool calls, citations checked against what was retrieved, spend caps, and the answer key kept out of the corpus</dd>
+      <dt>hallucination</dt><dd>four of five groundedness checks are code, not a second model grading the first</dd>
+      <dt>sampling</dt><dd>temperature and top-p are unset, which is a gap rather than a choice. DL-41</dd>
+      <dt>drift</dt><dd>records carry the prompt and corpus versions they ran under and are marked stale when those move</dd>
+      <dt>knowledge graph</dt><dd>not used. Three layers with a precedence order is a rule set, not a graph</dd>
+    </dl>
+    <p class="meta" style="margin:14px 0 0">
+      The <a href="https://github.com/hossaizn/controlling-authority#choices-including-the-ones-i-skipped">README</a>
+      has the reasoning for each, and the decision log has the measurements.
+    </p>
+  </div>
+
   <h2>Where this falls short</h2>
   <div class="panel">
     <p style="margin-top:0">When it should ask you a follow-up instead of

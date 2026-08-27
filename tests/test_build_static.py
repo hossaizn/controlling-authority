@@ -546,3 +546,24 @@ def test_the_result_appears_before_the_ask_box(site) -> None:
         html.index("<h2>Where this falls short</h2>"),
     ]
     assert positions == sorted(positions), f"sections out of order: {positions}"
+
+
+def test_the_demo_links_to_a_readme_anchor_that_exists(site) -> None:
+    """A deep link into the README rots silently when a heading is renamed.
+    GitHub does not 404 for a missing fragment, it just lands you at the top."""
+    import re
+
+    html = (site / "index.html").read_text()
+    fragments = re.findall(
+        r"github\.com/hossaizn/controlling-authority#([a-z0-9-]+)", html
+    )
+    if not fragments:
+        pytest.skip("the demo carries no README deep links")
+
+    readme = (ROOT / "README.md").read_text()
+    slugs = {
+        re.sub(r"[^a-z0-9]+", "-", h.lower().strip()).strip("-")
+        for h in re.findall(r"^#{2,3} (.+)$", readme, re.M)
+    }
+    for fragment in fragments:
+        assert fragment in slugs, f"README has no heading for #{fragment}"
