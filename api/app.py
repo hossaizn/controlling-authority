@@ -26,7 +26,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from agent.build import build_agent, build_baseline
-from agent.models import StructuredCaller, Usage
+from agent.models import StructuredCaller, Usage, track_usage
 from agent.state import initial_state
 from agent.tracing import configured as tracing_configured
 from agent.tracing import run_traced
@@ -51,17 +51,30 @@ class AskRequest(BaseModel):
     baseline: bool = False
 
 
-def client_ip(request: Request, forwarded: str | None) -> str:
-    """Behind Fly.io the socket peer is the proxy, so every caller would share
-    one bucket and the per-IP limit would be a global one under another name.
+def client_ip(
+    request: Request, forwarded: str | None, fly_client_ip: str | None = None
+) -> str:
+    """The caller's address, taken from the one hop we can trust.
 
-    Only the FIRST entry of X-Forwarded-For is used. Later entries are attacker
-    controlled: appending a fake hop is how a client gives itself a fresh bucket.
+    **This was backwards and it was exploitable.** The first version took the
+    FIRST `X-Forwarded-For` entry on the reasoning that later hops are attacker
+    controlled. It is the other way round: each proxy APPENDS, so the leftmost
+    entry is whatever the client sent and the rightmost was written by our own
+    edge. Trusting the left one let a caller rotate the header and mint a fresh
+    rate-limit bucket per request, which a review confirmed by walking straight
+    past both the per-IP and per-session limits.
+
+    Order of preference:
+    1. `Fly-Client-IP`, set by the platform and not forwardable by a client.
+    2. The RIGHTMOST `X-Forwarded-For` entry, appended by the last proxy.
+    3. The socket peer.
     """
+    if fly_client_ip and fly_client_ip.strip():
+        return fly_client_ip.strip()
     if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+        hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+        if hops:
+            return hops[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -180,7 +193,15 @@ def scenario(key: str) -> JSONResponse:
     # No limit check and no budget charged: this costs nothing to serve, so
     # rate-limiting it would degrade the common path to protect a budget it
     # never touches.
-    return JSONResponse(content=record.payload)
+    #
+    # Staleness is surfaced on the record itself, not only on /api/health.
+    # `precomputed.py` says a stale record must not be served as though it were
+    # current, and only the health endpoint honoured that.
+    payload = dict(record.payload)
+    payload["stale"] = record.key in precomputed.stale(
+        precomputed.current_provenance(CORPUS_SNAPSHOT)
+    )
+    return JSONResponse(content=payload)
 
 
 @router.post("/ask")
@@ -188,9 +209,10 @@ def ask(
     payload: AskRequest,
     request: Request,
     x_forwarded_for: str | None = Header(default=None),
+    fly_client_ip: str | None = Header(default=None),
 ) -> JSONResponse:
     protection: Protection = request.app.state.protection
-    ip = client_ip(request, x_forwarded_for)
+    ip = client_ip(request, x_forwarded_for, fly_client_ip)
     question = payload.question.strip()
 
     if not question:
@@ -217,22 +239,21 @@ def ask(
         )
 
     graph = request.app.state.agents["baseline" if payload.baseline else "agent"]
-    usage = Usage()
-    caller = request.app.state.caller
-    before = (caller.usage.input_tokens, caller.usage.output_tokens, caller.usage.calls)
 
-    final, trace_url = run_traced(
-        graph, build_state(payload), session_id=payload.session_id
-    )
-
-    # Budget is charged only now, after the work actually ran. Charging on check
-    # would drift the global cap down against requests that failed downstream.
-    protection.record(ip, payload.session_id)
-
-    usage.input_tokens = caller.usage.input_tokens - before[0]
-    usage.output_tokens = caller.usage.output_tokens - before[1]
-    usage.calls = caller.usage.calls - before[2]
-    usage.by_model = dict(caller.usage.by_model)
+    # **Charged in `finally`.** The first version recorded only on success, so a
+    # graph that raised after calling the model spent real tokens and consumed no
+    # budget. A review drove 30 such requests: 3,000 input tokens spent, the
+    # global counter still reading 8 of 8. Any reliably-triggerable mid-graph
+    # failure was therefore a source of unmetered inference, and the global
+    # breaker was not the last line at all: it was only reached by requests that
+    # succeeded.
+    try:
+        with track_usage() as usage:
+            final, trace_url = run_traced(
+                graph, build_state(payload), session_id=payload.session_id
+            )
+    finally:
+        protection.record(ip, payload.session_id)
 
     return JSONResponse(content=serialise(final, usage, trace_url))
 

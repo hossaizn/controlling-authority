@@ -100,27 +100,37 @@ class Precomputed:
         }
 
 
-def _slice_scores() -> dict[str, dict[str, Any]]:
-    """Per-slice end-to-end results from the last scored run.
+SCORES = STORE / "_slice_scores.json"
 
-    Read from the eval artifact rather than restated here, so the demo cannot
-    quote a number the evaluation no longer produces.
+
+def _slice_scores() -> dict[str, dict[str, Any]]:
+    """Per-slice end-to-end results, from a snapshot committed beside the records.
+
+    **This read `eval/runs/end_to_end.json` and that directory is gitignored**,
+    so every payload reported an empty `slice_performance` in any deployment and
+    the honesty argument in DL-29 held only on the machine that generated it.
+    Worse, it failed silently: a missing file returned `{}` and all tests passed.
+
+    The snapshot is written by `api/generate_precomputed.py` from the eval
+    artifact, in the same pass that captures the runs, so the numbers cannot
+    describe a different run from the answers they sit beside. A missing
+    snapshot now raises there rather than degrading here.
     """
-    run = Path(__file__).resolve().parent.parent / "eval" / "runs" / "end_to_end.json"
-    if not run.exists():
+    if not SCORES.exists():
         return {}
     try:
-        by_slice = json.loads(run.read_text()).get("by_slice", {})
+        return json.loads(SCORES.read_text()).get("by_slice", {})
     except (json.JSONDecodeError, OSError):
         return {}
-    return {
-        name: {
-            "n": v["n"],
-            "route_accuracy": round(v["route"], 3),
-            "fully_correct": round(v["fully_correct"], 3),
-        }
-        for name, v in by_slice.items()
-    }
+
+
+def overall_scores() -> dict[str, Any]:
+    if not SCORES.exists():
+        return {}
+    try:
+        return json.loads(SCORES.read_text()).get("overall", {})
+    except (json.JSONDecodeError, OSError):
+        return {}
 
 
 def _path(key: str) -> Path:

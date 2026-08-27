@@ -1,0 +1,48 @@
+{
+  "generated_from": "eval/runs/end_to_end.json",
+  "run_at": "2026-08-26T15:22:55",
+  "model": "claude-haiku-4-5-20251001",
+  "overall": {
+    "fully_correct": 0.6196,
+    "route_accuracy_macro": 0.8154,
+    "precedence_correct": 0.7895,
+    "n": 92
+  },
+  "by_slice": {
+    "adversarial": {
+      "n": 10,
+      "route_accuracy": 0.8,
+      "fully_correct": 0.7
+    },
+    "ambiguous": {
+      "n": 15,
+      "route_accuracy": 0.533,
+      "fully_correct": 0.533
+    },
+    "conflict": {
+      "n": 18,
+      "route_accuracy": 1.0,
+      "fully_correct": 0.278
+    },
+    "control": {
+      "n": 10,
+      "route_accuracy": 0.5,
+      "fully_correct": 0.3
+    },
+    "out_of_scope": {
+      "n": 12,
+      "route_accuracy": 1.0,
+      "fully_correct": 1.0
+    },
+    "straightforward": {
+      "n": 17,
+      "route_accuracy": 1.0,
+      "fully_correct": 0.765
+    },
+    "superseded": {
+      "n": 10,
+      "route_accuracy": 1.0,
+      "fully_correct": 0.9
+    }
+  }
+}

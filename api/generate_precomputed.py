@@ -18,6 +18,9 @@ so this replays from disk unless a prompt changed.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from agent.build import build_agent
 from agent.models import StructuredCaller, Usage
 from agent.state import initial_state
@@ -39,6 +42,45 @@ def main() -> int:
         # longer exists means the demo and the eval have diverged.
         print(f"ERROR: curated scenarios not in the golden set: {missing}")
         return 1
+
+    # Written in the same pass as the records, so the scores cannot describe a
+    # different run from the answers they sit beside. Loud if absent: a demo
+    # claiming honesty via numbers it does not have is worse than one that says
+    # it needs regenerating.
+    run = Path("eval/runs/end_to_end.json")
+    if not run.exists():
+        print(
+            "ERROR: eval/runs/end_to_end.json is missing. Run "
+            "`uv run python -m eval.run_end_to_end` first: the demo quotes its "
+            "per-slice scores and must not ship without them."
+        )
+        return 1
+    scored = json.loads(run.read_text())
+    precomputed.SCORES.parent.mkdir(parents=True, exist_ok=True)
+    precomputed.SCORES.write_text(
+        json.dumps(
+            {
+                "generated_from": str(run),
+                "run_at": scored.get("run_at"),
+                "model": scored.get("model"),
+                "overall": {
+                    "fully_correct": round(scored["fully_correct"], 4),
+                    "route_accuracy_macro": round(scored["route_accuracy_macro"], 4),
+                    "precedence_correct": round(scored["precedence_correct"], 4),
+                    "n": scored["n"],
+                },
+                "by_slice": {
+                    k: {
+                        "n": v["n"],
+                        "route_accuracy": round(v["route"], 3),
+                        "fully_correct": round(v["fully_correct"], 3),
+                    }
+                    for k, v in scored["by_slice"].items()
+                },
+            },
+            indent=2,
+        )
+    )
 
     usage = Usage()
     caller = StructuredCaller(usage=usage)

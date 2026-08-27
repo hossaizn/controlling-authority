@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -35,6 +37,26 @@ from ingest.settings import optional, require
 from retrieval.ratelimit import RateBudget, estimate_tokens
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "corpus" / "raw" / "model"
+
+# Per-request usage, so concurrent callers cannot read each other's totals.
+#
+# The API originally snapshotted the shared caller's counters before and after a
+# request and subtracted. Under concurrency that is simply wrong: a review ran
+# eight simultaneous requests each spending 1,000 tokens and they reported
+# 1,000 through 8,000. A ContextVar is scoped to the request in both threadpool
+# and async execution, which a shared attribute is not.
+_REQUEST_USAGE: ContextVar[Usage | None] = ContextVar("request_usage", default=None)
+
+
+@contextmanager
+def track_usage():
+    """Collect only what is spent inside this block."""
+    usage = Usage()
+    token = _REQUEST_USAGE.set(usage)
+    try:
+        yield usage
+    finally:
+        _REQUEST_USAGE.reset(token)
 
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-4-5"
@@ -155,21 +177,25 @@ class Usage:
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
         self.by_model[model] = self.by_model.get(model, 0) + 1
+        tin, tout = self.tokens_by_model.get(model, (0, 0))
+        self.tokens_by_model[model] = (tin + input_tokens, tout + output_tokens)
 
     def hit(self) -> None:
         self.cached += 1
 
+    #: Tokens per model, so cost is computed from what each model actually used
+    #: rather than apportioned by call count. Apportioning reported a different
+    #: figure for an identical request as soon as a second model entered the
+    #: process, because the share moved.
+    tokens_by_model: dict[str, tuple[int, int]] = field(default_factory=dict)
+
     @property
     def usd(self) -> float:
         total = 0.0
-        for model, count in self.by_model.items():
-            if count and model in PRICE_PER_MTOK:
-                rate = PRICE_PER_MTOK[model]
-                share = count / max(sum(self.by_model.values()), 1)
-                total += (
-                    self.input_tokens * share * rate["input"]
-                    + self.output_tokens * share * rate["output"]
-                ) / 1_000_000
+        for model, (tin, tout) in self.tokens_by_model.items():
+            rate = PRICE_PER_MTOK.get(model)
+            if rate:
+                total += (tin * rate["input"] + tout * rate["output"]) / 1_000_000
         return total
 
     def summary(self) -> str:
@@ -295,6 +321,9 @@ class StructuredCaller:
 
         if self.use_cache and path.exists():
             self.usage.hit()
+            scoped = _REQUEST_USAGE.get()
+            if scoped is not None:
+                scoped.hit()
             # A cache hit spent nothing. Reporting the previous call's
             # tokens here would attribute real cost to work that never
             # happened, which is how an all-cache eval run reports a bill.
@@ -311,6 +340,9 @@ class StructuredCaller:
             result, tokens = self._openai(client, system, user, tool, model, max_tokens)
 
         self.usage.add(model, *tokens)
+        scoped = _REQUEST_USAGE.get()
+        if scoped is not None:
+            scoped.add(model, *tokens)
         self.last_call = {
             "model": model,
             "input_tokens": tokens[0],

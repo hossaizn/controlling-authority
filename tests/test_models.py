@@ -13,6 +13,7 @@ import pytest
 from agent.models import (
     HAIKU,
     SONNET,
+    StructuredCaller,
     Usage,
     _cache_key,
     as_openai_tool,
@@ -196,6 +197,93 @@ def test_a_cache_hit_clears_the_last_call_usage(monkeypatch, tmp_path) -> None:
 
 
 def test_last_call_starts_empty() -> None:
-    from agent.models import StructuredCaller
 
     assert StructuredCaller().last_call is None
+
+
+# --- cost and per-request accounting ----------------------------------------
+
+
+def test_cost_is_computed_per_model_from_its_own_tokens() -> None:
+    """Apportioning by call share reported a DIFFERENT figure for an identical
+    request as soon as a second model entered the process, because the share
+    moved. Cost has to come from what each model actually used."""
+    usage = Usage()
+    usage.add(HAIKU, 1_000_000, 0)
+    assert usage.usd == pytest.approx(1.00)
+    usage.add(SONNET, 1_000_000, 0)
+    assert usage.usd == pytest.approx(4.00), "1.00 haiku + 3.00 sonnet"
+
+
+def test_an_unpriced_model_adds_nothing_but_its_tokens_are_still_counted() -> None:
+    usage = Usage()
+    usage.add(HAIKU, 1_000_000, 0)
+    usage.add("openai/gpt-oss-120b", 5_000_000, 1_000_000)
+    assert usage.usd == pytest.approx(1.00)
+    assert usage.input_tokens == 6_000_000
+
+
+def test_a_haiku_only_run_is_unaffected_by_a_later_model() -> None:
+    """The bug's signature: identical work, different reported cost."""
+    a = Usage()
+    a.add(HAIKU, 5400, 260)
+    b = Usage()
+    b.add(HAIKU, 5400, 260)
+    b.add(SONNET, 100, 10)
+    assert a.usd == pytest.approx(
+        b.usd - (100 * 3.0 + 10 * 15.0) / 1_000_000
+    ), "the haiku portion must not move"
+
+
+def test_a_real_call_populates_the_request_scoped_usage(monkeypatch, tmp_path) -> None:
+    """Driven through `call` itself, not by writing to the ContextVar by hand.
+
+    The first version populated the variable directly, so deleting the line in
+    `call` that does it left the test green: it tested the ContextVar, not the
+    thing that has to use it. Eight concurrent requests each really spending
+    1,000 tokens reported 1,000 through 8,000 when the API subtracted snapshots
+    of shared counters.
+    """
+    from agent import models
+    from agent.models import track_usage
+
+    monkeypatch.setattr(models, "CACHE_DIR", tmp_path)
+    caller = models.StructuredCaller(use_cache=False)
+    monkeypatch.setattr(
+        caller, "client_for", lambda spec: object()
+    )
+    monkeypatch.setattr(
+        caller, "_anthropic", lambda *a, **k: ({"route": "answer"}, (120, 30))
+    )
+    caller.usage.add(HAIKU, 999, 999)  # pre-existing lifetime total
+
+    with track_usage() as scoped:
+        caller.call(system="s", user="u", tool=TOOL, model=HAIKU)
+
+    assert scoped.input_tokens == 120, "the scoped total must see the call"
+    assert scoped.output_tokens == 30
+    assert scoped.input_tokens != caller.usage.input_tokens, "and not the lifetime one"
+    assert caller.usage.input_tokens == 1119
+
+
+def test_usage_spent_outside_the_block_does_not_leak_in(monkeypatch, tmp_path) -> None:
+    from agent import models
+    from agent.models import track_usage
+
+    monkeypatch.setattr(models, "CACHE_DIR", tmp_path)
+    caller = models.StructuredCaller(use_cache=False)
+    monkeypatch.setattr(caller, "client_for", lambda spec: object())
+    monkeypatch.setattr(
+        caller, "_anthropic", lambda *a, **k: ({"route": "answer"}, (50, 5))
+    )
+
+    caller.call(system="s", user="u", tool=TOOL, model=HAIKU)
+    with track_usage() as scoped:
+        pass
+    assert scoped.input_tokens == 0
+
+
+def test_usage_outside_a_tracked_block_is_not_collected() -> None:
+    from agent.models import _REQUEST_USAGE
+
+    assert _REQUEST_USAGE.get() is None

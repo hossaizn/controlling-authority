@@ -71,11 +71,37 @@ class SlidingWindow:
         self._now = now
         self._events: dict[str, deque[float]] = {}
 
+    #: Cap on distinct keys held at once. Session ids and forwarded IPs are both
+    #: client-supplied and unauthenticated, so a caller can mint unlimited keys.
+    #: A review drove 500 refused requests with rotating values and every one
+    #: allocated two permanent deques. Eviction bounds memory; it cannot be
+    #: bypassed for budget because the GLOBAL window uses a single fixed key
+    #: ("all") that no eviction can reach.
+    MAX_KEYS = 20_000
+
     def _prune(self, key: str, now: float) -> deque[float]:
         events = self._events.setdefault(key, deque())
         while events and now - events[0] > self.span:
             events.popleft()
+        if len(self._events) > self.MAX_KEYS:
+            self._evict(now, keep=key)
         return events
+
+    def _evict(self, now: float, keep: str) -> None:
+        """Drop keys whose windows are empty, oldest first.
+
+        Only expired keys are dropped, so eviction never forgives a caller who
+        is still inside their window. If every key is live the map is left
+        alone: growing memory is preferable to handing out free budget.
+        """
+        for key in list(self._events):
+            if key == keep or key == "all":
+                continue
+            events = self._events[key]
+            while events and now - events[0] > self.span:
+                events.popleft()
+            if not events:
+                del self._events[key]
 
     def count(self, key: str) -> int:
         return len(self._prune(key, self._now()))

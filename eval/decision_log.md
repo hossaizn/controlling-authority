@@ -1302,3 +1302,43 @@ The dishonest version of this is picking winners and implying the slice is solve
 ### The blocker this exposes
 
 **The demo's headline case cannot be shown because verification rejects a correct answer.** That is now the highest-value open item in the project, above anything in Phase 9, and it has a known cause and a pre-registered fix: DL-24's open-weights arm supplies a cross-family verifier, and `verify` prompts are small enough to fit the free tier's per-request ceiling even though `resolve` prompts are not.
+
+---
+
+## DL-30: The protection layer did not protect, and the honesty mechanism only worked on my laptop
+
+**Status:** applied, Phase 8 review. Three confirmed criticals, 15 mutations now caught.
+
+### Spend was uncharged whenever the agent failed
+
+`/api/ask` invoked the graph and then recorded budget, with no `try/finally`. A run that raised **after** calling the model therefore spent real tokens and consumed nothing. Thirty such requests spent 3,000 input tokens with the global counter still reading 8 of 8.
+
+So the sentence this phase was built around, that the global breaker is the last line, was **false**: it was only reached by requests that succeeded. Any reliably-triggerable mid-graph failure, and there are two obvious ones in the Groq token ceiling and a Qdrant timeout, was a source of unmetered inference.
+
+The test named `test_budget_is_charged_only_after_the_work_runs` asserted `remaining == before - 1`, which is true whether recording happens before or after the work. It tested the arithmetic and not the ordering, and a mutation moving `record` above the call survived it.
+
+### The demo's honesty depended on a gitignored file
+
+DL-29 argued the demo stays honest because each payload carries its slice's measured score. That score was read from `eval/runs/end_to_end.json`, and **`eval/runs/` is gitignored**. In any deployment every payload reported `slice_performance: {}`.
+
+It failed silently: a missing file returned `{}`, and all 451 tests passed. The honesty argument was true only on the machine that generated it, which is the worst form of this failure because nothing looks wrong.
+
+The scores are now a snapshot committed beside the records, written by the generator in the same pass that captures the runs, so the numbers cannot describe a different run from the answers they sit next to. A missing eval artifact makes the generator **refuse to run** rather than shipping records that quote nothing.
+
+### The IP check was backwards, and that was exploitable
+
+`client_ip` took the **first** `X-Forwarded-For` entry, on the reasoning that later hops are attacker-controlled. It is the other way round: each proxy appends, so the leftmost value is whatever the client sent. Rotating the header walked straight past both the per-IP and per-session limits; only the global cap stopped it.
+
+Now `Fly-Client-IP` first, which the platform sets and a client cannot forge, then the **rightmost** forwarded hop, then the socket peer.
+
+### Two more that mattered
+
+**Unbounded key growth.** Session ids and forwarded IPs are client-supplied and unauthenticated, so a caller can mint unlimited rate-limit keys; 500 refused requests allocated 1,000 permanent deques. Eviction now drops **expired** keys only, and never the global one: bounding memory must never hand out budget.
+
+**Cost was wrong.** `usd` apportioned tokens across models by call share, so an identical request reported a different figure once a second model entered the process. Cost is now computed per model from that model's own tokens. Request accounting moved from subtracting snapshots of a shared counter to a `ContextVar`, because under concurrency the subtraction is simply wrong: eight simultaneous requests each spending 1,000 tokens reported 1,000 through 8,000.
+
+### The pattern, for the third review running
+
+Nine of the fifteen mutations survived the **first** round of fixes, because the tests I wrote alongside them asserted the wrong things: `matched_expectation` checked for the key's presence rather than its value, key growth asserted `<= 500` which no-eviction also satisfies, staleness asserted only `is False`, and the scoped-usage test wrote to the ContextVar by hand instead of driving `call`.
+
+**Writing a test at the same time as the fix is not the same as writing a test that would fail without the fix.** Mutation is the only thing that has reliably told the two apart in this project.
