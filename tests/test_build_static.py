@@ -251,3 +251,97 @@ def test_the_demo_links_to_the_decision_log_without_a_redirect() -> None:
     ).read_text()
     assert '<a href="/decisions">' in html
     assert '"/decisions.html"' not in html
+
+
+# --- nav and footer, shared by both pages -----------------------------------
+
+
+def test_both_pages_carry_the_same_nav(site) -> None:
+    """The decision log lifts the nav out of index.html rather than keeping a
+    copy. Two navs meant to be identical that drift is a class of bug no test
+    catches, because each page passes its own."""
+    home = (site / "index.html").read_text()
+    log = (site / "decisions.html").read_text()
+    for page in (home, log):
+        assert '<nav class="topnav">' in page
+        assert 'href="/decisions"' in page
+        assert "github.com/hossaizn/controlling-authority" in page
+
+
+def test_each_page_marks_itself_as_current(site) -> None:
+    """A nav that highlights nothing, or highlights the same entry everywhere,
+    stops telling the reader where they are."""
+    home = (site / "index.html").read_text()
+    log = (site / "decisions.html").read_text()
+    assert '<a href="/" data-nav="demo" class="is-current">' in home
+    assert '<a href="/decisions" data-nav="log" class="is-current"' in log
+    assert '<a href="/decisions" data-nav="log" class="is-current"' not in home
+
+    # Exactly one marker per page. The log lifts the demo's nav, so failing to
+    # clear the inherited marker leaves two highlighted at once, which reads as
+    # a broken nav rather than a missing one.
+    assert home.count('class="is-current"') == 1
+    assert log.count('class="is-current"') == 1
+    assert '<a href="/" data-nav="demo" class="is-current">' not in log
+
+
+def test_the_email_is_not_sitting_in_the_html(site) -> None:
+    """Assembled in JS so a scraper reading the source finds nothing. If the
+    address ever appears literally, this stops being true."""
+    for name in ("index.html", "decisions.html"):
+        page = (site / name).read_text()
+        assert "hossainzulqarnayan@gmail.com" not in page, name
+        # The local part alone is enough for a scraper to guess the rest, so
+        # neither half may appear whole.
+        assert "hossainzulqarnayan" not in page, name
+        assert 'id="mail"' in page, name
+
+
+def test_both_pages_link_to_linkedin(site) -> None:
+    for name in ("index.html", "decisions.html"):
+        page = (site / name).read_text()
+        assert "linkedin.com/in/zulqarnayan-hossain" in page, name
+
+
+def test_every_off_origin_link_opens_safely(site) -> None:
+    """Without noopener the target page gets a handle on this one through
+    window.opener."""
+    import re
+
+    for name in ("index.html", "decisions.html"):
+        page = (site / name).read_text()
+        for tag in re.findall(r"<a\b[^>]*https?://[^>]*>", page, re.I):
+            assert 'target="_blank"' not in tag or "noopener" in tag, (name, tag)
+
+
+def test_a_nav_that_lost_its_current_marker_fails_the_render() -> None:
+    """Positional trust again: if the decision-log entry changes shape, the
+    marker would silently land nowhere."""
+    import re
+    from unittest.mock import patch
+
+    broken = re.sub(
+        r'<a href="/decisions"[^>]*>', '<a href="/log">', render_decisions.PAGE.read_text()
+    )
+    with patch.object(render_decisions, "PAGE") as fake:
+        fake.read_text.return_value = broken
+        with pytest.raises(AssertionError):
+            render_decisions.nav()
+
+
+def test_build_rejects_a_page_that_would_load_off_origin(tmp_path, monkeypatch) -> None:
+    """The self-contained guarantee is enforced at build time, not only in a
+    test of the source. Deleting the call left every other check passing."""
+    import deploy.build_static as bs
+
+    page = tmp_path / "page.html"
+    page.write_text(
+        '<link rel="stylesheet" href="https://cdn.example.com/a.css">'
+        '<script>fetch("/api/scenarios.json");'
+        "if (health.live_ask === false) disableAsk();</script>"
+    )
+    monkeypatch.setattr(bs, "SOURCE_PAGE", page)
+    monkeypatch.setattr(bs, "URL_REWRITES", ())
+
+    with pytest.raises(SystemExit, match="off-origin"):
+        bs.build(tmp_path / "out")

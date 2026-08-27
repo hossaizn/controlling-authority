@@ -161,9 +161,60 @@
   }
   .warn ul { margin: 8px 0 0; padding-left: 20px; }
   .hidden { display: none; }
+
+  .topnav {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--bg); border-bottom: 2px solid var(--line);
+  }
+  .navinner {
+    max-width: 1080px; margin: 0 auto; padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand {
+    font-family: var(--serif); font-weight: 700; font-size: 16px;
+    color: var(--ink); text-decoration: none; letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .navlinks { display: flex; gap: 8px; flex-wrap: wrap; }
+  .navlinks a {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--ink); text-decoration: none;
+    padding: 6px 12px; border-radius: 999px; border: 2px solid transparent;
+  }
+  .navlinks a:hover { border-color: var(--line); }
+  /* Black, not violet. Violet means a correct outcome on this site, and a nav
+     highlight would spend that meaning on navigation. joydrop marks its active
+     tab in solid black for the same reason. */
+  .navlinks a.is-current {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
+  @media (max-width: 560px) {
+    .navinner { padding: 10px 16px; }
+    .brand { font-size: 14px; }
+    .navlinks a { padding: 5px 9px; font-size: 11px; }
+  }
+  .contact { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .contact a {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--ink); text-decoration: none;
+    border: 2px solid var(--line); border-radius: 999px; padding: 6px 13px;
+    background: var(--panel); box-shadow: var(--shadow-sm);
+  }
+  .contact a:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 var(--line); }
 </style>
 </head>
 <body>
+<nav class="topnav">
+  <div class="navinner">
+    <a class="brand" href="/">&#167; Controlling Authority</a>
+    <div class="navlinks">
+      <a href="/" data-nav="demo" class="is-current">Demo</a>
+      <a href="/decisions" data-nav="log">Decision log</a>
+      <a href="https://github.com/hossaizn/controlling-authority" data-nav="repo"
+         target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </div>
+</nav>
 <div class="wrap">
 
   <h1>Controlling Authority</h1>
@@ -253,6 +304,13 @@
   </div>
 
   <footer>
+    <div class="contact">
+      <a id="mail" href="#">email</a>
+      <a href="https://www.linkedin.com/in/zulqarnayan-hossain/"
+         target="_blank" rel="noopener noreferrer">LinkedIn</a>
+      <a href="https://github.com/hossaizn/controlling-authority"
+         target="_blank" rel="noopener noreferrer">Source</a>
+    </div>
     <p id="footStats">Loading measured results…</p>
     <p>
       Not legal advice. The corpus is 29 CFR 825, California and New York leave
@@ -556,6 +614,18 @@ function sessionId() {
   }
   return s;
 }
+
+
+/* Assembled at runtime so the address is not sitting in the HTML for a
+   scraper to lift. A human still gets one click. */
+(function () {
+  var node = document.getElementById("mail");
+  if (!node) return;
+  var user = ["hossain", "zulqarnayan"].join("");
+  var host = ["gmail", "com"].join(".");
+  node.href = "mailto:" + user + "@" + host;
+  node.textContent = user + "@" + host;
+})();
 
 $("go").onclick = ask;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });

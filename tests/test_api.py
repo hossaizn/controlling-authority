@@ -543,15 +543,43 @@ def test_the_page_is_served_and_self_contained(client) -> None:
     html = r.text
     assert "<title>Controlling Authority</title>" in html
 
-    # Anything that would load from another origin at render time. Matching on
+    # Anything that would LOAD from another origin at render time. Matching on
     # the word "cdn" tripped on this file's own comment saying it uses none,
     # which is the shape of test that checks the prose rather than the code.
-    external = re.findall(
-        r'(?:src|href)\s*=\s*["\']((?:https?:)?//[^"\']+)', html, re.I
-    )
+    #
+    # **Anchors are excluded, and the distinction is the point.** `<a href>`
+    # navigates when a human clicks it; it fetches nothing at render time and
+    # cannot block, leak a referrer on load, or fail the page when the far end
+    # is down. The nav links to GitHub and the footer links to LinkedIn, and
+    # matching `href` on every element would have banned those while claiming
+    # to be about loading. Anchors are stripped first, so a stylesheet or a
+    # script pointing off-origin still fails exactly as before.
+    from deploy.build_static import external_loads
+
+    external = external_loads(html)
     assert external == [], f"page loads external resources: {external}"
-    assert not re.search(r"url\(\s*[\"\']?(?:https?:)?//", html, re.I)
     assert "import(" not in html
+
+    # Every off-origin link opens safely. Without `noopener` the target page
+    # gets a handle on this one through `window.opener`.
+    for tag in re.findall(r"<a\b[^>]*https?://[^>]*>", html, re.I):
+        assert 'target="_blank"' not in tag or "noopener" in tag, tag
+
+
+def test_the_external_resource_guard_still_catches_a_real_load() -> None:
+    """The anchor exemption is a hole if it is written loosely. Stripping every
+    tag rather than only anchors would let a CDN stylesheet through while the
+    page under test, having none, still passed. Checked against a synthetic
+    page so the guard is exercised rather than assumed."""
+    from deploy.build_static import external_loads
+
+    assert external_loads(
+        '<link rel="stylesheet" href="https://cdn.example.com/a.css">'
+        '<a href="https://github.com/x">source</a>'
+    ) == ["https://cdn.example.com/a.css"]
+    assert external_loads('<a href="https://github.com/x">source</a>') == []
+    assert external_loads('<script src="//evil.example/x.js"></script>') != []
+    assert external_loads("<style>body{background:url(//evil.example/a.png)}</style>") != []
 
 
 # The denylist below is spelled in fragments on purpose: written out in full,

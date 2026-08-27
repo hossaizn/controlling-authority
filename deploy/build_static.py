@@ -186,6 +186,27 @@ def fetched_paths(html: str) -> set[str]:
     return paths
 
 
+def external_loads(html: str) -> list[str]:
+    """Off-origin resources the page would FETCH at render time.
+
+    **Anchors are stripped first, and the distinction is the whole point.**
+    `<a href>` navigates when a human clicks; it fetches nothing on load, cannot
+    block rendering, and cannot fail the page when the far end is down. The nav
+    links to GitHub and the footer to LinkedIn, so a check matching `href` on
+    every element would ban those while claiming to be about loading.
+
+    Stripping every tag instead of only anchors would pass everything, which is
+    why this lives here as testable code rather than inline in a test: a guard
+    written loosely inside its own assertion cannot be caught by the suite.
+    """
+    loading = re.sub(r"<a\b[^>]*>", "", html, flags=re.I)
+    found = re.findall(
+        r'(?:src|href)\s*=\s*["\']((?:https?:)?//[^"\']+)', loading, re.I
+    )
+    found += re.findall(r"url\(\s*[\"\']?((?:https?:)?//[^)\"\']+)", html, re.I)
+    return found
+
+
 # The one endpoint with no static equivalent: it is a POST that runs the graph.
 # Listed explicitly rather than filtered out by method, so adding a second
 # dynamic endpoint fails this build instead of shipping a dead control.
@@ -210,6 +231,13 @@ def verify(out: Path, html: str) -> None:
         raise SystemExit(
             "build_static: the page fetches URLs this build did not produce:\n  "
             + "\n  ".join(missing)
+        )
+
+    offsite = external_loads(html)
+    if offsite:
+        raise SystemExit(
+            "build_static: the page would load off-origin resources, which "
+            "breaks the self-contained guarantee:\n  " + "\n  ".join(offsite)
         )
 
     if DYNAMIC_ONLY & fetched_paths(html) and "disableAsk()" not in html:

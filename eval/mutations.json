@@ -1027,5 +1027,54 @@
     "old": "    for _quote, raw in re.findall(r'fetch\\(([\"`])(/api/[^\"`]*)\\1', html):",
     "new": "    for _quote, raw in re.findall(r'fetch\\(([\"`])(/api/[^\"`)]*)\\1', html):",
     "origin": "phase10"
+  },
+  {
+    "label": "nav current-marker never moves to the log page",
+    "file": "deploy/render_decisions.py",
+    "old": "    return markup.replace(target, target + ' class=\"is-current\"', 1)",
+    "new": "    return markup",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "log page copies a nav instead of lifting it",
+    "file": "deploy/render_decisions.py",
+    "old": "    markup = markup.replace(' class=\"is-current\"', \"\")",
+    "new": "    markup = markup",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "email written literally into the HTML",
+    "file": "api/static/index.html",
+    "old": "  var user = [\"hossain\", \"zulqarnayan\"].join(\"\");",
+    "new": "  var user = \"hossainzulqarnayan\";",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "off-origin links lose noopener",
+    "file": "api/static/index.html",
+    "old": "target=\"_blank\" rel=\"noopener noreferrer\">GitHub</a>",
+    "new": "target=\"_blank\">GitHub</a>",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "anchor exemption swallows a real external load",
+    "file": "deploy/build_static.py",
+    "old": "    loading = re.sub(r\"<a\\b[^>]*>\", \"\", html, flags=re.I)",
+    "new": "    loading = re.sub(r\"<[^>]*>\", \"\", html, flags=re.I)",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "build stops checking for off-origin loads",
+    "file": "deploy/build_static.py",
+    "old": "    offsite = external_loads(html)\n    if offsite:",
+    "new": "    offsite = []\n    if offsite:",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "css url() loads no longer counted",
+    "file": "deploy/build_static.py",
+    "old": "    found += re.findall(r\"url\\(\\s*[\\\"\\']?((?:https?:)?//[^)\\\"\\']+)\", html, re.I)",
+    "new": "    found += []",
+    "origin": "phase10-nav"
   }
 ]

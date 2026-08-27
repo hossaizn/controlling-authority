@@ -162,6 +162,55 @@ def add_anchors(rendered: str, markdown: str) -> str:
     return "".join(out)
 
 
+def _block(pattern: str, what: str) -> str:
+    """Lift a block out of the demo page verbatim.
+
+    Same reason `stylesheet()` does it: two copies of a nav that were meant to
+    be identical and drifted is a class of bug no test catches, because each
+    page passes its own. `agent/build.py` carries the same note about graphs.
+    """
+    match = re.search(pattern, PAGE.read_text(), re.S)
+    if not match:
+        raise SystemExit(
+            f"render_decisions: no {what} found in index.html. The log would "
+            "ship without it; fix the extraction rather than hand-copying."
+        )
+    return match.group(0)
+
+
+def nav(current: str = "log") -> str:
+    """The demo's nav, with the current-page marker moved."""
+    markup = _block(r"<nav class=\"topnav\">.*?</nav>", "nav")
+    markup = markup.replace(' class="is-current"', "")
+    target = f'<a href="/decisions" data-nav="{current}"'
+    assert target in markup, "the decision-log nav entry changed shape"
+    return markup.replace(target, target + ' class="is-current"', 1)
+
+
+def favicon() -> str:
+    """Lifted, not duplicated. A second copy of a data URI is a second thing to
+    forget to update, and the log page 404ed on /favicon.ico without it."""
+    return _block(r'<link rel="icon"[^>]*>', "favicon link")
+
+
+def contact() -> str:
+    return _block(r"<div class=\"contact\">.*?</div>", "contact block")
+
+
+MAIL_JS = """
+<script>
+(function () {
+  var node = document.getElementById("mail");
+  if (!node) return;
+  var user = ["hossain", "zulqarnayan"].join("");
+  var host = ["gmail", "com"].join(".");
+  node.href = "mailto:" + user + "@" + host;
+  node.textContent = user + "@" + host;
+})();
+</script>
+"""
+
+
 def render() -> str:
     markdown = LOG.read_text()
     md = MarkdownIt("default", {"html": False, "linkify": False})
@@ -178,11 +227,12 @@ def render() -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{TITLE}</title>
+{favicon()}
 <style>{stylesheet()}{EXTRA_CSS}</style>
 </head>
 <body>
+{nav()}
 <div class="wrap">
-  <p class="nav"><a href="/">Back to the demo</a></p>
   <h1>Decision log</h1>
   <p class="sub">{INTRO.strip()}</p>
   <h2 id="contents">Contents</h2>
@@ -190,7 +240,13 @@ def render() -> str:
   <div class="doc">
 {body}
   </div>
+  <footer>
+{contact()}
+    <p>Not legal advice. The reasoning here is a record of how this system was
+    built, not a statement of law.</p>
+  </footer>
 </div>
+{MAIL_JS}
 </body>
 </html>
 """
