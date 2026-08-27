@@ -165,3 +165,37 @@ def test_a_cache_hit_is_counted_separately_from_a_call() -> None:
     usage.hit()
     assert usage.calls == 1
     assert usage.cached == 1
+
+
+# --- per-call usage, and what a cache hit must NOT report --------------------
+
+
+def test_a_cache_hit_clears_the_last_call_usage(monkeypatch, tmp_path) -> None:
+    """A cache hit spent nothing.
+
+    Leaving `last_call` holding the previous call's tokens makes every cached
+    scenario report real cost, so an all-cache eval run bills for work that
+    never happened. The tracing test covers the symptom; this pins the source.
+    """
+    import json as _json
+
+    from agent import models
+
+    monkeypatch.setattr(models, "CACHE_DIR", tmp_path)
+    caller = models.StructuredCaller()
+    caller.last_call = {"model": HAIKU, "input_tokens": 5400, "output_tokens": 260}
+
+    key = _cache_key(HAIKU, "sys", "usr", TOOL)
+    (tmp_path / f"{key}.json").write_text(_json.dumps({"result": {"route": "answer"}}))
+
+    result = caller.call(system="sys", user="usr", tool=TOOL, model=HAIKU)
+    assert result == {"route": "answer"}
+    assert caller.last_call is None
+    assert caller.usage.cached == 1
+    assert caller.usage.calls == 0
+
+
+def test_last_call_starts_empty() -> None:
+    from agent.models import StructuredCaller
+
+    assert StructuredCaller().last_call is None
