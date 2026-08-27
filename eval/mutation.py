@@ -27,6 +27,16 @@ instances; committing it is the attempt to fix the class, which is DL-26's
 mutation fails open, reporting "caught" while never having been applied. Those
 are reported separately and make the run exit non-zero, because the honest
 reading of a stale mutation is that the guarantee it encoded is now unverified.
+
+**If the process is killed, the source stays mutated.** The restore runs in a
+`finally`, which a SIGKILL does not reach. A full sweep takes upwards of ten
+minutes, so this is reached by any wrapper that imposes a shorter timeout, and
+it happened once during Phase 10.
+
+The recovery is `git checkout -- <file>`, and the reason it is merely annoying
+rather than dangerous is the baseline check below: the next run refuses to
+start against a red suite instead of reporting 146 false "caught" verdicts.
+Run this in the background rather than under a timeout.
 """
 
 from __future__ import annotations

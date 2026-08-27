@@ -87,6 +87,11 @@
     statutory floor, the wrong answer. Determining precedence is the work;
     retrieval is a means to it.
   </p>
+  <p class="sub">
+    <a href="/decisions.html">Read the decision log</a> for why this is built
+    the way it is, including the experiments that failed and the features that
+    were measured and then not adopted.
+  </p>
 
   <h2>Example scenarios</h2>
   <div class="panel">
@@ -104,7 +109,7 @@
       <input type="date" id="asof" value="2026-08-01" title="Answer as of this date">
       <button id="go">Ask</button>
     </div>
-    <p class="meta" style="margin:10px 0 0">
+    <p class="meta" style="margin:10px 0 0" id="askNote">
       Rate limited, because live inference is real money. The as-of date changes
       which law was in force.
     </p>
@@ -222,6 +227,24 @@ async function boot() {
       `with route accuracy ${(o.route_accuracy_macro * 100).toFixed(1)}% ` +
       `macro-averaged. These are the real numbers, including where it fails.`;
   }
+
+  // A deployment that cannot answer says so, rather than offering a control
+  // that fails on click. A reviewer who presses Ask and gets a network error
+  // learns something false about the system: that it is broken, rather than
+  // that this particular deployment serves only the pre-computed set.
+  if (health.live_ask === false) disableAsk();
+}
+
+function disableAsk() {
+  $("q").disabled = true;
+  $("asof").disabled = true;
+  $("go").disabled = true;
+  $("q").placeholder = "Live answering is off in this deployment";
+  $("askNote").textContent =
+    "This is the static deployment, so live answering is off: every curated " +
+    "scenario above is a real recorded run, but new questions need a model " +
+    "call. Clone the repo and run `docker compose up` to enable this box. " +
+    "The reasoning behind that trade-off is in the decision log.";
 }
 
 function markTag(node, ok, label) {
