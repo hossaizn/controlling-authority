@@ -1111,5 +1111,19 @@
     "old": "    (out / \"plan.html\").write_text(render_plan.render())",
     "new": "    (out / \"plan.html\").write_text(\"\")",
     "origin": "plan-page"
+  },
+  {
+    "label": "em dash guard checks nothing",
+    "file": "deploy/build_static.py",
+    "old": "    return html.count(EM_DASH)",
+    "new": "    return 0",
+    "origin": "plan-page"
+  },
+  {
+    "label": "build stops checking pages for em dashes",
+    "file": "deploy/build_static.py",
+    "old": "    if offenders:\n        raise SystemExit(\n            \"build_static: em dashes reached these pages: \"",
+    "new": "    if False:\n        raise SystemExit(\n            \"build_static: em dashes reached these pages: \"",
+    "origin": "plan-page"
   }
 ]

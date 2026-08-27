@@ -492,3 +492,39 @@ def test_the_tooling_strip_fails_if_it_matches_nothing() -> None:
 
     with pytest.raises(SystemExit, match="silently matches nothing|matches nothing"):
         render_plan.strip_tooling("# A plan\n\nNo directive in here.\n")
+
+
+def test_no_page_ships_an_em_dash(site) -> None:
+    """A standing instruction for everything on this site. Enforced here rather
+    than re-checked by hand, because it was missed twice: once on the decision
+    log and once on the plan, both times because a source document was written
+    before the rule and only rendered afterwards."""
+    from deploy.build_static import em_dashes_in
+
+    for path in sorted(site.glob("*.html")):
+        assert em_dashes_in(path.read_text()) == 0, (
+            f"{path.name} carries an em dash. Fix it in the source document, "
+            "not in the renderer."
+        )
+
+    # The counter itself, so a version that always returns zero fails here
+    # rather than passing every page silently.
+    assert em_dashes_in("a \u2014 b") == 1
+    assert em_dashes_in("a - b") == 0
+
+
+def test_the_build_refuses_a_page_carrying_an_em_dash(tmp_path, monkeypatch) -> None:
+    """Enforced by the build, not only by this file. A guard living inside its
+    own assertion cannot be caught when it is weakened."""
+    import deploy.build_static as bs
+
+    page = tmp_path / "page.html"
+    page.write_text(
+        "<script>fetch(\"/api/scenarios.json\");"
+        "if (health.live_ask === false) disableAsk();</script>"
+        "<p>a \u2014 b</p>"
+    )
+    monkeypatch.setattr(bs, "SOURCE_PAGE", page)
+    monkeypatch.setattr(bs, "URL_REWRITES", ())
+    with pytest.raises(SystemExit, match="em dashes reached"):
+        bs.build(tmp_path / "out")

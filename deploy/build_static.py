@@ -165,6 +165,17 @@ def build(out: Path) -> list[Path]:
             written.append(target)
 
     verify(out, page)
+
+    offenders = [
+        p.name for p in sorted(out.glob("*.html")) if em_dashes_in(p.read_text())
+    ]
+    if offenders:
+        raise SystemExit(
+            "build_static: em dashes reached these pages: "
+            + ", ".join(offenders)
+            + ". Fix the source document rather than the renderer."
+        )
+
     return written
 
 
@@ -189,6 +200,17 @@ def fetched_paths(html: str) -> set[str]:
         for key in precomputed.available():
             paths.add(re.sub(r"\$\{[^}]+\}", key, raw))
     return paths
+
+
+# A standing instruction for everything on this site. Enforced at build time
+# rather than by eye, because it was missed twice: once on the decision log and
+# once on the plan, both times because a source document was written before the
+# rule existed and only rendered onto the site afterwards.
+EM_DASH = "\u2014"
+
+
+def em_dashes_in(html: str) -> int:
+    return html.count(EM_DASH)
 
 
 def external_loads(html: str) -> list[str]:
