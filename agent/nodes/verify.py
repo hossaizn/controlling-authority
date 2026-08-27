@@ -33,7 +33,7 @@ from agent.nodes.compose import DISCLAIMER
 from agent.state import AgentState, TraceEvent, VerificationResult
 from ingest.settings import optional
 
-PROMPT_VERSION = "verify-v1"
+PROMPT_VERSION = "verify-v2"
 
 
 def entailment_blocks() -> bool:
@@ -113,7 +113,21 @@ different words.
 
 Ignore the closing disclaimer. Ignore statements about who to contact. Ignore
 the answer telling the reader what a source says and why it does not apply,
-provided the passages support what that source says."""
+provided the passages support what that source says.
+
+TWO KINDS OF CLAIM HAVE THEIR OWN EVIDENCE
+
+A claim about WHICH AUTHORITY GOVERNS, or about a policy not applying, is
+supported by the PRECEDENCE block, not by any passage. That decision is made by
+rules rather than written in a statute, so no passage will ever state it. Check
+it against the precedence block and treat it as supported when it agrees.
+
+A claim that a layer is SILENT, or that no such law exists, is supported either
+by the precedence block or by a passage that records the absence. Those records
+say so in as many words. Do not flag a silence the evidence states.
+
+A figure the asker supplied about their own situation is theirs, not a claim
+about the law. Do not flag it."""
 
 
 def citations_in(text: str, known: set[str]) -> set[str]:
@@ -174,6 +188,65 @@ def supported_figures(corpus_text: str) -> set[str]:
     for word in _WORD_NUMBER.findall(corpus_text):
         found.add(WORD_TO_DIGITS[" ".join(word.lower().split())])
     return found
+
+
+def evidence_passages(hits, named: set[str], resolution) -> list:
+    """The passages a claim in this answer could rest on.
+
+    Targeted rather than everything. Sending all twelve retrieved passages fits
+    the free tier's per-request ceiling with about two hundred tokens to spare,
+    which is not headroom, and it dilutes the evidence with text no claim
+    references.
+
+    Three sources, matching the three ways a claim gets support:
+
+    1. **What the answer cites.** The ordinary case.
+    2. **Absence records.** A negative claim ("Ohio has no such statute") is
+       supported by a record that says so, which the answer need not cite.
+    3. **Sources the answer was told to ADDRESS.** `conflict-011` describes what
+       `LEAVE-001` says while citing only the Ohio absence record, so the
+       handbook was never shown to the verifier and the claim was unverifiable.
+    """
+    to_address = set(resolution.non_controlling_to_address) if resolution else set()
+    keep, seen = [], set()
+    for h in hits:
+        if h.chunk_id in seen:
+            continue
+        if (
+            h.citation in named
+            or h.citation in to_address
+            or h.content_status == "absent"
+        ):
+            keep.append(h)
+            seen.add(h.chunk_id)
+    return keep
+
+
+def _render_passages(hits) -> str:
+    return "\n\n".join(f"[{h.citation}] {h.text}" for h in hits)
+
+
+def _resolution_evidence(resolution) -> str:
+    """The precedence decision, as evidence rather than as an assumption.
+
+    Which authority governs is decided by rules in code, so no passage states
+    it. Presenting it here lets a claim about precedence be checked against what
+    was actually decided, instead of being flagged for the absence of a sentence
+    that could never exist.
+    """
+    if resolution is None:
+        return "PRECEDENCE: no authority was resolved."
+    who = resolution.controlling or " and ".join(resolution.acceptable) or "none"
+    lines = [
+        "PRECEDENCE, decided by rules rather than stated in any passage:",
+        f"- {who} controls, under the rule '{resolution.rule}'",
+    ]
+    for f in resolution.considered:
+        if f.outcome == "silent":
+            lines.append(f"- {f.layer}: silent on this question")
+        else:
+            lines.append(f"- {f.layer} [{f.citation}] {f.outcome}: {f.says}")
+    return "\n".join(lines)
 
 
 def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODEL):
@@ -237,8 +310,20 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
                 f"{sorted(acceptable_citations)}"
             )
 
-        # 4. Every quoted figure appears in the text it came from.
-        stated = supported_figures(corpus_text)
+        # 4. Every quoted figure appears in the text it came from, OR in what
+        # the asker told us.
+        #
+        # **The asker's own numbers are not fabrications.** `conflict-007` asks
+        # "I'm leaving with 11 unused vacation days" and the answer says 11;
+        # flagging that as a figure absent from the statute discarded five
+        # otherwise-correct answers. The check exists to catch numbers invented
+        # about the law, not to forbid repeating the question back.
+        context = state.get("employee_context")
+        asked = " ".join(
+            [state.get("question") or ""]
+            + [str(v) for v in (context.model_dump().values() if context else []) if v is not None]
+        )
+        stated = supported_figures(corpus_text) | supported_figures(asked)
         unsupported_figures = sorted(
             f for f in figures_in(answer, retrieved) if f not in stated
         )
@@ -252,12 +337,24 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
         entailment_ran = False
         if not failures and named:
             entailment_ran = True
-            cited_text = "\n\n".join(
-                f"[{h.citation}] {h.text}" for h in hits if h.citation in named
-            )
+            # **Every retrieved passage, plus the resolution.**
+            #
+            # This showed only passages whose citation appeared in the answer,
+            # which made two whole classes of claim unverifiable by
+            # construction. A precedence conclusion ("the handbook's 18-month
+            # requirement does not apply to you") is DERIVED and stated in no
+            # passage. A negative claim ("Ohio has no such statute") rests on an
+            # absence record or on the resolution. Five of the fourteen flagged
+            # claims were of those kinds, and no choice of model fixes evidence
+            # that was never supplied.
             result = caller.call(
                 system=f"{SYSTEM}\n\n<!-- {PROMPT_VERSION} -->",
-                user=f"Answer:\n{answer}\n\nPassages it cites:\n\n{cited_text}",
+                user=(
+                    f"Answer:\n{answer}\n\n"
+                    f"{_resolution_evidence(resolution)}\n\n"
+                    "Passages the answer may rest on:\n\n"
+                    f"{_render_passages(evidence_passages(hits, named, resolution))}"
+                ),
                 tool=ENTAILMENT_TOOL,
                 model=model,
             )

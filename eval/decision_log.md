@@ -1518,3 +1518,50 @@ Of the 14 flagged claims, roughly eight are ones the verifier was **right** to f
 - **DL-33 stands on its own merits.** Advisory entailment is still right, because a referral gives the reader nothing. But it was justified partly by "the verifier rejects correct answers", and that premise is now known to be false in most cases. The change survives; the reasoning in DL-33 needed this correction.
 
 **The general lesson, and it is the one this project keeps relearning:** I had a plausible mechanism, a suggestive number (15 of 19), and a pre-registered plan built on both. Reading fourteen claims against fourteen passages took one cached run and no money, and it inverted the conclusion.
+
+---
+
+## DL-35: Both real defects fixed, and neither was the one I set out to fix
+
+**Status:** implemented, Steps 2a and 2b. Not re-measured end to end (credits).
+
+DL-34 found the verifier was mostly right and the failures were elsewhere. Reading the seven "decidable" rejections finished the correction.
+
+### The figures check was flagging the asker's own numbers
+
+I had recorded those seven as "compose emitted no citation". **That was wrong too**, and for an embarrassing reason: I read `citations` from the final state, which `verify` empties when it discards an answer. I was looking at the wreckage and describing it as the cause.
+
+Five of them failed the **figures** check, and the flagged figure came from the question:
+
+| scenario | flagged | where it came from |
+|---|---|---|
+| conflict-007 | `11` | *"I'm leaving with **11** unused vacation days"* |
+| conflict-018 | `11` | the asker's tenure |
+| straightforward-006 | `160` | the asker's hours |
+| ambiguous-015 | `9` | the asker's own figure |
+
+**An answer repeating the asker's number back is not a fabrication.** The check exists to catch figures invented about the law. It now treats the question and the supplied employee context as supporting evidence, and still flags a number that appears in neither.
+
+### The verifier's evidence was too narrow, and now it is targeted
+
+Five flagged claims had their support withheld by construction, because `cited_text` was built only from passages the answer cited. Three kinds of claim could never be checked:
+
+- **Precedence conclusions.** *"The handbook's 18-month requirement does not apply to you"* is derived by rules. No passage states it and none ever will.
+- **Negative claims.** *"Ohio has no state paid sick leave statute"* rests on an absence record the answer need not cite. In that case **the record said the claim almost verbatim** and the verifier still flagged it, because it was never shown it.
+- **Sources the answer addresses rather than relies on.** `conflict-011` describes what `LEAVE-001` says while citing only the Ohio absence record.
+
+`verify` now receives the **resolution** as explicit evidence, plus cited passages, absence records, and anything the answer was told to address. The prompt says which evidence supports which kind of claim.
+
+**Targeted rather than everything.** Sending all twelve retrieved passages fit the free tier's ceiling with about two hundred tokens to spare, which is not headroom. The selection sends three, at **~1,000 tokens against a 6,900 budget.**
+
+### Confirmed on the case it previously got wrong
+
+Run against the open model, the `superseded-003` claim *"Ohio has no state paid sick leave statute"* now returns supported, on **560 input tokens at $0.00**.
+
+That is one case, not a measurement. **It does establish that `verify` runs comfortably on the free tier**, which `resolve` never could, so re-measuring this does not depend on Anthropic credits.
+
+### What this says about the original plan
+
+The blocker was described as "verify rejects correct answers because it self-grades". Neither half survived. It was **a false-positive figures check** and **an evidence set that made the system's own conclusions unverifiable**. A cross-family verifier, the pre-registered fix, would have addressed neither.
+
+`PROMPT_VERSION` is now `verify-v2`, so every cached verdict is reissued: the evidence and the instructions both changed, and reusing verdicts formed under the old conditions would compare two different questions.

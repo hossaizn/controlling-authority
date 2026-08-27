@@ -17,6 +17,7 @@ from agent.nodes.verify import (
     supported_figures,
 )
 from agent.state import LayerFinding, Resolution, initial_state
+from domain import EmployeeContext
 from retrieval.store import SearchHit
 
 
@@ -27,9 +28,11 @@ class FakeCaller:
             "unsupported": list(unsupported),
         }
         self.calls = 0
+        self.system = self.user = None
 
     def call(self, system, user, tool, model, **kw):
         self.calls += 1
+        self.system, self.user = system, user
         return self.result
 
 
@@ -38,10 +41,15 @@ class Exploding:
         raise AssertionError("a model was called when it should not have been")
 
 
-def hit(citation, text="twelve workweeks, being 12 workweeks of leave", layer="federal"):
+def hit(
+    citation,
+    text="twelve workweeks, being 12 workweeks of leave",
+    layer="federal",
+    status="substantive",
+):
     return SearchHit(
         chunk_id=f"c-{citation}", citation=citation, authority_layer=layer,
-        jurisdiction="US", content_status="substantive", heading="h",
+        jurisdiction="US", content_status=status, heading="h",
         text=text, score=0.5,
     )
 
@@ -398,3 +406,111 @@ def test_advisories_are_kept_apart_from_failures() -> None:
     detail = out["trace"][0].detail
     assert detail["failures"] == []
     assert detail["advisories"]
+
+
+# --- the asker's own numbers are not fabrications ---------------------------
+
+
+def test_a_figure_the_asker_supplied_is_not_flagged() -> None:
+    """`conflict-007` asks "I'm leaving with 11 unused vacation days" and the
+    answer says 11. Flagging that as absent from the statute discarded five
+    otherwise-correct answers. The check exists to catch numbers invented about
+    the law, not to forbid repeating the question back."""
+    state = initial_state(
+        "I'm leaving with 11 unused vacation days. Do I get paid for them?",
+        as_of=date(2026, 4, 1),
+    )
+    state["retrieved"] = [hit("Cal. Lab. Code 227.3", text="vested vacation is wages")]
+    state["resolution"] = resolution("state", "Cal. Lab. Code 227.3")
+    state["answer"] = "You are paid for all 11 days [Cal. Lab. Code 227.3]."
+    state["citations"] = ["Cal. Lab. Code 227.3"]
+    out = make_verify(FakeCaller())(state)
+    assert out["verification"].checks["figures_appear_in_the_sources"] is True
+
+
+def test_a_figure_from_the_employee_context_is_not_flagged() -> None:
+    state = initial_state("am I eligible?", EmployeeContext(tenure_months=14),
+                          date(2026, 4, 1))
+    state["retrieved"] = [hit("29 CFR 825.110", text="at least 12 months of service")]
+    state["resolution"] = resolution("federal", "29 CFR 825.110")
+    state["answer"] = "At 14 months you qualify [29 CFR 825.110]."
+    state["citations"] = ["29 CFR 825.110"]
+    out = make_verify(FakeCaller())(state)
+    assert out["verification"].checks["figures_appear_in_the_sources"] is True
+
+
+def test_a_figure_in_neither_the_sources_nor_the_question_is_still_flagged() -> None:
+    """The check has to keep working. A number invented about the law is the
+    thing it exists for."""
+    out, _ = run("You are entitled to 26 workweeks [29 CFR 825.200].", caller=Exploding())
+    assert out["verification"].checks["figures_appear_in_the_sources"] is False
+
+
+# --- the verifier can now see what derived claims rest on -------------------
+
+
+def test_the_verifier_is_shown_the_precedence_decision() -> None:
+    """A precedence conclusion is DERIVED and stated in no passage. Without the
+    resolution as evidence, "the handbook's 18-month rule does not apply to you"
+    is unverifiable by construction, whatever model reads it."""
+    caller = FakeCaller()
+    run("You qualify [29 CFR 825.200].", caller=caller)
+    assert "PRECEDENCE" in caller.user
+    assert "decided by rules rather than stated in any passage" in caller.user
+
+
+def test_an_absence_record_is_shown_even_when_uncited() -> None:
+    """A negative claim rests on a record the answer need not cite. Showing only
+    cited passages withheld the evidence for five of fourteen flagged claims,
+    including one where the record said the claim almost verbatim."""
+    hits = [
+        hit("29 CFR 825.200"),
+        hit("OH-absent-sick", layer="state", status="absent",
+            text="Ohio has no state paid sick leave statute"),
+    ]
+    caller = FakeCaller()
+    run("You get 12 workweeks [29 CFR 825.200].", hits=hits, caller=caller)
+    assert "Ohio has no state paid sick leave statute" in caller.user
+
+
+def test_a_source_the_answer_must_address_is_shown() -> None:
+    """`conflict-011` describes what LEAVE-001 says while citing only the Ohio
+    absence record, so the handbook was never shown and the claim could not be
+    checked against anything."""
+    hits = [
+        hit("29 CFR 825.200"),
+        hit("LEAVE-001", layer="company", text="50 employees within 75 miles"),
+    ]
+    res = Resolution(
+        controlling="federal", rule="policy_below_floor",
+        considered=[LayerFinding("federal", True, "grants", "29 CFR 825.200", "", 1)],
+        non_controlling_to_address=["LEAVE-001"],
+    )
+    caller = FakeCaller()
+    run("You get 12 workweeks [29 CFR 825.200].", hits=hits, res=res, caller=caller)
+    assert "50 employees within 75 miles" in caller.user
+
+
+def test_unrelated_passages_are_not_sent() -> None:
+    """Targeted, not everything. Sending all twelve fits the free tier's ceiling
+    with about two hundred tokens to spare, which is not headroom, and dilutes
+    the evidence with text no claim references."""
+    hits = [hit("29 CFR 825.200"), hit("29 CFR 825.999", text="UNRELATED TEXT")]
+    caller = FakeCaller()
+    run("You get 12 workweeks [29 CFR 825.200].", hits=hits, caller=caller)
+    assert "UNRELATED TEXT" not in caller.user
+
+
+def test_the_prompt_tells_the_verifier_how_to_check_derived_claims() -> None:
+    caller = FakeCaller()
+    run("You qualify [29 CFR 825.200].", caller=caller)
+    assert "WHICH AUTHORITY GOVERNS" in caller.system
+    assert "Do not flag a silence the evidence states" in caller.system
+
+
+def test_the_prompt_version_changed_so_cached_verdicts_are_reissued() -> None:
+    """The evidence and the instructions both changed, so every cached
+    entailment verdict was formed under different conditions."""
+    from agent.nodes.verify import PROMPT_VERSION
+
+    assert PROMPT_VERSION == "verify-v2"
