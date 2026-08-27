@@ -10,6 +10,7 @@ failure shows up only in someone else's browser.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -23,6 +24,7 @@ from deploy.build_static import (
     rewrite_page,
     scenarios_payload,
 )
+from deploy.page import ROOT
 
 
 @pytest.fixture(scope="module")
@@ -202,8 +204,10 @@ def test_the_decision_log_escapes_rather_than_passes_through_html(
 
 def test_a_heading_count_mismatch_fails_rather_than_mislabelling() -> None:
     """Positional anchoring is only safe while the counts agree."""
+    from deploy import page as page_mod
+
     with pytest.raises(SystemExit, match="Positional anchoring"):
-        render_decisions.add_anchors("<h2>only one</h2>", "## a\n\n## b\n")
+        page_mod.add_anchors("<h2>only one</h2>", "## a\n\n## b\n")
 
 
 # --- the build's own checks must be reachable from the build ----------------
@@ -324,13 +328,13 @@ def test_a_nav_that_lost_its_current_marker_fails_the_render() -> None:
     import re
     from unittest.mock import patch
 
-    broken = re.sub(
-        r'<a href="/decisions"[^>]*>', '<a href="/log">', render_decisions.PAGE.read_text()
-    )
-    with patch.object(render_decisions, "PAGE") as fake:
+    from deploy import page as page_mod
+
+    broken = re.sub(r'data-nav="log"', 'data-nav="gone"', page_mod.PAGE.read_text())
+    with patch.object(page_mod, "PAGE") as fake:
         fake.read_text.return_value = broken
-        with pytest.raises(AssertionError):
-            render_decisions.nav()
+        with pytest.raises(SystemExit, match="marker would land nowhere"):
+            page_mod.nav("log")
 
 
 def test_build_rejects_a_page_that_would_load_off_origin(tmp_path, monkeypatch) -> None:
@@ -375,3 +379,116 @@ def test_a_log_without_the_cut_anchor_fails_loudly(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(render_decisions, "LOG", log)
     with pytest.raises(SystemExit, match="preamble cut"):
         render_decisions.render()
+
+
+# --- the plan page ----------------------------------------------------------
+
+
+def test_the_plan_page_ships(site) -> None:
+    """The decision log refers to phases forty times and never says what they
+    are. Without this page its most-repeated reference points at nothing."""
+    plan = site / "plan.html"
+    assert plan.exists()
+    html = plan.read_text()
+    assert html.count("<h1>") == 1
+    assert "PHASE 0" in html and "PHASE 10" in html
+
+
+def test_the_plan_covers_every_phase_the_log_cites(site) -> None:
+    """A log citing Phase 7 against a plan that stops at 6 sends the reader
+    nowhere, which is the failure this page exists to prevent."""
+    import re
+
+    log = (ROOT / "eval" / "decision_log.md").read_text()
+    cited = {int(n) for n in re.findall(r"Phase (\d+)", log)}
+    plan = (site / "plan.html").read_text()
+    covered = {int(n) for n in re.findall(r"PHASE (\d+)", plan)}
+    assert cited <= covered, f"log cites phases the plan does not carry: {cited - covered}"
+
+
+def test_the_plan_page_has_no_dead_contents_links(site) -> None:
+    import re
+
+    html = (site / "plan.html").read_text()
+    ids = set(re.findall(r'<h2 id="([^"]+)"', html))
+    links = set(re.findall(r'<li><a href="#([^"]+)"', html))
+    assert links and not (links - ids), f"dead: {sorted(links - ids)}"
+
+
+def test_the_plan_page_marks_itself_current(site) -> None:
+    plan = (site / "plan.html").read_text()
+    assert 'data-nav="plan" class="is-current"' in plan
+    assert plan.count('class="is-current"') == 1
+
+
+def test_every_page_carries_the_plan_link(site) -> None:
+    for name in ("index.html", "decisions.html", "plan.html"):
+        assert 'href="/plan"' in (site / name).read_text(), name
+
+
+def test_the_plan_does_not_publish_the_handbook_answer_key(site) -> None:
+    """`DEFECTS.md` maps which policy carries which seeded defect. The plan
+    names the defect CATEGORIES, which is fine, and must not start naming the
+    policies, which would let a reader solve the conflict scenarios by reading
+    this page instead of watching the agent reason."""
+    html = (site / "plan.html").read_text()
+    defects = ROOT / "corpus" / "handbook" / "DEFECTS.md"
+    if not defects.exists():
+        pytest.skip("no DEFECTS.md in this checkout")
+    text = defects.read_text()
+
+    # **A bare policy id is not the answer key.** The plan quotes
+    # `policy_id: LEAVE-004` once, inside a front-matter schema example labelled
+    # Parental Leave, while the real LEAVE-004 is a sick-leave supersession
+    # case. Nothing there tells a reader the policy is defective. What must not
+    # travel is the pairing: a policy against its fault. So this checks the
+    # fault text, which is the part that would let someone solve the conflict
+    # scenarios by reading rather than by watching the agent reason.
+    faults = re.findall(r"^\*\*Fault:\*\*\s*(.+)$", text, re.M)
+    assert faults, "DEFECTS.md changed shape; this guard is no longer checking anything"
+    for fault in faults:
+        stem = fault.strip()[:45]
+        assert stem not in html, f"the plan page carries a seeded fault: {stem!r}"
+
+    for heading in re.findall(r"^## (D-\d+: .+)$", text, re.M):
+        assert heading not in html, f"the plan page carries a defect heading: {heading!r}"
+
+
+def test_the_plan_page_carries_no_credentials(site) -> None:
+    """The plan quotes an .env.example block. Every value in it must stay
+    blank, the same rule the committed .env.example is held to."""
+    html = (site / "plan.html").read_text()
+    for line in re.findall(r"^([A-Z][A-Z0-9_]*_KEY)=(.*)$", html, re.M):
+        assert not line[1].strip(), f"{line[0]} carries a value on the plan page"
+
+
+def test_a_plan_file_without_a_title_fails_the_render(tmp_path, monkeypatch) -> None:
+    """Both documents get retitled, so a file that lost its heading would have
+    nothing replaced and would ship two competing titles."""
+    from deploy import render_plan
+
+    bad = tmp_path / "p.md"
+    bad.write_text("No heading here.\n\n## Task 1.1: x\n")
+    monkeypatch.setattr(render_plan, "PLANS", ((bad, "Retitled"),))
+    with pytest.raises(SystemExit, match="does not open with"):
+        render_plan.combined()
+
+
+def test_the_plan_page_drops_the_agent_tooling_directive(site) -> None:
+    """Each plan file opens with a line aimed at the agent that executes it.
+    Published, it puts 'REQUIRED SUB-SKILL' above the goal, which tells a
+    reviewer nothing about the project."""
+    html = (site / "plan.html").read_text()
+    assert "For agentic workers" not in html
+    assert "REQUIRED SUB-SKILL" not in html
+    # The plan itself survives the strip.
+    assert "PHASE 0" in html and "Goal:" in html
+
+
+def test_the_tooling_strip_fails_if_it_matches_nothing() -> None:
+    """A strip rule that quietly matches nothing is worse than no rule: it
+    looks like a guarantee and is not one."""
+    from deploy import render_plan
+
+    with pytest.raises(SystemExit, match="silently matches nothing|matches nothing"):
+        render_plan.strip_tooling("# A plan\n\nNo directive in here.\n")

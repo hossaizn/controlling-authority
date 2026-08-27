@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 from api import precomputed
-from deploy import render_decisions
+from deploy import render_decisions, render_plan
 from eval.run_retrieval import CORPUS_SNAPSHOT
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -137,6 +137,11 @@ def build(out: Path) -> list[Path]:
     # ships as a page rather than as a file a reviewer has to go find.
     (out / "decisions.html").write_text(render_decisions.render())
     written.append(out / "decisions.html")
+
+    # The decision log refers to phases forty times and never says what they
+    # are. Without this page its most-repeated reference points at nothing.
+    (out / "plan.html").write_text(render_plan.render())
+    written.append(out / "plan.html")
 
     write_json(out / "api" / "scenarios.json", scenarios_payload())
     write_json(out / "api" / "health.json", health_payload())

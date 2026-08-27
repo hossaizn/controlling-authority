@@ -1009,16 +1009,16 @@
   },
   {
     "label": "decision log anchored without checking the counts agree",
-    "file": "deploy/render_decisions.py",
+    "file": "deploy/page.py",
     "old": "    if len(slots) != len(titles):",
     "new": "    if False:",
     "origin": "phase10"
   },
   {
     "label": "decision log renderer passes raw HTML through",
-    "file": "deploy/render_decisions.py",
-    "old": "md = MarkdownIt(\"default\", {\"html\": False, \"linkify\": False})",
-    "new": "md = MarkdownIt(\"default\", {\"html\": True, \"linkify\": False})",
+    "file": "deploy/page.py",
+    "old": "    md = MarkdownIt(\"default\", {\"html\": False, \"linkify\": False})",
+    "new": "    md = MarkdownIt(\"default\", {\"html\": True, \"linkify\": False})",
     "origin": "phase10"
   },
   {
@@ -1030,14 +1030,14 @@
   },
   {
     "label": "nav current-marker never moves to the log page",
-    "file": "deploy/render_decisions.py",
+    "file": "deploy/page.py",
     "old": "    return markup.replace(target, target + ' class=\"is-current\"', 1)",
     "new": "    return markup",
     "origin": "phase10-nav"
   },
   {
     "label": "log page copies a nav instead of lifting it",
-    "file": "deploy/render_decisions.py",
+    "file": "deploy/page.py",
     "old": "    markup = markup.replace(' class=\"is-current\"', \"\")",
     "new": "    markup = markup",
     "origin": "phase10-nav"
@@ -1076,5 +1076,40 @@
     "old": "    found += re.findall(r\"url\\(\\s*[\\\"\\']?((?:https?:)?//[^)\\\"\\']+)\", html, re.I)",
     "new": "    found += []",
     "origin": "phase10-nav"
+  },
+  {
+    "label": "headings not demoted, plan gets many h1s",
+    "file": "deploy/page.py",
+    "old": "    return re.sub(r\"^(#{1,5}) \", r\"#\\1 \", markdown, flags=re.M)",
+    "new": "    return markdown",
+    "origin": "plan-page"
+  },
+  {
+    "label": "plan retitle skipped, two competing headings",
+    "file": "deploy/render_plan.py",
+    "old": "        if not lines or not lines[0].startswith(\"# \"):",
+    "new": "        if False:",
+    "origin": "plan-page"
+  },
+  {
+    "label": "tooling directive published to readers",
+    "file": "deploy/render_plan.py",
+    "old": "    return page.demote(strip_tooling(\"\\n\\n\".join(parts)))",
+    "new": "    return page.demote(\"\\n\\n\".join(parts))",
+    "origin": "plan-page"
+  },
+  {
+    "label": "strip rule silently matches nothing",
+    "file": "deploy/render_plan.py",
+    "old": "    if not n:\n        raise SystemExit(",
+    "new": "    if False:\n        raise SystemExit(",
+    "origin": "plan-page"
+  },
+  {
+    "label": "plan page never written",
+    "file": "deploy/build_static.py",
+    "old": "    (out / \"plan.html\").write_text(render_plan.render())",
+    "new": "    (out / \"plan.html\").write_text(\"\")",
+    "origin": "plan-page"
   }
 ]
