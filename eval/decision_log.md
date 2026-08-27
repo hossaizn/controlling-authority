@@ -1733,3 +1733,53 @@ If cap=2 and cap=3 score identically **and** both sit at or above the Haiku refe
 ### The half that stays blocked
 
 Whether capped context matches **uncapped** context is unanswerable without a model that has both a wide context window and a free tier. It is deferred, not abandoned, and it is the one question a wide-context free provider would unblock.
+
+## DL-39: The production concerns this deliberately does not address
+
+**Status:** a statement of scope, not a plan. Written because a portfolio piece that quietly omits production concerns is indistinguishable from one whose author did not know about them.
+
+Every item here was raised, costed, and left undone on purpose. Where something *was* done, it says what and how far.
+
+### SLOs were set for quality and for nothing else
+
+Quality targets were pre-registered properly and honoured: 0.80 macro route accuracy as an upgrade trigger (DL-22), a 2-point tie-break for chunking (DL-14), a 10-point adoption bar for reranking (DL-16), a 2-scenario bar for a retrieval guarantee (DL-28). Each was fixed before the data existed, and each decided something.
+
+**No latency, throughput or availability target was ever written down.** That is the gap, and naming it precisely matters more than closing it now would.
+
+Latency was measured only reactively, in DL-28, and only because a filtering decision needed it: **5.8 ms median retrieval against a 13,198 ms end-to-end, 0.04% of the budget.** The figure settled the question it was raised for and nothing else was asked of it.
+
+Had a p95 target been fixed on day one, **four sequential model calls would have been a design constraint rather than an observation.** `triage → resolve → compose → verify` is a serial chain, and no amount of retrieval tuning moves it. That is the same shape as this project's central claim about relevance and correctness: the expensive thing is not the thing everyone tunes.
+
+| target | current | what closing it would take |
+|---|---|---|
+| p95 latency | 13.2 s typical, never targeted | parallelise or drop a node; both change behaviour |
+| throughput | single instance, never load-tested | no load test exists |
+| availability | undefined | no fallback path when a provider is down |
+
+**Availability's absence was demonstrated rather than theorised.** When the Anthropic credit balance reached zero the system did not degrade, it stopped. The pre-computed scenarios kept serving, but that is a property of static files, not a designed fallback.
+
+### Durable execution: the half that hurt is fixed, the half that did not is not
+
+There is no checkpointer. LangGraph ships one and this graph does not use it, so a request that fails at `compose` re-runs from `triage`.
+
+That is defensible for a demo whose expensive path is rate-limited to single figures per day and indefensible for anything doing real volume.
+
+**What was fixed is the eval harness, and only after it lost data.** DL-37 reports a run that reached 49 of 92 scenarios, losing 43 to a rolling daily cap, and could only report a paired subset as a result. The remedy was per-scenario failure tolerance with a stated denominator, then the pre-flight budget guard in `eval/run_context_sweep.py` that stops cleanly rather than raising on scenario N. Both are reactions to a loss, not a design.
+
+**The one durability property that worked was accidental.** The on-disk model cache exists to stop re-runs costing money; it is also why a killed run resumes for free and why the Haiku control arm survived the credit outage at all. Durability as a side effect of a cost optimisation is luck, and it is recorded here as luck rather than as architecture.
+
+### Rate limiting is correct for one instance and wrong for two
+
+`api/limits.py` holds its windows in process memory, and says so in its own module docstring. On the single Fly instance the spec ships, per-process counters are right. On two they silently double every limit, including the global spend breaker.
+
+Left alone deliberately. **The sentence is worth more than the implementation would be**: a shared counter needs Redis, which is an external dependency and a new failure mode bolted onto a demo that currently fits in one container.
+
+### Load testing, provider failover, alerting
+
+None exist. Langfuse provides observability, not alerting: nothing pages when the error rate moves, because nobody is on call.
+
+### The one item that looks like a gap and is not
+
+`TRACE_REDACT` defaults to empty, so employee context reaches Langfuse. For a corpus of invented scenarios containing no real employees, redaction would hide the trace the demo exists to show.
+
+It is documented in `.env.example` and in `agent/tracing.py`, and **a deployment carrying real employee data should set it before anything else**. That is a judgment about this deployment rather than a general one, and it is the only item here that would change on day one of real use.
