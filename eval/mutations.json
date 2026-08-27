@@ -887,5 +887,40 @@
     "old": "                        \"passage_cap\": passage_cap,",
     "new": "                        \"passage_cap\": None,",
     "origin": "DL-38"
+  },
+  {
+    "label": "budget guard never fires",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return spent + price <= cap - headroom",
+    "new": "    return True",
+    "origin": "DL-38"
+  },
+  {
+    "label": "budget guard spends the reserve",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return spent + price <= cap - headroom",
+    "new": "    return spent + price <= cap",
+    "origin": "DL-38"
+  },
+  {
+    "label": "budget guard off by one at the boundary",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return spent + price <= cap - headroom",
+    "new": "    return spent + price < cap - headroom",
+    "origin": "DL-38"
+  },
+  {
+    "label": "call priced without the reserved output budget",
+    "file": "eval/run_context_sweep.py",
+    "old": "        estimate_tokens([SYSTEM, _user_message(trimmed)]) + RESOLVE_MAX_TOKENS",
+    "new": "        estimate_tokens([SYSTEM, _user_message(trimmed)])",
+    "origin": "DL-38"
+  },
+  {
+    "label": "cost_of ignores the cap",
+    "file": "eval/run_context_sweep.py",
+    "old": "    trimmed = {**state, \"retrieved\": cap_per_layer(state[\"retrieved\"], cap)}",
+    "new": "    trimmed = {**state, \"retrieved\": state[\"retrieved\"]}",
+    "origin": "DL-38"
   }
 ]
