@@ -6,7 +6,10 @@
     "fully_correct": 0.6196,
     "route_accuracy_macro": 0.8154,
     "precedence_correct": 0.7895,
-    "n": 92
+    "n": 92,
+    "precedence_delta_points": 22.8,
+    "naive_baseline": 0.6491,
+    "precedence_n": 57
   },
   "by_slice": {
     "adversarial": {

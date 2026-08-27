@@ -192,10 +192,14 @@
   .navlinks a.is-current {
     background: var(--ink); color: var(--bg); border-color: var(--ink);
   }
-  @media (max-width: 560px) {
+  @media (max-width: 620px) {
     .navinner { padding: 10px 16px; }
-    .brand { font-size: 14px; }
+    .brand { font-size: 17px; }
     .navlinks a { padding: 5px 9px; font-size: 11px; }
+    /* The wordmark is the first thing to go. Keeping it wrapped the links onto
+       a second row and left the brand floating beside a two-line nav. */
+    .brandword { display: none; }
+    .navlinks { flex-wrap: nowrap; }
   }
   .contact { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
   .contact a {
@@ -224,12 +228,40 @@
     .keylist { grid-template-columns: 1fr; gap: 2px; }
     .keylist dd { margin-bottom: 8px; }
   }
+
+  /* The intro keeps a readable measure, so on a wide screen the column beside
+     it was empty. The numbers a reviewer wants first go there instead. */
+  .hero { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 28px;
+          align-items: start; margin-bottom: 12px; }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+  .hero .sub:last-child { margin-bottom: 0; }
+  .statcard { padding: 18px 20px; }
+  .stathead {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em; color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .stats { margin: 0; display: grid; gap: 12px; }
+  .stats .row2 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .stats .num {
+    font-family: var(--serif); font-weight: 700; font-size: 23px;
+    line-height: 1; color: var(--ink);
+  }
+  .stats .lab {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    text-align: right; letter-spacing: .02em; max-width: 148px;
+  }
+  .statnote {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    margin: 14px 0 0; padding-top: 12px; border-top: 2px solid var(--line);
+    line-height: 1.55;
+  }
 </style>
 </head>
 <body>
 <nav class="topnav">
   <div class="navinner">
-    <a class="brand" href="/">&#167; Controlling Authority</a>
+    <a class="brand" href="/">&#167;<span class="brandword"> Controlling Authority</span></a>
     <div class="navlinks">
       <a href="/" data-nav="demo" class="is-current">Demo</a>
       <a href="/decisions" data-nav="log">Decision log</a>
@@ -241,8 +273,10 @@
 <div class="wrap">
 
   <h1>Controlling Authority</h1>
-  <p class="sub">
-    Ask how much leave you get and three authorities might answer: federal law,
+  <div class="hero">
+    <div>
+    <p class="sub">
+      Ask how much leave you get and three authorities might answer: federal law,
     your state, and your company handbook. The handbook is the closest match to
     the question, and when it promises less than the law requires, the closest
     match is wrong. Nothing in the text tells you which one wins.
@@ -257,7 +291,18 @@
     It does. Same retrieval, same runs, one component swapped, 22.8 points
     apart. The <a href="/decisions">decision log</a> has the rest, including the
     experiments that failed and the features I built, measured, and dropped.
-  </p>
+    </p>
+    </div>
+    <aside class="statcard panel hidden" id="statcard">
+      <div class="stathead">Measured</div>
+      <div class="stats">
+        <div class="row2"><span class="num" id="sDelta"></span><span class="lab">points over trusting the closest passage</span></div>
+        <div class="row2"><span class="num" id="sFully"></span><span class="lab">fully correct, end to end</span></div>
+        <div class="row2"><span class="num" id="sRoute"></span><span class="lab">route accuracy, macro</span></div>
+      </div>
+      <p class="statnote" id="sNote"></p>
+    </aside>
+  </div>
 
 
   <h2>How to read this</h2>
@@ -448,11 +493,30 @@ async function boot() {
       `These are the real numbers, failures included.`;
   }
 
+  renderStats(o);
+
   // A deployment that cannot answer says so, rather than offering a control
   // that fails on click. A reviewer who presses Ask and gets a network error
   // learns something false about the system: that it is broken, rather than
   // that this particular deployment serves only the pre-computed set.
   if (health.live_ask === false) disableAsk();
+}
+
+function renderStats(o) {
+  // Every figure comes from the committed scores snapshot, which is written in
+  // the same pass as the records. Typing them into the markup would let the
+  // page and the runs drift, and DL-26 already moved this delta once.
+  if (typeof o.precedence_delta_points !== "number") return;
+  $("statcard").classList.remove("hidden");
+  $("sDelta").textContent = "+" + o.precedence_delta_points.toFixed(1);
+  // One decimal, matching the footer. 82% up here beside 81.5% down there
+  // reads as two different numbers.
+  $("sFully").textContent = (o.fully_correct * 100).toFixed(1) + "%";
+  $("sRoute").textContent = (o.route_accuracy_macro * 100).toFixed(1) + "%";
+  $("sNote").textContent =
+    "Across " + o.n + " hand-written scenarios. The comparison runs on the " +
+    o.precedence_n + " that ask for an answer, against a naive baseline of " +
+    o.naive_baseline.toFixed(3) + ".";
 }
 
 function disableAsk() {
