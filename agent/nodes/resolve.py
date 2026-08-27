@@ -377,6 +377,7 @@ def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
                             for f in resolution.considered
                         ],
                         "model": model,
+                        "usage": getattr(caller, "last_call", None),
                     },
                 )
             ],

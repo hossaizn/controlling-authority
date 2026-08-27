@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from retrieval.ratelimit import RateBudget, estimate_tokens
+import pytest
+
+from retrieval import ratelimit
+from retrieval.ratelimit import WINDOW_SECONDS, RateBudget, estimate_tokens
 
 
 def test_token_estimate_is_conservative() -> None:
@@ -54,9 +57,41 @@ def test_a_request_larger_than_the_whole_budget_does_not_crash() -> None:
     assert budget.acquire(5_000) == 0.0
 
 
-def test_an_oversized_request_still_paces_the_next_one() -> None:
-    """Having spent the budget, the following call must wait rather than sail
-    through on an empty window."""
+def test_an_oversized_request_still_paces_the_next_one(monkeypatch) -> None:
+    """Having spent the budget, the following call must WAIT.
+
+    The first version asserted `len(_events) == 1`, which a budget that never
+    paced would also satisfy: it tested that the event was recorded, not that
+    recording it had any effect.
+
+    The clock is stubbed on BOTH `sleep` and `monotonic`. Stubbing only `sleep`
+    made the loop busy-wait for the real sixty seconds, turning a 3-second suite
+    into a 78-second one, because time never advanced so the condition never
+    cleared. Half a fake clock is worse than none.
+    """
+    now = {"t": 1000.0}
+    slept: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        slept.append(seconds)
+        now["t"] += seconds
+
+    monkeypatch.setattr(ratelimit.time, "sleep", fake_sleep)
+    monkeypatch.setattr(ratelimit.time, "monotonic", lambda: now["t"])
+
     budget = RateBudget(max_tokens_per_minute=1_000, max_requests_per_minute=60)
     budget.acquire(5_000)
-    assert len(budget._events) == 1
+    assert slept == [], "an oversized request on an empty window proceeds at once"
+
+    budget.acquire(100)
+    assert slept, "the call after an oversized one must wait for the window"
+    assert sum(slept) >= WINDOW_SECONDS
+
+
+def test_a_budget_that_can_never_admit_a_request_is_rejected() -> None:
+    """Fewer than one request per window can never satisfy `request_ok`, so
+    `acquire` spun forever. A silent hang is the worst failure a pacer can have:
+    the run looks alive and never progresses, which is what the 429 backoff
+    already looked like."""
+    with pytest.raises(ValueError, match="at least 1"):
+        RateBudget(max_tokens_per_minute=8_000, max_requests_per_minute=0)

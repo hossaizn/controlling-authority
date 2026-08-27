@@ -471,3 +471,50 @@ def test_redaction_is_off_by_default(monkeypatch) -> None:
     monkeypatch.delenv("TRACE_REDACT", raising=False)
     assert tracing.redacting() is False
     assert _summarise_input(sample_state())["question"] == "am I eligible?"
+
+
+# --- per-stage token cost, which the plan requires --------------------------
+
+
+def test_a_generation_carries_its_own_token_cost(monkeypatch) -> None:
+    """A single aggregate on the root cannot answer which node is expensive,
+    which is the only question the number is useful for."""
+    client = RecordingClient()
+    monkeypatch.setattr(tracing, "_client", lambda: client)
+    s = sample_state()
+    s["trace"] = [
+        TraceEvent(
+            "resolve",
+            "state controls",
+            {
+                "model": "haiku",
+                "usage": {"model": "haiku", "input_tokens": 5400, "output_tokens": 260},
+            },
+        )
+    ]
+    tracing.export(s)
+    updates = client.sink["children"][0].updates
+    assert updates and updates[0]["usage_details"] == {"input": 5400, "output": 260}
+    assert updates[0]["model"] == "haiku"
+
+
+def test_a_cache_hit_reports_no_cost_on_its_span(monkeypatch) -> None:
+    """A cache hit spent nothing. Attributing the previous call's tokens is how
+    an all-cache eval run reports a bill it never incurred."""
+    client = RecordingClient()
+    monkeypatch.setattr(tracing, "_client", lambda: client)
+    s = sample_state()
+    s["trace"] = [TraceEvent("resolve", "state controls", {"model": "haiku", "usage": None})]
+    tracing.export(s)
+    assert client.sink["children"][0].updates == []
+
+
+def test_a_deterministic_node_reports_no_cost(monkeypatch) -> None:
+    client = RecordingClient()
+    monkeypatch.setattr(tracing, "_client", lambda: client)
+    s = sample_state()
+    s["trace"] = [
+        TraceEvent("clarify", "asked for tenure", {"missing_fact": "tenure_months"})
+    ]
+    tracing.export(s)
+    assert client.sink["children"][0].updates == []

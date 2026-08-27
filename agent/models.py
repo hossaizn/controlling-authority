@@ -127,7 +127,14 @@ _BUDGETS = {
 REASONING_HEADROOM = 1024
 # Just inside the bucket, so our token estimate disagreeing with theirs by a
 # few percent cannot turn a legal request into a 413.
-REQUEST_TOKEN_CEILING = int(optional("OPEN_MODEL_TPM", "8000")) * 95 // 100
+# **Two different limits, two variables.** These were both derived from
+# OPEN_MODEL_TPM, which is wrong: the bucket is per MINUTE and the ceiling is
+# per REQUEST, and they only coincide on Groq's free tier because it happens
+# to set both to 8,000. Point OPEN_MODEL_TPM at a real tier (30,000) and every
+# request would have been rejected as too large.
+REQUEST_TOKEN_CEILING = int(
+    optional("OPEN_MODEL_MAX_REQUEST_TOKENS", optional("OPEN_MODEL_TPM", "8000"))
+) * 95 // 100
 # Enough for a tool call with no thinking at all. Below this, the model has no
 # room to answer and the run should fail loudly rather than emit truncated JSON.
 MIN_OUTPUT_TOKENS = 700
@@ -253,6 +260,11 @@ class StructuredCaller:
     def __init__(self, usage: Usage | None = None, use_cache: bool = True):
         self._clients: dict[str, Any] = {}
         self.usage = usage or Usage()
+        # The most recent call's own tokens, so a node can record what IT
+        # cost rather than the run total. The plan asks for per-stage cost;
+        # a single aggregate on the root cannot answer which node is
+        # expensive, which is the only question the number is useful for.
+        self.last_call: dict[str, Any] | None = None
         self.use_cache = use_cache
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -283,6 +295,10 @@ class StructuredCaller:
 
         if self.use_cache and path.exists():
             self.usage.hit()
+            # A cache hit spent nothing. Reporting the previous call's
+            # tokens here would attribute real cost to work that never
+            # happened, which is how an all-cache eval run reports a bill.
+            self.last_call = None
             return json.loads(path.read_text())["result"]
 
         spec = spec_for(model)
@@ -295,6 +311,11 @@ class StructuredCaller:
             result, tokens = self._openai(client, system, user, tool, model, max_tokens)
 
         self.usage.add(model, *tokens)
+        self.last_call = {
+            "model": model,
+            "input_tokens": tokens[0],
+            "output_tokens": tokens[1],
+        }
 
         if self.use_cache:
             path.write_text(
@@ -342,13 +363,17 @@ class StructuredCaller:
         # applying it to the floor check as well rejected prompts of
         # 6,901 to 7,300 tokens that the provider accepts.
         budget = min(REASONING_HEADROOM, available)
-        headroom_at_full = int(optional("OPEN_MODEL_TPM", "8000")) - prompt_tokens
+        headroom_at_full = (
+            int(optional("OPEN_MODEL_MAX_REQUEST_TOKENS", optional("OPEN_MODEL_TPM", "8000")))
+            - prompt_tokens
+        )
         if headroom_at_full < MIN_OUTPUT_TOKENS:
             raise RuntimeError(
                 f"{model}: a {prompt_tokens}-token prompt leaves {available} tokens "
                 f"under the {REQUEST_TOKEN_CEILING} per-request ceiling, below the "
-                f"{MIN_OUTPUT_TOKENS} a tool call needs. Raise OPEN_MODEL_TPM if the "
-                "tier allows more, or the prompt has to shrink."
+                f"{MIN_OUTPUT_TOKENS} a tool call needs. Raise "
+                "OPEN_MODEL_MAX_REQUEST_TOKENS if the tier allows a larger single "
+                "request, or the prompt has to shrink."
             )
 
         # Paced on prompt PLUS reservation, because that is what the provider

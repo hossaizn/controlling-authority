@@ -275,6 +275,7 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
                         "failures": failures,
                         "entailment_checked": entailment_ran,
                         "model": model if entailment_ran else None,
+                        "usage": getattr(caller, "last_call", None) if entailment_ran else None,
                     },
                 )
             ],
