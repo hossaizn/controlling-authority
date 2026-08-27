@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Controlling Authority</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%2314120f%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2224%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2221%22%20font-weight%3D%22700%22%20fill%3D%22%236c3bf5%22%20text-anchor%3D%22middle%22%3E%C2%A7%3C%2Ftext%3E%3C%2Fsvg%3E">
 <!--
   Self-contained on purpose: no CDN, no build step, no framework. The point of
   this page is one screen that makes an argument, and every dependency is
@@ -15,99 +16,335 @@
 -->
 <style>
   :root {
-    --ink: #1a1a1a; --muted: #6b6b6b; --line: #e2e2e2; --bg: #fbfbfa;
-    --panel: #fff; --accent: #1b4d3e; --wrong: #a33; --right: #1b6b3a;
-    --code: #f4f4f2;
+    /* joydrop-derived: warm cream ground, white cards, hard black edges,
+       solid offset shadows with no blur. Violet carries meaning here rather
+       than decoration: it marks the precedence arm and a correct outcome. */
+    --bg: #f2efe8;
+    --panel: #ffffff;
+    --ink: #14120f;
+    --muted: #6e6862;
+    --line: #14120f;
+    --violet: #6c3bf5;
+    --violet-soft: #efe9fe;
+    --wrong: #d6303a;
+    --wrong-soft: #fdeeef;
+    --right: #6c3bf5;
+    --amber: #f6c445;
+    --amber-soft: #fff6de;
+    --code: #f2efe8;
+    --shadow: 5px 5px 0 var(--line);
+    --shadow-sm: 3px 3px 0 var(--line);
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55;
-    font: 16px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 var(--serif);
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
-  .sub { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
-       color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
-  .panel { background: var(--panel); border: 1px solid var(--line);
-           border-radius: 10px; padding: 18px; }
-  .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; }
+  @media (max-width: 480px) { .wrap { padding: 28px 16px 60px; } }
+
+  h1 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(30px, 6.5vw, 42px);
+    margin: 0 0 10px; letter-spacing: -0.02em; line-height: 1.1;
+  }
+  h2 {
+    font-family: var(--serif); font-weight: 700;
+    font-size: clamp(20px, 3.6vw, 24px);
+    margin: 40px 0 14px; letter-spacing: -0.01em;
+    /* Clears the sticky nav. Without this every in-page anchor lands behind
+       the bar, which is most of the decision log's contents list. */
+    scroll-margin-top: 78px;
+  }
+  :target { scroll-margin-top: 78px; }
+  .sub { color: var(--muted); margin: 0 0 20px; max-width: 64ch; font-size: 17px; }
+  .sub a { color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+  .panel {
+    background: var(--panel); border: 2px solid var(--line);
+    border-radius: 16px; padding: 20px; box-shadow: var(--shadow);
+  }
+
+  .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
   button {
-    font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 999px;
-    border: 1px solid var(--line); background: #fff; cursor: pointer;
-    transition: border-color .12s, background .12s;
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    padding: 9px 15px; border-radius: 10px;
+    border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer; box-shadow: var(--shadow-sm);
+    transition: transform .08s ease, box-shadow .08s ease, background .12s ease;
   }
-  button:hover { border-color: #bbb; }
-  button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--line); }
+  button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--line); }
+  button.on { background: var(--violet); border-color: var(--line); color: #fff; }
+  button:disabled {
+    background: var(--bg); color: var(--muted); cursor: not-allowed;
+    transform: none; box-shadow: var(--shadow-sm); opacity: .65;
+  }
+
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   input[type=text], input[type=date] {
-    font: inherit; padding: 10px 12px; border: 1px solid var(--line);
-    border-radius: 8px; background: #fff;
+    font-family: var(--mono); font-size: 14px; padding: 11px 13px;
+    border: 2px solid var(--line); border-radius: 10px; background: #fff;
+    color: var(--ink); box-shadow: var(--shadow-sm);
   }
   input[type=text] { flex: 1 1 380px; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  input:focus { outline: none; transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--violet); }
+  input:disabled { background: var(--bg); color: var(--muted); box-shadow: none; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
   @media (max-width: 780px) { .cols { grid-template-columns: 1fr; } }
-  .tag { display: inline-block; font-size: 11px; letter-spacing: .05em;
-         text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
-         border: 1px solid var(--line); color: var(--muted); }
-  .tag.right { color: var(--right); border-color: #bcd9c6; background: #f2f9f4; }
-  .tag.wrong { color: var(--wrong); border-color: #e6c4c4; background: #fdf5f5; }
-  .answer { white-space: pre-wrap; }
-  .cite { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-          font-size: 13px; background: var(--code); padding: 1px 6px;
-          border-radius: 4px; margin-right: 6px; display: inline-block; }
-  .trace { border-left: 2px solid var(--line); padding-left: 14px; margin-top: 4px; }
-  .node { margin-bottom: 12px; }
-  .node .name { font-family: ui-monospace, monospace; font-size: 12px;
-                color: var(--accent); font-weight: 600; }
-  .node .why { font-size: 14px; }
-  details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
-  pre { background: var(--code); padding: 10px; border-radius: 6px;
-        overflow-x: auto; font-size: 12px; margin: 6px 0 0; }
-  .meta { color: var(--muted); font-size: 13px; }
-  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px;
-        font-size: 14px; margin: 12px 0; }
-  .kv dt { color: var(--muted); }
-  .kv dd { margin: 0; }
-  footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
-           color: var(--muted); font-size: 13px; }
-  .warn { background: #fff8e6; border: 1px solid #f0dfae; border-radius: 8px;
-          padding: 10px 12px; font-size: 14px; margin-bottom: 14px; }
+
+  /* The comparison the demo exists to make. The agent arm is always violet.
+     The baseline arm turns red only when it picks the wrong authority. */
+  #agentPanel { border-color: var(--violet); box-shadow: 5px 5px 0 var(--violet); }
+  #basePanel.is-wrong { border-color: var(--wrong); box-shadow: 5px 5px 0 var(--wrong); }
+
+  .tag {
+    display: inline-block; font-family: var(--mono); font-size: 10px;
+    font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px;
+    border: 2px solid var(--line); background: var(--panel); color: var(--muted);
+  }
+  .tag.right { color: #fff; background: var(--violet); border-color: var(--violet); }
+  .tag.wrong { color: #fff; background: var(--wrong); border-color: var(--wrong); }
+
+  strong { font-family: var(--mono); font-size: 13px; text-transform: uppercase;
+           letter-spacing: .06em; }
+  .answer { white-space: pre-wrap; font-size: 16.5px; margin: 14px 0 10px; }
+
+  .cite {
+    font-family: var(--mono); font-size: 12px; background: var(--code);
+    border: 2px solid var(--line); padding: 2px 8px; border-radius: 7px;
+    margin: 0 6px 6px 0; display: inline-block; font-weight: 600;
+  }
+
+  .trace { border-left: 2px solid var(--line); padding-left: 18px; margin-top: 4px; }
+  .node { margin-bottom: 18px; position: relative; }
+  .node::before {
+    content: ""; position: absolute; left: -25px; top: 5px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--violet); border: 2px solid var(--line);
+  }
+  .node .name {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--violet);
+  }
+  .node .why { font-size: 15.5px; margin-top: 2px; }
+
+  details summary {
+    cursor: pointer; font-family: var(--mono); font-size: 11px;
+    color: var(--muted); margin-top: 6px; letter-spacing: .04em;
+  }
+  pre {
+    background: var(--code); border: 2px solid var(--line); padding: 12px;
+    border-radius: 10px; overflow-x: auto; font-family: var(--mono);
+    font-size: 11.5px; margin: 8px 0 0; line-height: 1.5;
+  }
+
+  .meta { color: var(--muted); font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  .kv {
+    display: grid; grid-template-columns: max-content 1fr; gap: 7px 16px;
+    font-family: var(--mono); font-size: 13.5px; margin: 14px 0;
+  }
+  .kv dt { color: var(--muted); font-size: 11px; text-transform: uppercase;
+           letter-spacing: .06em; padding-top: 2px; }
+  .kv dd { margin: 0; font-weight: 600; }
+
+  footer {
+    margin-top: 52px; padding-top: 22px; border-top: 2px solid var(--line);
+    color: var(--muted); font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+  }
+
+  .warn {
+    background: var(--amber-soft); border: 2px solid var(--line);
+    border-radius: 12px; padding: 13px 15px; font-size: 14.5px;
+    margin-bottom: 16px; box-shadow: var(--shadow-sm);
+  }
+  .warn ul { margin: 8px 0 0; padding-left: 20px; }
   .hidden { display: none; }
+
+  .topnav {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--bg); border-bottom: 2px solid var(--line);
+  }
+  .navinner {
+    max-width: 1080px; margin: 0 auto; padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand {
+    font-family: var(--serif); font-weight: 700; font-size: 16px;
+    color: var(--ink); text-decoration: none; letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .navlinks { display: flex; gap: 8px; flex-wrap: wrap; }
+  .navlinks a {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--ink); text-decoration: none;
+    padding: 6px 12px; border-radius: 999px; border: 2px solid transparent;
+  }
+  .navlinks a:hover { border-color: var(--line); }
+  /* Black, not violet. Violet means a correct outcome on this site, and a nav
+     highlight would spend that meaning on navigation. joydrop marks its active
+     tab in solid black for the same reason. */
+  .navlinks a.is-current {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
+  @media (max-width: 620px) {
+    .navinner { padding: 10px 16px; }
+    .brand { font-size: 17px; }
+    .navlinks a { padding: 5px 9px; font-size: 11px; }
+    /* The wordmark is the first thing to go. Keeping it wrapped the links onto
+       a second row and left the brand floating beside a two-line nav. */
+    .brandword { display: none; }
+    .navlinks { flex-wrap: nowrap; }
+  }
+  .contact { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .contact a {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--ink); text-decoration: none;
+    border: 2px solid var(--line); border-radius: 999px; padding: 6px 13px;
+    background: var(--panel); box-shadow: var(--shadow-sm);
+  }
+  .contact a:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 var(--line); }
+
+  .steps { margin: 0; padding-left: 22px; }
+  .steps li { margin-bottom: 10px; }
+  .steps li:last-child { margin-bottom: 0; }
+  strong.inline {
+    font-family: var(--mono); font-size: 13px; text-transform: none;
+    letter-spacing: 0; background: var(--code); border: 1.5px solid var(--line);
+    border-radius: 6px; padding: 1px 6px; font-weight: 600;
+  }
+  .keylist {
+    display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px;
+    margin: 14px 0 0; font-family: var(--mono); font-size: 12.5px;
+  }
+  .keylist dt { font-weight: 700; }
+  .keylist dd { margin: 0; color: var(--muted); }
+  @media (max-width: 560px) {
+    .keylist { grid-template-columns: 1fr; gap: 2px; }
+    .keylist dd { margin-bottom: 8px; }
+  }
+
+  /* The intro keeps a readable measure, so on a wide screen the column beside
+     it was empty. The numbers a reviewer wants first go there instead. */
+  .hero { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 28px;
+          align-items: start; margin-bottom: 12px; }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+  .hero .sub:last-child { margin-bottom: 0; }
+  .statcard { padding: 18px 20px; }
+  .stathead {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em; color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .stats { margin: 0; display: grid; gap: 12px; }
+  .stats .row2 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .stats .num {
+    font-family: var(--serif); font-weight: 700; font-size: 23px;
+    line-height: 1; color: var(--ink);
+  }
+  .stats .lab {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    text-align: right; letter-spacing: .02em; max-width: 148px;
+  }
+  .statnote {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    margin: 14px 0 0; padding-top: 12px; border-top: 2px solid var(--line);
+    line-height: 1.55;
+  }
 </style>
 </head>
 <body>
+<nav class="topnav">
+  <div class="navinner">
+    <a class="brand" href="/">&#167;<span class="brandword"> Controlling Authority</span></a>
+    <div class="navlinks">
+      <a href="/" data-nav="demo" class="is-current">Demo</a>
+      <a href="/plan" data-nav="plan">Plan</a>
+      <a href="/decisions" data-nav="log">Decision log</a>
+      <a href="https://github.com/hossaizn/controlling-authority" data-nav="repo"
+         target="_blank" rel="noopener noreferrer">GitHub</a>
+    </div>
+  </div>
+</nav>
 <div class="wrap">
 
   <h1>Controlling Authority</h1>
-  <p class="sub">
-    Employee leave questions have no answer until you know <em>which authority
-    governs</em>: federal law, state law, or the company handbook. The handbook is
-    usually the closest match to the question and, where it falls below a
-    statutory floor, the wrong answer. Determining precedence is the work;
-    retrieval is a means to it.
+  <div class="hero">
+    <div>
+    <p class="sub">
+      Ask how much leave you get and three authorities might answer: federal law,
+    your state, and your company handbook. The handbook is the closest match to
+    the question, and when it promises less than the law requires, the closest
+    match is wrong. Nothing in the text tells you which one wins.
   </p>
+  <p class="sub">
+    I picked this because it is a real problem in HR software, and because
+    better retrieval does not solve it. Fetching the right passage is the easy
+    half. Something still has to decide which authority governs, and I wanted
+    to know whether that decision belongs in code instead of a prompt.
+  </p>
+  <p class="sub">
+    It does. Same retrieval, same runs, one component swapped, 22.8 points
+    apart. The <a href="/decisions">decision log</a> has the rest, including the
+    experiments that failed and the features I built, measured, and dropped.
+    </p>
+    </div>
+    <aside class="statcard panel hidden" id="statcard">
+      <div class="stathead">Measured</div>
+      <div class="stats">
+        <div class="row2"><span class="num" id="sDelta"></span><span class="lab">points over trusting the closest passage</span></div>
+        <div class="row2"><span class="num" id="sFully"></span><span class="lab">fully correct, end to end</span></div>
+        <div class="row2"><span class="num" id="sRoute"></span><span class="lab">route accuracy, macro</span></div>
+      </div>
+      <p class="statnote" id="sNote"></p>
+    </aside>
+  </div>
+
+
+  <h2>How to read this</h2>
+  <div class="panel">
+    <ol class="steps">
+      <li>Pick a scenario below. Each is a recorded run against the real corpus,
+        instead of a canned response.</li>
+      <li>Read the two cards side by side. The left card is this system, which
+        applies precedence rules in code. The right card is what a system that
+        trusts the closest matching passage concludes, from the same retrieval,
+        on the same run.</li>
+      <li>Look at the tag on each card. Violet means the run matched the
+        labelled ground truth. Red means the answer was wrong.</li>
+      <li>Open <strong class="inline">How it decided</strong> for the steps the
+        agent took, and open any step for the raw detail behind it.</li>
+      <li>Read the score under the trace. That is how the whole slice scores,
+        not how this one case went.</li>
+    </ol>
+    <p class="meta" style="margin:14px 0 0">
+      Start with <strong class="inline">conflict</strong>. The handbook is the
+      closest match to that question and the wrong answer, so the two cards
+      disagree.
+    </p>
+  </div>
 
   <h2>Example scenarios</h2>
   <div class="panel">
     <div class="buttons" id="scenarios"></div>
     <p class="meta" style="margin:12px 0 0">
-      Pre-computed from real runs. Free, instant, and always available: they cost
-      nothing to serve, so they are exempt from every rate limit.
+      Each one is a recorded run, instead of a canned response. They cost
+      nothing to serve, so no rate limit applies to them.
     </p>
-  </div>
-
-  <h2>Ask your own</h2>
-  <div class="panel">
-    <div class="row">
-      <input type="text" id="q" placeholder="e.g. my grandmother died, how many days do I get?">
-      <input type="date" id="asof" value="2026-08-01" title="Answer as of this date">
-      <button id="go">Ask</button>
-    </div>
-    <p class="meta" style="margin:10px 0 0">
-      Rate limited, because live inference is real money. The as-of date changes
-      which law was in force.
-    </p>
+    <dl class="keylist">
+      <dt>straightforward</dt><dd>federal law answers it, and both systems agree</dd>
+      <dt>ambiguous</dt><dd>the correct output is a question, not an answer</dd>
+      <dt>conflict</dt><dd>the handbook beats the statute, and the naive system picks the wrong layer</dd>
+      <dt>superseded</dt><dd>one layer speaks and the others are silent, so silence grants nothing</dd>
+      <dt>refuse</dt><dd>outside leave entirely, so the system declines rather than guessing</dd>
+      <dt>escalate</dt><dd>a person needs to handle this, not a policy lookup</dd>
+      <dt>point in time</dt><dd>the same question on two dates, answered from the law in force on each</dd>
+    </dl>
   </div>
 
   <div id="out" class="hidden">
@@ -115,15 +352,15 @@
     <div id="staleWarn" class="warn hidden"></div>
 
     <div class="cols">
-      <div class="panel">
+      <div class="panel" id="agentPanel">
         <div class="row" style="justify-content:space-between">
           <strong>With precedence rules</strong>
           <span id="agentTag" class="tag"></span>
         </div>
         <dl class="kv">
-          <dt>Controlling</dt><dd id="aAuth">—</dd>
-          <dt>Rule</dt><dd id="aRule">—</dd>
-          <dt>Route</dt><dd id="aRoute">—</dd>
+          <dt>Controlling</dt><dd id="aAuth">none</dd>
+          <dt>Rule</dt><dd id="aRule">none</dd>
+          <dt>Route</dt><dd id="aRoute">none</dd>
         </dl>
         <p class="answer" id="aAnswer"></p>
         <p id="aCites" class="meta"></p>
@@ -136,9 +373,9 @@
           <span id="baseTag" class="tag"></span>
         </div>
         <dl class="kv">
-          <dt>Controlling</dt><dd id="bAuth">—</dd>
-          <dt>Rule</dt><dd id="bRule">—</dd>
-          <dt>Top passage</dt><dd id="bTop">—</dd>
+          <dt>Controlling</dt><dd id="bAuth">none</dd>
+          <dt>Rule</dt><dd id="bRule">none</dd>
+          <dt>Top passage</dt><dd id="bTop">none</dd>
         </dl>
         <p class="meta" id="bNote"></p>
       </div>
@@ -160,10 +397,65 @@
     </div>
   </div>
 
+
+  <h2>Ask your own</h2>
+  <div class="panel">
+    <div class="row">
+      <input type="text" id="q" placeholder="my grandmother died, how many days do I get?">
+      <input type="date" id="asof" value="2026-08-01" title="Answer as of this date">
+      <button id="go">Ask</button>
+    </div>
+    <p class="meta" style="margin:10px 0 0" id="askNote">
+      Rate limited, because live inference costs money. Change the date to see
+      which law was in force then.
+    </p>
+  </div>
+
+
+  <h2>Engineering choices</h2>
+  <div class="panel">
+    <dl class="keylist">
+      <dt>hybrid search</dt><dd>dense plus sparse vectors, fused with RRF, because statutory text is full of exact terms a dense embedding blurs</dd>
+      <dt>filters</dt><dd>jurisdiction and date are hard constraints inside each search, never ranking signals</dd>
+      <dt>chunking</dt><dd>structure-aware, picked over fixed-size by measurement</dd>
+      <dt>reranking</dt><dd>not built. The rule said build one only above 10 points of headroom, and it measured 7.0. Reopened in DL-40</dd>
+      <dt>latency</dt><dd>retrieval is 0.04% of the budget. The cost is four sequential model calls, so these scenarios are pre-computed</dd>
+      <dt>tokens</dt><dd>10 passages retrieved, not 30. Verification sees 1,000 tokens of targeted evidence, not 6,700</dd>
+      <dt>guardrails</dt><dd>forced tool calls, citations checked against what was retrieved, spend caps, and the answer key kept out of the corpus</dd>
+      <dt>hallucination</dt><dd>four of five groundedness checks are code, not a second model grading the first</dd>
+      <dt>sampling</dt><dd>temperature and top-p are unset, which is a gap rather than a choice. DL-41</dd>
+      <dt>drift</dt><dd>records carry the prompt and corpus versions they ran under and are marked stale when those move</dd>
+      <dt>knowledge graph</dt><dd>not used. Three layers with a precedence order is a rule set, not a graph</dd>
+    </dl>
+    <p class="meta" style="margin:14px 0 0">
+      The <a href="https://github.com/hossaizn/controlling-authority#choices-including-the-ones-i-skipped">README</a>
+      has the reasoning for each, and the decision log has the measurements.
+    </p>
+  </div>
+
+  <h2>Where this falls short</h2>
+  <div class="panel">
+    <p style="margin-top:0">When it should ask you a follow-up instead of
+      answering, it answers anyway 47% of the time.</p>
+    <p>The answer skips your handbook three times out of four when the law
+      overrides it. You already read that policy, so being told it no longer
+      applies is the part you need.</p>
+    <p style="margin-bottom:0">A third of answers get swapped for a referral,
+      and the citations go with them. What I tried against each is in the
+      decision log.</p>
+  </div>
+
   <footer>
+    <div class="contact">
+      <a id="mail" href="#">email</a>
+      <a href="https://www.linkedin.com/in/zulqarnayan-hossain/"
+         target="_blank" rel="noopener noreferrer">LinkedIn</a>
+      <a href="https://github.com/hossaizn/controlling-authority"
+         target="_blank" rel="noopener noreferrer">Source</a>
+    </div>
     <p id="footStats">Loading measured results…</p>
     <p>
-      Not legal advice. Corpus: 29 CFR 825, California and New York leave
+      Not legal advice. The corpus is 29 CFR 825, California and New York leave
       statutes, Ohio absence records, and a company handbook seeded with
       deliberate defects.
     </p>
@@ -212,16 +504,55 @@ async function boot() {
   const o = health.overall_scores || {};
   if (typeof o.fully_correct !== "number") {
     $("footStats").textContent =
-      "Measured results are not available in this deployment. The scores " +
-      "snapshot is missing, so no numbers are shown rather than stale ones.";
+      "No scores snapshot in this deployment, so no numbers are shown. " +
+      "Stale numbers would be worse than none.";
   } else {
     $("footStats").textContent =
-      `Measured end to end over ${o.n} hand-written scenarios: ` +
-      `${(o.fully_correct * 100).toFixed(1)}% fully correct — right route, right ` +
-      `authority, required citations present, nothing forbidden, and grounded — ` +
-      `with route accuracy ${(o.route_accuracy_macro * 100).toFixed(1)}% ` +
-      `macro-averaged. These are the real numbers, including where it fails.`;
+      `Measured end to end over ${o.n} hand-written scenarios. ` +
+      `${(o.fully_correct * 100).toFixed(1)}% fully correct, meaning right route, ` +
+      `right authority, required citations present, nothing forbidden cited, and ` +
+      `grounded, all at once. Route accuracy ` +
+      `${(o.route_accuracy_macro * 100).toFixed(1)}% macro-averaged. ` +
+      `These are the real numbers, failures included.`;
   }
+
+  renderStats(o);
+
+  // A deployment that cannot answer says so, rather than offering a control
+  // that fails on click. A reviewer who presses Ask and gets a network error
+  // learns something false about the system: that it is broken, rather than
+  // that this particular deployment serves only the pre-computed set.
+  if (health.live_ask === false) disableAsk();
+}
+
+function renderStats(o) {
+  // Every figure comes from the committed scores snapshot, which is written in
+  // the same pass as the records. Typing them into the markup would let the
+  // page and the runs drift, and DL-26 already moved this delta once.
+  if (typeof o.precedence_delta_points !== "number") return;
+  $("statcard").classList.remove("hidden");
+  $("sDelta").textContent = "+" + o.precedence_delta_points.toFixed(1);
+  // One decimal, matching the footer. 82% up here beside 81.5% down there
+  // reads as two different numbers.
+  $("sFully").textContent = (o.fully_correct * 100).toFixed(1) + "%";
+  $("sRoute").textContent = (o.route_accuracy_macro * 100).toFixed(1) + "%";
+  $("sNote").textContent =
+    "Across " + o.n + " hand-written scenarios. The comparison runs on the " +
+    o.precedence_n + " that ask for an answer, against a naive baseline of " +
+    o.naive_baseline.toFixed(3) + ".";
+}
+
+function disableAsk() {
+  $("q").disabled = true;
+  $("asof").disabled = true;
+  $("go").disabled = true;
+  $("q").placeholder = "Live answering is off here";
+  $("askNote").textContent =
+    "This box is off. The site is static files, so there is no server here " +
+    "to run the agent. I also spent the API credits that paid for the runs " +
+    "above. Every free host that stays awake now wants a card, so keeping " +
+    "this live would be a monthly bill. Clone the repo and run docker " +
+    "compose up if you want to ask your own questions.";
 }
 
 function markTag(node, ok, label) {
@@ -233,7 +564,7 @@ function renderTrace(trace) {
   const box = $("trace");
   clear(box);
   if (!trace || !trace.length) {
-    box.appendChild(el("p", {className: "meta", text: "No trace recorded."}));
+    box.appendChild(el("p", {className: "meta", text: "Nothing recorded."}));
     return;
   }
   for (const e of trace) {
@@ -256,11 +587,11 @@ function renderSlice(sliceName, sp) {
   }
   $("sliceBox").classList.remove("hidden");
   $("sliceText").textContent =
-    `This is one case from the ${sliceName || "?"} slice, which scores ` +
+    `One case from the ${sliceName || "unnamed"} slice. That slice scores ` +
     `${(sp.fully_correct * 100).toFixed(1)}% fully correct across ${sp.n} ` +
-    `scenarios (${(sp.route_accuracy * 100).toFixed(0)}% on routing alone). ` +
-    `One working example is not a working slice, so the measured score is ` +
-    `shown beside it.`;
+    `scenarios, ${(sp.route_accuracy * 100).toFixed(0)}% on routing alone. ` +
+    `A single working example proves nothing about the slice, so you get the ` +
+    `score next to it.`;
 }
 
 /**
@@ -277,8 +608,8 @@ function renderFlags(advisories) {
   box.classList.remove("hidden");
   box.appendChild(el("strong", {
     text: advisories.length === 1
-      ? "One claim could not be tied to its cited passage:"
-      : `${advisories.length} claims could not be tied to their cited passages:`,
+      ? "The verifier could not tie one claim to its cited passage:"
+      : `The verifier could not tie ${advisories.length} claims to their cited passages:`,
   }));
   const list = el("ul", {className: "meta"});
   for (const a of advisories) list.appendChild(el("li", {text: a}));
@@ -305,12 +636,12 @@ async function showScenario(key, btn) {
 
   $("staleWarn").classList.toggle("hidden", !a.stale);
   $("staleWarn").textContent = a.stale
-    ? "This record was generated under different prompt or corpus versions and may not reflect current behaviour."
+    ? "Generated under an older prompt or corpus version, so it might not match current behaviour."
     : "";
 
   $("aAuth").textContent =
-    a.controlling_authority || (a.defensible_authorities || []).join(" or ") || "—";
-  $("aRule").textContent = a.precedence_rule || "—";
+    a.controlling_authority || (a.defensible_authorities || []).join(" or ") || "none";
+  $("aRule").textContent = a.precedence_rule || "none";
   $("aRoute").textContent = a.route;
   $("aAnswer").textContent = a.answer || "";
   setCitations($("aCites"), a.citations);
@@ -321,13 +652,13 @@ async function showScenario(key, btn) {
   if (b) {
     $("basePanel").classList.remove("hidden");
     $("bAuth").textContent =
-      b.controlling_authority || (b.resolved === false ? `declines (${b.route})` : "—");
+      b.controlling_authority || (b.resolved === false ? `declines (${b.route})` : "none");
     $("bRule").textContent = b.precedence_rule || "not reached";
     clear($("bTop"));
     if (b.top_passage && b.top_passage.citation) {
       $("bTop").appendChild(el("span", {className: "cite", text: b.top_passage.citation}));
     } else {
-      $("bTop").textContent = "—";
+      $("bTop").textContent = "none";
     }
     if (b.resolved === false) {
       // Both arms share a triage and only the answering path reaches a
@@ -335,17 +666,20 @@ async function showScenario(key, btn) {
       // the point: an earlier version asserted a naive system "would have
       // answered" three questions that it actually refuses.
       markTag($("baseTag"), true, "no difference");
+      $("basePanel").classList.remove("is-wrong");
       $("bNote").textContent = b.no_delta_reason || "";
     } else if (b.correct) {
       markTag($("baseTag"), true, "right, by luck");
+      $("basePanel").classList.remove("is-wrong");
       $("bNote").textContent =
-        "Here the closest passage happens to belong to the layer that governs, " +
-        "so a naive system is right without reasoning.";
+        "The closest passage belongs to the layer that governs, so a naive " +
+        "system lands on the right answer without reasoning.";
     } else {
       markTag($("baseTag"), false, "wrong");
+      $("basePanel").classList.add("is-wrong");
       $("bNote").textContent =
-        "A system that trusts the most relevant passage selects this authority, " +
-        "and it is not the one that governs.";
+        "A system that trusts the most relevant passage picks this authority. " +
+        "The one that governs is different.";
     }
   } else {
     $("basePanel").classList.add("hidden");
@@ -367,7 +701,7 @@ async function showPair(btn) {
   $("pairBox").classList.remove("hidden");
   clear($("pairQ"));
   $("pairQ").appendChild(document.createTextNode(
-    "Identical question, identical employee, different date: "));
+    "Same question, same employee, different date. "));
   $("pairQ").appendChild(el("em", {text: rs[0].question}));
 
   const cols = $("pairCols");
@@ -407,9 +741,9 @@ async function ask() {
     $("staleWarn").classList.add("hidden");
 
     if (!r.ok) {
-      $("aAuth").textContent = "—";
-      $("aRule").textContent = "—";
-      $("aRoute").textContent = "—";
+      $("aAuth").textContent = "none";
+      $("aRule").textContent = "none";
+      $("aRoute").textContent = "none";
       $("aAnswer").textContent = body.error || "Something went wrong.";
       setCitations($("aCites"), []);
       renderFlags([]);
@@ -419,8 +753,8 @@ async function ask() {
       return;
     }
     $("aAuth").textContent =
-      body.controlling_authority || (body.defensible_authorities || []).join(" or ") || "—";
-    $("aRule").textContent = body.precedence_rule || "—";
+      body.controlling_authority || (body.defensible_authorities || []).join(" or ") || "none";
+    $("aRule").textContent = body.precedence_rule || "none";
     $("aRoute").textContent = body.route;
     $("aAnswer").textContent = body.answer || "";
     setCitations($("aCites"), body.citations);
@@ -442,6 +776,18 @@ function sessionId() {
   }
   return s;
 }
+
+
+/* Assembled at runtime so the address is not sitting in the HTML for a
+   scraper to lift. A human still gets one click. */
+(function () {
+  var node = document.getElementById("mail");
+  if (!node) return;
+  var user = ["hossain", "zulqarnayan"].join("");
+  var host = ["gmail", "com"].join(".");
+  node.href = "mailto:" + user + "@" + host;
+  node.textContent = user + "@" + host;
+})();
 
 $("go").onclick = ask;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });

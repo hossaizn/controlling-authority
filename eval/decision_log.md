@@ -126,7 +126,7 @@ Seven scenarios do not justify ingesting the whole Workers' Compensation Law. Th
 
 3. **Route accuracy rewarded never clarifying.** With 57 answer and 15 clarify scenarios, a system that never asks a clarifying question had an **83% micro-accuracy ceiling** while scoring zero on the behaviour DL-5 exists to test. Worse, `test_clarify_is_outnumbered_by_answer` actively enforced that imbalance. DL-5 guarded over-clarification and nothing guarded the reverse. Route accuracy is now macro-averaged.
 
-**A consequence that changed the schema.** Rule 5 exposed a case nobody had considered: the *answer* can be determinate while the *controlling authority* is not. Sick leave accruing at one hour per thirty worked is the same number in every state, but California compels it by statute and Ohio only through the handbook. Demanding one authority would penalise a correct system for a fact it was never given. Hence `acceptable_authorities`.
+**A consequence that changed the schema.** Rule 5 exposed a case nobody had considered: the *answer* can be determinate while the *controlling authority* is not. Sick leave accruing at one hour per thirty worked is the same number in every state, but California compels it by statute and Ohio only through the handbook. Demanding one authority would penalise a correct system for a fact it was never given. That is what `acceptable_authorities` exists for.
 
 **Data defects.** A scenario declared a fact missing while supplying it. A pairing was asserted in prose and was simply false, the two scenarios being unrelated. Another control case duplicated a conflict case and withheld nothing. Four scenarios in the conflict slice contained no conflict, one of them a duplicate. Two defects the scenarios depended on were undocumented (now D-7, D-8). One control case turned on a conditional catch-all, making a clarifying question defensible and the ground truth wrong.
 
@@ -826,6 +826,8 @@ Fixed in code rather than in the prompt: a degenerate query falls back to the ra
 
 ## DL-23: Precedence as code beats the most relevant document by 24.6 points, and one prompt bug made every resolution look right
 
+> **Superseded in part by DL-26.** The figures below are what this run measured, and they stand as the record of it. A later fix replaced two implementations of the naive resolver with one, which moved the baseline from 0.632 to 0.649 and the delta from +24.6 to **+22.8**. The conclusion did not change. The current headline number is +22.8.
+
 **Status:** decided, Phase 6.3 and 6.4. Precedence correctness **0.877**, naive baseline **0.632**.
 
 ### The measurement the project was built to make
@@ -1366,9 +1368,9 @@ Composing one would have added two model calls per scenario to restate a conclus
 | scenario | agent | rule | naive | naive correct |
 |---|---|---|---|---|
 | conflict | **company** | policy_may_exceed | state | **no** |
-| straightforward | federal | — | federal | yes |
-| superseded | company | — | company | yes |
-| refuse / escalate / ambiguous | (declines) | — | *(never resolves)* | see DL-32 |
+| straightforward | federal | none | federal | yes |
+| superseded | company | none | company | yes |
+| refuse / escalate / ambiguous | (declines) | none | *(never resolves)* | see DL-32 |
 
 The conflict row is the one the spec asks for, and it fails in the harder direction: the handbook grants ten paid bereavement days against a five-day statutory floor, so **policy** controls and the naive system reaches for the statute.
 
@@ -1415,7 +1417,7 @@ Recorded as a value in a test, so a future change that produces more deltas fail
 
 **`matched_expectation` compared the route alone** while the page labelled it "matches ground truth" in green. A run reaching the right conclusion from the wrong authority, which the spec calls luck rather than correctness, would have rendered as a match. It now checks route, authority and required citations.
 
-**The page's rendering had no tests.** Six mutations survived, including forcing the baseline tag to "right, by luck" and blanking the footer's measured score. Every honesty element the page draws was unasserted; only the payload was tested. The checks added are **structural, on the source, not render tests** — a real one needs a JS runtime this project does not have. They catch deletion and inversion, which is what the mutations did, and would not catch a CSS change that hides an element. Stated rather than glossed.
+**The page's rendering had no tests.** Six mutations survived, including forcing the baseline tag to "right, by luck" and blanking the footer's measured score. Every honesty element the page draws was unasserted; only the payload was tested. The checks added are **structural, on the source, not render tests**. A real render test needs a JS runtime this project does not have. They catch deletion and inversion, which is what the mutations did. They would not catch a CSS change that hides an element. Stated rather than glossed.
 
 ### And one the tests did to themselves
 
@@ -1621,7 +1623,7 @@ The first run with a cross-family verifier: Haiku composing from cache, `gpt-oss
 
 The run reports `fully_correct_strict` of 0.612. **That number must not be set beside the 0.620 baseline.** Only 49 scenarios scored, only 15 reached `verify` against 58 before, and the slices are badly skewed: `straightforward` fell from n=17 to n=2, `conflict` from 18 to 7.
 
-Two figures over different populations are two different measurements. **The partial-run machinery did its job** — a result with a stated denominator beats an outage — but a stated denominator is a warning, not a licence.
+Two figures over different populations are two different measurements. **The partial-run machinery did its job.** A result with a stated denominator beats an outage. A stated denominator is still a warning rather than a licence.
 
 ### The paired comparison, which is valid
 
@@ -1656,3 +1658,203 @@ DL-24 pre-registered a cross-family verifier as the fix for verification, and tw
 ### Next
 
 The run is resumable from cache and Groq's daily budget is a rolling 24-hour window, so the 43 skipped scenarios cost nothing tomorrow. **The full-population comparison is deferred, not abandoned**, and the aggregate stays unclaimed until it exists.
+
+## DL-38: Minimum useful context for `resolve`, pre-registered before the run
+
+**Status:** pre-registration. Written and committed **before** any capped arm was scored. The mechanism below is measured; the outcome is not.
+
+`resolve` sends every retrieved passage. Nobody ever asked what it needs. That question was never posed because retrieval was tuned for recall and the prompt was whatever recall produced, which is how a context window becomes a default rather than a decision.
+
+### The mechanism, measured first
+
+DL-15's rule is that a wrong mechanism invalidates the experiment that rests on it, so the mechanism was measured before a threshold was fixed. All figures below cost **$0.00**: retrieval runs on cached embeddings and `resolve` was replayed cache-only.
+
+Across the 57 answer scenarios:
+
+| layer | mean passages | share of passage tokens | absent in |
+|---|---|---|---|
+| federal | 6.11 | **54.2%** | 0/57 |
+| state | 2.28 | 35.9% | 14/57 |
+| company | 1.74 | 9.8% | 4/57 |
+
+**Federal is the bulk**, which is what makes a *per-layer* cap the right lever rather than a global truncation. A global cut of k would shrink the layers that are already thin, and precedence needs one finding per layer to compare at all.
+
+Rank *within its own layer* of the passage `resolve` actually cited, over 88 citations:
+
+| rank | n | cumulative |
+|---|---|---|
+| 1 | 74 | 84.1% |
+| 2 | 9 | 94.3% |
+| 3 | 2 | 96.6% |
+| 4 | 2 | 98.9% |
+| 5 | 1 | 100.0% |
+
+**84% of the evidence `resolve` uses is the top passage of its layer.** The tail is small, and it is not randomly distributed: all three citations deeper than rank 3 are in the **conflict** slice (`conflict-006` federal rank 5, `conflict-011` federal rank 4, `conflict-020` state rank 4). The slice the project exists to get right is the slice that reads deepest.
+
+### The ceiling that actually binds
+
+Groq's free tier is 8,000 tokens per request and **charges reserved `max_tokens`, not tokens produced**. `resolve` reserves 2,048, so the prompt competes for **5,952**, not 8,000. Measuring against 8,000 would have understated the problem by half.
+
+| cap | mean | p95 | max | over ceiling | cited passages dropped |
+|---|---|---|---|---|---|
+| none | 5,570 | 9,178 | 10,242 | **17/57** | 0 |
+| 4 | 4,104 | 6,863 | 7,437 | 10/57 | 1 |
+| 3 | 3,491 | 5,706 | 6,280 | 2/57 | 3 |
+| 2 | 2,789 | 4,565 | 4,870 | **0/57** | 5 |
+
+30% of uncapped prompts exceed the binding ceiling, which reconciles with the 23% recorded in `CLAUDE.md` under a different prompt version.
+
+### The comparison that was designed and then rejected
+
+The obvious experiment is capped against uncapped on one model. **It is not runnable and running it would have been worse than not.**
+
+Anthropic is out of credits, so the arm has to be free, and uncapped prompts fit the free ceiling in only **10 of 18** conflict scenarios. Those 10 are systematically the evidence-light ones: precisely the scenarios where a cap removes nothing. A paired comparison on that subset is **structurally biased toward adopting the cap**.
+
+That is DL-24's bias with the sign flipped, and it was caught there by the same reasoning: *"the excluded ones are systematically the evidence-heaviest, so scoring the remainder would flatter the open model."* A result that can only come out one way is not a measurement.
+
+### What is being run instead
+
+**cap=2 makes all 57 scenarios fit the free tier** (conflict 18/18, control 10/10, straightforward 17/17, adversarial 2/2, superseded 10/10). cap=3 leaves 2 over. Both arms therefore run on **every** conflict scenario, and the comparison is unbiased in a way the uncapped one cannot be.
+
+So the question is not "is capping safe" but the sharper one: **where does trimming start to cost accuracy?**
+
+- **Arms:** per-layer cap 3 against per-layer cap 2, on `openai/gpt-oss-120b`, free.
+- **Population:** the conflict slice, n=18. Chosen because **every citation any cap drops is in it**. It carries the entire risk, and `run_precedence` already supports `only_slice` for exactly this budget reason.
+- **Primary metric:** precedence correctness, the existing scorer, unmodified.
+
+### Thresholds, fixed now
+
+- **Adopt cap=2** if its precedence correctness on the conflict slice is **no more than 1 scenario below cap=3**. The whole corpus then fits free infrastructure, which cap=3 does not.
+- **Reject cap=2 and adopt cap=3** if it loses 2 or more.
+- **Reject both** if cap=3 itself falls more than 2 scenarios below the cached Haiku conflict figure of 15/18. That figure is a **reference, not a paired comparator**, because it comes from a different model family. It is used only as a floor, never quoted as a delta.
+
+### Falsifier
+
+If cap=2 and cap=3 score identically **and** both sit at or above the Haiku reference, the honest reading is not "capping is free". It is that **n=18 cannot resolve a one-scenario difference**, which DL-23 already established as this project's noise floor. That outcome gets reported as underpowered, not as a win.
+
+### The half that stays blocked
+
+Whether capped context matches **uncapped** context is unanswerable without a model that has both a wide context window and a free tier. It is deferred, not abandoned, and it is the one question a wide-context free provider would unblock.
+
+## DL-39: The production concerns this deliberately does not address
+
+**Status:** a statement of scope, not a plan. Written because a portfolio piece that quietly omits production concerns is indistinguishable from one whose author did not know about them.
+
+Every item here was raised, costed, and left undone on purpose. Where something *was* done, it says what and how far.
+
+### SLOs were set for quality and for nothing else
+
+Quality targets were pre-registered properly and honoured: 0.80 macro route accuracy as an upgrade trigger (DL-22), a 2-point tie-break for chunking (DL-14), a 10-point adoption bar for reranking (DL-16), a 2-scenario bar for a retrieval guarantee (DL-28). Each was fixed before the data existed, and each decided something.
+
+**No latency, throughput or availability target was ever written down.** That is the gap, and naming it precisely matters more than closing it now would.
+
+Latency was measured only reactively, in DL-28, and only because a filtering decision needed it: **5.8 ms median retrieval against a 13,198 ms end-to-end, 0.04% of the budget.** The figure settled the question it was raised for and nothing else was asked of it.
+
+Had a p95 target been fixed on day one, **four sequential model calls would have been a design constraint rather than an observation.** `triage → resolve → compose → verify` is a serial chain, and no amount of retrieval tuning moves it. That is the same shape as this project's central claim about relevance and correctness: the expensive thing is not the thing everyone tunes.
+
+| target | current | what closing it would take |
+|---|---|---|
+| p95 latency | 13.2 s typical, never targeted | parallelise or drop a node; both change behaviour |
+| throughput | single instance, never load-tested | no load test exists |
+| availability | undefined | no fallback path when a provider is down |
+
+**Availability's absence was demonstrated rather than theorised.** When the Anthropic credit balance reached zero the system did not degrade, it stopped. The pre-computed scenarios kept serving, but that is a property of static files, not a designed fallback.
+
+### Durable execution: the half that hurt is fixed, the half that did not is not
+
+There is no checkpointer. LangGraph ships one and this graph does not use it, so a request that fails at `compose` re-runs from `triage`.
+
+That is defensible for a demo whose expensive path is rate-limited to single figures per day and indefensible for anything doing real volume.
+
+**What was fixed is the eval harness, and only after it lost data.** DL-37 reports a run that reached 49 of 92 scenarios, losing 43 to a rolling daily cap, and could only report a paired subset as a result. The remedy was per-scenario failure tolerance with a stated denominator, then the pre-flight budget guard in `eval/run_context_sweep.py` that stops cleanly rather than raising on scenario N. Both are reactions to a loss, not a design.
+
+**The one durability property that worked was accidental.** The on-disk model cache exists to stop re-runs costing money; it is also why a killed run resumes for free and why the Haiku control arm survived the credit outage at all. Durability as a side effect of a cost optimisation is luck, and it is recorded here as luck rather than as architecture.
+
+### Rate limiting is correct for one instance and wrong for two
+
+`api/limits.py` holds its windows in process memory, and says so in its own module docstring. On the single Fly instance the spec ships, per-process counters are right. On two they silently double every limit, including the global spend breaker.
+
+Left alone deliberately. **The sentence is worth more than the implementation would be**: a shared counter needs Redis, which is an external dependency and a new failure mode bolted onto a demo that currently fits in one container.
+
+### Load testing, provider failover, alerting
+
+None exist. Langfuse provides observability, not alerting: nothing pages when the error rate moves, because nobody is on call.
+
+### The one item that looks like a gap and is not
+
+`TRACE_REDACT` defaults to empty, so employee context reaches Langfuse. For a corpus of invented scenarios containing no real employees, redaction would hide the trace the demo exists to show.
+
+It is documented in `.env.example` and in `agent/tracing.py`, and **a deployment carrying real employee data should set it before anything else**. That is a judgment about this deployment rather than a general one, and it is the only item here that would change on day one of real use.
+
+### DL-38 addendum: paused before the arms were scored, and what that costs
+
+**The experiment has not been run.** The pre-registration above stands as written; no arm was completed, and no number from it may be quoted.
+
+The per-layer cap is built, tested and mutation-covered, and **`DEFAULT_PASSAGE_CAP` is `None`**, so `resolve` behaves exactly as it did before. Nothing that ships depends on this experiment, which is why it can be left open without qualifying any other result.
+
+Two attempts were made, both on Groq's free tier. The pacer prices calls from `estimate_tokens`, which is characters divided by four, while the provider counts real tokens, so at roughly 5,300 charged tokens against an 8,000-per-minute bucket the run sustains about one call a minute and loses scenarios to 429s at the margin. Retrying recovered `conflict-003` and `conflict-005`; `conflict-016` and `conflict-017` survived three 65-second retries and were still refused.
+
+**One finding does survive the pause, because it is not about the budget.** `conflict-006` and `conflict-009` fail with `BadRequestError` on every attempt, throttled or not. That is the same tool-contract failure DL-37 recorded for `gpt-oss-120b` on `verify` prompts, now observed on `resolve` prompts as well. It is a property of the model, it will recur on a funded account, and it strengthens rather than weakens DL-37's conclusion: **the open model cannot be relied on to hold forced structured output**, which is the contract every node in this system depends on.
+
+**What it would take to finish.** The full sweep is 36 calls at roughly 155,000 input tokens. On Haiku that is a few minutes and well under a dollar. The deferred capped-against-uncapped half needs the same thing, because uncapped prompts do not fit a free per-request ceiling at all. Both are blocked on the same trivially small amount of credit, and neither blocks the deployment.
+
+## DL-40: The reranking rule fires on the pipeline as shipped, and nobody noticed
+
+**Status:** open. Found while writing the README, not by a review.
+
+DL-16 fixed a rule before any data existed: build a reranker only if `recall@10` minus `recall@3` **exceeds 10 points**. DL-18 closed it at **7.0 points** on the adopted configuration and recorded the reason as interesting rather than marginal, because choosing a legal-domain embedding model had removed the headroom a reranker would have chased.
+
+**That measurement was taken on raw questions. The shipped pipeline does not send raw questions.**
+
+DL-21 adopted query rewriting in `triage` on the strength of recall@10 moving from 0.895 to 0.912. It reported the number the decision needed and did not look at the other end of the ranking.
+
+| queries | recall@3 | recall@10 | gap |
+|---|---|---|---|
+| raw | 0.825 | 0.895 | **7.0** |
+| rewritten | 0.772 | **0.912** | **14.0** |
+
+Rewriting **raises recall@10 and lowers recall@3**. It surfaces more of the right passages and ranks them worse. That is precisely the signature DL-16 wrote the rule to detect, and 14.0 clears the threshold by four points.
+
+### Why this went unseen
+
+The figure was in `eval/runs/rewrite_check_triage-v3.json` the whole time, under the key `rerank_headroom`. Nothing read it. DL-21 asked whether rewriting helped, got 0.912, and stopped.
+
+**A pre-registered threshold only works if something re-evaluates it when its inputs change.** DL-16's rule was applied once, to a pipeline that no longer exists, and then treated as settled. This is DL-26's pattern in a new place: *fixing an instance of a bug is not fixing the bug*, here as *evaluating a rule once is not honouring it*.
+
+### What this does not license saying
+
+It does not mean a reranker would help. The rule is a screen for whether headroom exists, not a measurement of what recovering it is worth, and DL-18's deeper point still stands: in this corpus the correct answer frequently contradicts the most semantically relevant document, so a reranker that pushes the closest match higher can move the wrong way. The conflict slice is where both the headroom and that risk live.
+
+It also does not retract anything. Every published number was measured as described.
+
+### Next
+
+Reopened, not answered. The honest test is the one DL-16 implies: build a reranker, run it on rewritten queries, and score it on the conflict slice specifically, against a pre-registered bar set before the run. Until that happens the system ships without one, and this entry is why that is a known gap rather than a closed question.
+
+## DL-41: No sampling parameters are set, and fixing that now would invalidate every number here
+
+**Status:** open, and deliberately not fixed today. Found by an audit against a list of standard techniques, not by a review.
+
+Every model call in this project runs at the provider default temperature. `agent/models.py` sets `model`, `max_tokens`, `tools` and `tool_choice`, and nothing else. No `temperature`, no `top_p`, no `top_k`, no frequency or presence penalty, on either the Anthropic path or the OpenAI-compatible one.
+
+**For most of this graph the standard choice is temperature 0.** `triage` is classification. `resolve` is extraction against a fixed schema. Neither benefits from sampling, and both feed code that treats their output as fact.
+
+### Two things partly cover for it, and neither is the same as setting it
+
+**Forced tool calls.** Every node answers through a required tool with a constrained schema, so the output space is small and typed. Sampling cannot turn `"federal"` into prose. It can still flip a layer, a generosity rank, or a citation.
+
+**The disk cache.** Re-runs replay from `corpus/raw/model` by content hash, which is why the numbers in this log reproduce. **That reproducibility is caching, not determinism.** A cache miss re-runs at temperature 1.0, and the first run of any prompt was a sample of one from a distribution nobody bounded.
+
+### Why it is not being fixed in this commit
+
+Setting temperature now would produce a system whose published numbers describe a configuration that no longer exists. Every score in this log was measured at the default, so the honest sequence is: set it, re-run the evals, and record what moved. Re-running needs Anthropic credits this account does not have.
+
+**There is a second defect underneath it.** `_cache_key` hashes model, system, user and tool. It does not include sampling parameters. So a future change to temperature would silently serve results generated at the old one, and the run would look consistent while mixing two configurations. Adding the parameters to the key is correct and makes all 1,127 cached entries unreachable, which is the same credits problem again.
+
+### What fixing it looks like
+
+1. Add `temperature` to `StructuredCaller.call` and to `_cache_key`, defaulting to 0 for `triage`, `resolve` and `verify`.
+2. Leave `compose` open for discussion. It writes prose for a person to read, which is the one place sampling might earn its keep, and the entailment check already grades the result.
+3. Re-run `run_triage`, `run_precedence` and `run_end_to_end`, and record the deltas as a paired comparison rather than replacing the numbers.
+
+**Pre-registered prediction, so this cannot be graded after the fact:** routing accuracy moves by less than 2 points and precedence correctness by less than 2 scenarios, because the forced schema already collapses most of the variance. If either moves more than that, the current numbers were noisier than this log has been treating them.

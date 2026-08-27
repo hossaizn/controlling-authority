@@ -25,3 +25,9 @@ qdrant_storage/
 
 # macOS
 .DS_Store
+
+# Built static site; regenerate with: uv run python -m deploy.build_static
+dist/
+
+# wrangler deploy cache
+.wrangler/

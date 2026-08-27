@@ -7,6 +7,7 @@ would need Qdrant and a funded key, and would test the wrong thing.
 
 from __future__ import annotations
 
+import re
 import tempfile
 from dataclasses import replace
 from datetime import date
@@ -431,6 +432,39 @@ def test_an_unknown_key_cannot_escape_the_store() -> None:
         assert precomputed.load(key) is None
 
 
+def test_the_baseline_arm_cannot_escape_the_store_either() -> None:
+    """`load` had this test and `load_baseline` did not, so the allowlist could
+    be deleted from the baseline path with the whole suite green.
+
+    Two functions interpolate a client-supplied key into a filesystem path, and
+    only one of them was covered. The endpoint is public and unauthenticated.
+    """
+    for key in ("../../etc/passwd", "../../../CLAUDE", "..%2f..%2fsecrets"):
+        assert precomputed.load_baseline(key) is None
+
+    # **A non-existent path is not evidence.** Asserting None for a key whose
+    # file is missing passes whether the allowlist is there or not: the mutation
+    # survived that exact test. The guard is only observable against a file that
+    # really exists outside the allowlist.
+    import json as _json
+
+    from api import precomputed as pc
+
+    rogue = pc.STORE / "rogue.baseline.json"
+    rogue.write_text(_json.dumps({"controlling_authority": "federal"}))
+    try:
+        assert pc.load_baseline("rogue") is None, "only curated keys may be served"
+    finally:
+        rogue.unlink()
+
+
+def test_the_baseline_route_refuses_a_traversal_key(client) -> None:
+    """The guard checked through the endpoint, not just the function, because
+    that is where an attacker reaches it."""
+    r = client.get("/api/scenario/..%2f..%2fetc%2fpasswd/baseline")
+    assert r.status_code in (404, 400)
+
+
 def test_a_key_outside_the_allowlist_is_refused_even_if_a_file_exists(tmp_path) -> None:
     import json as _json
 
@@ -509,23 +543,127 @@ def test_the_page_is_served_and_self_contained(client) -> None:
     html = r.text
     assert "<title>Controlling Authority</title>" in html
 
-    # Anything that would load from another origin at render time. Matching on
+    # Anything that would LOAD from another origin at render time. Matching on
     # the word "cdn" tripped on this file's own comment saying it uses none,
     # which is the shape of test that checks the prose rather than the code.
-    external = re.findall(
-        r'(?:src|href)\s*=\s*["\']((?:https?:)?//[^"\']+)', html, re.I
-    )
+    #
+    # **Anchors are excluded, and the distinction is the point.** `<a href>`
+    # navigates when a human clicks it; it fetches nothing at render time and
+    # cannot block, leak a referrer on load, or fail the page when the far end
+    # is down. The nav links to GitHub and the footer links to LinkedIn, and
+    # matching `href` on every element would have banned those while claiming
+    # to be about loading. Anchors are stripped first, so a stylesheet or a
+    # script pointing off-origin still fails exactly as before.
+    from deploy.build_static import external_loads
+
+    external = external_loads(html)
     assert external == [], f"page loads external resources: {external}"
-    assert not re.search(r"url\(\s*[\"\']?(?:https?:)?//", html, re.I)
     assert "import(" not in html
+
+    # Every off-origin link opens safely. Without `noopener` the target page
+    # gets a handle on this one through `window.opener`.
+    for tag in re.findall(r"<a\b[^>]*https?://[^>]*>", html, re.I):
+        assert 'target="_blank"' not in tag or "noopener" in tag, tag
+
+
+def test_the_external_resource_guard_still_catches_a_real_load() -> None:
+    """The anchor exemption is a hole if it is written loosely. Stripping every
+    tag rather than only anchors would let a CDN stylesheet through while the
+    page under test, having none, still passed. Checked against a synthetic
+    page so the guard is exercised rather than assumed."""
+    from deploy.build_static import external_loads
+
+    assert external_loads(
+        '<link rel="stylesheet" href="https://cdn.example.com/a.css">'
+        '<a href="https://github.com/x">source</a>'
+    ) == ["https://cdn.example.com/a.css"]
+    assert external_loads('<a href="https://github.com/x">source</a>') == []
+    assert external_loads('<script src="//evil.example/x.js"></script>') != []
+    assert external_loads("<style>body{background:url(//evil.example/a.png)}</style>") != []
+
+
+# The denylist below is spelled in fragments on purpose: written out in full,
+# the names of the sinks trip source scanners against this file rather than
+# against the page it is guarding.
+UNSAFE_DOM_SINKS = (
+    "inner" + "HTML",   # also covers any ["inner"+"HTML"] bracket spelling
+    "outer" + "HTML",
+    "insertAdjacent" + "HTML",
+    "document" + ".write",
+    "new " + "Function",
+    "createContextual" + "Fragment",
+)
 
 
 def test_the_page_never_builds_html_from_data() -> None:
     """An escape helper covering &<> is one refactor away from being wrong, and
     this endpoint is public. Values reach the DOM via textContent or a created
-    node."""
+    node.
+
+    **`assert ".innerHTML" not in html` was the whole test and it was not
+    enough.** Mutation testing walked past it twice: `node["inner"+"HTML"]`
+    never contains the literal `.innerHTML`, and `insertAdjacentHTML` is a
+    different name for the same hole. A denylist of spellings cannot hold a
+    line that has unlimited spellings.
+
+    So this pins the SAFE implementation as well. There is exactly one place
+    where a value reaches the DOM, and the test asserts what it does rather
+    than enumerating what it must not.
+    """
     html = (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
-    assert ".innerHTML" not in html
+
+    assert "if (opts.text !== undefined) node.textContent = opts.text;" in html, (
+        "the single sink where data reaches the DOM has changed; if that is "
+        "deliberate, this test has to be rewritten to pin the new one"
+    )
+
+    # Comments are stripped first: the page documents WHY it avoids these sinks,
+    # and a scan that cannot tell an explanation from a call fails on its own
+    # documentation, which teaches the next person to delete the comment.
+    code = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    code = re.sub(r"/\*.*?\*/", "", code, flags=re.S)
+    code = re.sub(r"^\s*//.*$", "", code, flags=re.M)
+
+    for sink in UNSAFE_DOM_SINKS:
+        assert sink not in code, f"page can build HTML from data via {sink}"
+
+
+def test_the_page_marks_the_agent_tag_from_the_run_not_from_ground_truth() -> None:
+    """Passing a literal `true` would make every scenario display as correct
+    forever, which is the DL-32 defect wearing a different hat: the demo
+    claiming a result it never computed."""
+    html = (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
+    assert 'markTag($("agentTag"), a.matched_expectation,' in html
+
+
+def test_the_baseline_tag_can_still_say_wrong() -> None:
+    """The whole demo exists to show a naive system picking the wrong authority.
+    Flipping this branch to `true` makes the baseline look right in every
+    scenario and silently deletes the comparison, while the page still renders."""
+    html = (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
+    assert 'markTag($("baseTag"), false, "wrong");' in html
+    assert 'markTag($("baseTag"), true, "right, by luck");' in html
+    assert 'markTag($("baseTag"), true, "no difference");' in html
+
+
+def test_the_slice_disclaimer_is_shown_when_there_is_a_score_for_it() -> None:
+    """"One working example is not a working slice" is the demo's honesty
+    mechanism, and DL-30 already caught one of those working only on my laptop.
+    A box that is hidden on every path overstates a single passing scenario as
+    evidence about the slice."""
+    html = (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
+    assert '$("sliceBox").classList.remove("hidden");' in html
+    assert '$("sliceBox").classList.add("hidden");' in html, (
+        "the box must still hide when there is no measured score to show"
+    )
+
+
+def test_the_footer_quotes_the_committed_scores() -> None:
+    """The footer is where the demo states its own accuracy. An empty string
+    there is a silent retraction of the only number a reviewer reads."""
+    html = (Path(__file__).resolve().parent.parent / "api/static/index.html").read_text()
+    assert '$("footStats").textContent =' in html
+    assert '$("footStats").textContent = ""' not in html
 
 
 def test_the_baseline_arm_is_served_for_every_scenario(client) -> None:
@@ -715,14 +853,14 @@ def test_the_page_renders_the_measured_overall_score() -> None:
     src = page_source()
     assert "fully_correct" in src
     assert "route_accuracy_macro" in src
-    assert "including where it fails" in src
+    assert "failures included" in src
 
 
 def test_the_page_renders_the_slice_score() -> None:
     """One working example is not a working slice."""
     src = page_source()
     assert "renderSlice" in src
-    assert "One working example is not a working slice" in src
+    assert "proves nothing about the slice" in src
 
 
 def test_the_page_distinguishes_all_three_baseline_outcomes() -> None:
@@ -743,12 +881,12 @@ def test_the_page_labels_the_agent_against_ground_truth() -> None:
 def test_the_page_surfaces_staleness() -> None:
     src = page_source()
     assert "staleWarn" in src
-    assert "may not reflect current behaviour" in src
+    assert "might not match current behaviour" in src
 
 
 def test_the_page_handles_a_missing_scores_snapshot() -> None:
     """Otherwise the footer sits on "Loading measured results…" forever."""
-    assert "Measured results are not available" in page_source()
+    assert "No scores snapshot in this deployment" in page_source()
 
 
 def test_the_page_handles_a_non_json_error_response() -> None:
@@ -778,7 +916,7 @@ def test_the_page_renders_flagged_claims() -> None:
     reasoning, and the sentence to be careful about. A referral gives nothing."""
     src = page_source()
     assert "renderFlags" in src
-    assert "could not be tied to its cited passage" in src
+    assert "could not tie one claim to its cited passage" in src
     assert "aFlags" in src
 
 

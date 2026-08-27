@@ -1,0 +1,1129 @@
+[
+  {
+    "label": "P1 rule5 inverted: handbook wins concurrence",
+    "file": "agent/precedence.py",
+    "old": "return \"concurrence_tie_break\", winning_statutes",
+    "new": "return \"concurrence_tie_break\", [f for f in winners if f.layer == \"company\"]",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P2 rule5 disabled entirely",
+    "file": "agent/precedence.py",
+    "old": "    if winning_statutes and company_won:\n        return \"concurrence_tie_break\", winning_statutes\n",
+    "new": "",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P3 generosity inverted (max not min)",
+    "file": "agent/precedence.py",
+    "old": "best = min(f.generosity_rank for f in speaking)",
+    "new": "best = max(f.generosity_rank for f in speaking)",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P4 rule4 silence ignored (silent layers contend)",
+    "file": "agent/precedence.py",
+    "old": "    speaking = [f for f in findings if f.outcome != \"silent\"]",
+    "new": "    speaking = list(findings)",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P5 deny/grant integrity check removed",
+    "file": "agent/precedence.py",
+    "old": "if grants and denies and min(denies) <= min(grants):",
+    "new": "if False:",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P6 duplicate-layer validation removed",
+    "file": "agent/precedence.py",
+    "old": "if len(seen) != len(set(seen)):",
+    "new": "if False:",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P7 indeterminate collapsed to first survivor",
+    "file": "agent/precedence.py",
+    "old": "if len(survivors) > 1:",
+    "new": "if False:",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P8 policy_may_exceed -> statutory_floor label",
+    "file": "agent/precedence.py",
+    "old": "return \"policy_may_exceed\", winners",
+    "new": "return \"statutory_floor\", winners",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "P9 missing generosity_rank validation removed",
+    "file": "agent/precedence.py",
+    "old": "if f.outcome != \"silent\" and f.generosity_rank is None:",
+    "new": "if False:",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V1 figures check disabled",
+    "file": "agent/nodes/verify.py",
+    "old": "checks[\"figures_appear_in_the_sources\"] = not unsupported_figures",
+    "new": "checks[\"figures_appear_in_the_sources\"] = True; unsupported_figures = []",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V2 word->digit conversion removed",
+    "file": "agent/nodes/verify.py",
+    "old": "    for word in _WORD_NUMBER.findall(corpus_text):\n        found.add(WORD_TO_DIGITS[\" \".join(word.lower().split())])",
+    "new": "    for word in []:\n        found.add(WORD_TO_DIGITS[\" \".join(word.lower().split())])",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V4 citation stripping removed in figures_in",
+    "file": "agent/nodes/verify.py",
+    "old": "    stripped = text\n    for citation in known_citations:\n        stripped = stripped.replace(citation, \" \")\n",
+    "new": "    stripped = text\n",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V5 controlling_provision_cited always true",
+    "file": "agent/nodes/verify.py",
+    "old": "        checks[\"controlling_provision_cited\"] = (\n            bool(acceptable_citations & named) if acceptable_citations else True\n        )",
+    "new": "        checks[\"controlling_provision_cited\"] = True",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V6 stray-citation check disabled",
+    "file": "agent/nodes/verify.py",
+    "old": "checks[\"citations_were_retrieved\"] = not stray",
+    "new": "checks[\"citations_were_retrieved\"] = True; stray = set()",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V7 no degrade on failure",
+    "file": "agent/nodes/verify.py",
+    "old": "            update[\"answer\"] = f\"{REFERRAL}\\n\\n{DISCLAIMER}\"\n            update[\"citations\"] = []\n",
+    "new": "            pass\n",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V8 answer_is_cited always true",
+    "file": "agent/nodes/verify.py",
+    "old": "checks[\"answer_is_cited\"] = bool(named) or not asserts_entitlement",
+    "new": "checks[\"answer_is_cited\"] = True",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V9 entailment result ignored",
+    "file": "agent/nodes/verify.py",
+    "old": "supported = bool(result.get(\"every_claim_supported\"))",
+    "new": "supported = True",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "R1 resolve_citation accepts anything",
+    "file": "agent/nodes/resolve.py",
+    "old": "    matches = [c for c in valid if c in text]\n    return max(matches, key=len) if matches else None",
+    "new": "    return text",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "R2 longest-match -> shortest-match",
+    "file": "agent/nodes/resolve.py",
+    "old": "return max(matches, key=len) if matches else None",
+    "new": "return min(matches, key=len) if matches else None",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "R3 uncited speaking layer allowed to control",
+    "file": "agent/nodes/resolve.py",
+    "old": "        if outcome != \"silent\" and citation is None:\n            outcome = \"silent\"\n",
+    "new": "",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "R4 omitted layer dropped instead of silent",
+    "file": "agent/nodes/resolve.py",
+    "old": "    for layer in LAYERS:\n        item = by_layer.get(layer, {})",
+    "new": "    for layer in list(by_layer):\n        item = by_layer.get(layer, {})",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "T1 clarify-without-fact not repaired",
+    "file": "agent/nodes/triage.py",
+    "old": "        if route == \"clarify\" and missing_fact is None:\n            route = \"answer\"\n",
+    "new": "",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "T2 supplied context loses to model jurisdiction",
+    "file": "agent/nodes/triage.py",
+    "old": "jurisdiction = state[\"employee_context\"].state or (\n            None if stated == NO_FACT else stated\n        )",
+    "new": "jurisdiction = (None if stated == NO_FACT else stated) or state[\"employee_context\"].state",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "T3 degenerate-query fallback removed",
+    "file": "agent/nodes/triage.py",
+    "old": "        if degenerate:\n            query = state[\"question\"]\n",
+    "new": "",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "C1 compose stops filtering invented citations",
+    "file": "agent/nodes/compose.py",
+    "old": "claimed = [c for c in result.get(\"citations\", []) if c in retrieved]",
+    "new": "claimed = list(result.get(\"citations\", []))",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "C2 compose drops must-address block",
+    "file": "agent/nodes/compose.py",
+    "old": "    if resolution.non_controlling_to_address:",
+    "new": "    if False:",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "G1 missing route silently answers",
+    "file": "agent/graph.py",
+    "old": "        raise ValueError(\"triage returned no route; refusing to guess one\")",
+    "new": "        return \"retrieve\"",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "S1 trace reducer removed (overwritable)",
+    "file": "agent/state.py",
+    "old": "trace: Annotated[list[TraceEvent], operator.add]",
+    "new": "trace: list[TraceEvent]",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "S2 defensible falls back to acceptable wrongly",
+    "file": "agent/state.py",
+    "old": "        if self.acceptable:\n            return list(self.acceptable)",
+    "new": "        if False:\n            return list(self.acceptable)",
+    "origin": "mutate.py"
+  },
+  {
+    "label": "V5b controlling-provision failure never appended",
+    "file": "agent/nodes/verify.py",
+    "old": "        if acceptable_citations and not (acceptable_citations & named):",
+    "new": "        if False:",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "V8b uncited-entitlement failure never appended",
+    "file": "agent/nodes/verify.py",
+    "old": "        if asserts_entitlement and not named:",
+    "new": "        if False:",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "V10 figures failure never appended",
+    "file": "agent/nodes/verify.py",
+    "old": "        if unsupported_figures:",
+    "new": "        if False:",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "V11 stray failure never appended",
+    "file": "agent/nodes/verify.py",
+    "old": "        if stray:",
+    "new": "        if False:",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "V12 entailment skipped entirely",
+    "file": "agent/nodes/verify.py",
+    "old": "        if not failures and named:",
+    "new": "        if False:",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E1 run_precedence subset -> intersection",
+    "file": "eval/run_precedence.py",
+    "old": "return bool(got) and got <= self.expected",
+    "new": "return bool(got and (got & self.expected))",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E2 run_precedence always correct",
+    "file": "eval/run_precedence.py",
+    "old": "return bool(got) and got <= self.expected",
+    "new": "return True",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E3 e2e verified: None counted as pass always",
+    "file": "eval/run_end_to_end.py",
+    "old": "return self.route in (\"clarify\", \"refuse\", \"escalate\")",
+    "new": "return True",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E4 e2e required_present always true",
+    "file": "eval/run_end_to_end.py",
+    "old": "        return all(self.cites(c) for c in self.scenario.required_citations)",
+    "new": "        return True",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E5 e2e forbidden never detected",
+    "file": "eval/run_end_to_end.py",
+    "old": "        return any(self.cites(c) for c in self.scenario.forbidden_citations)",
+    "new": "        return False",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E6 macro -> micro accuracy",
+    "file": "eval/run_routes.py",
+    "old": "return sum(s[\"accuracy\"] for s in stats.values()) / len(stats)",
+    "new": "return sum(o.correct for o in self.outcomes) / len(self.outcomes)",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E7 over-clarification always 0",
+    "file": "eval/run_routes.py",
+    "old": "return sum(o.predicted == \"clarify\" for o in eligible) / len(eligible)",
+    "new": "return 0.0",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E8 under-clarification always 0",
+    "file": "eval/run_routes.py",
+    "old": "return sum(o.predicted != \"clarify\" for o in eligible) / len(eligible)",
+    "new": "return 0.0",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E9 addressed_what_it_should always true",
+    "file": "eval/run_precedence.py",
+    "old": "return set(self.must_address) <= named",
+    "new": "return True",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "E10 naive baseline always correct",
+    "file": "eval/run_precedence.py",
+    "old": "return self.naive_layer in self.expected",
+    "new": "return True",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "B1 baseline uses precedence resolve",
+    "file": "agent/build.py",
+    "old": "        resolve=naive_resolve,",
+    "new": "        resolve=make_resolve(caller, model),",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "M1 usage.usd returns 0",
+    "file": "agent/models.py",
+    "old": "        return total",
+    "new": "        return 0.0",
+    "origin": "mutate2.py"
+  },
+  {
+    "label": "matched_expectation->True",
+    "file": "api/precomputed.py",
+    "old": "        if self.route != self.expected.get(\"route\"):\n            return False",
+    "new": "        if False:\n            return False",
+    "origin": "mut.py"
+  },
+  {
+    "label": "slice_perf->{}",
+    "file": "api/precomputed.py",
+    "old": "        return _slice_scores().get(self.expected.get(\"slice\"), {})",
+    "new": "        return {}",
+    "origin": "mut.py"
+  },
+  {
+    "label": "baseline correct->True",
+    "file": "api/precomputed.py",
+    "old": "            \"correct\": resolution.controlling in acceptable_from(expected or {}),",
+    "new": "            \"correct\": True,",
+    "origin": "mut.py"
+  },
+  {
+    "label": "baseline correct->drop acceptable",
+    "file": "api/precomputed.py",
+    "old": "    if expected.get(\"acceptable_authorities\"):\n        return set(expected[\"acceptable_authorities\"])",
+    "new": "    if False:\n        return set(expected[\"acceptable_authorities\"])",
+    "origin": "mut.py"
+  },
+  {
+    "label": "baseline correct->ignore expected_authority",
+    "file": "api/precomputed.py",
+    "old": "    return {expected[\"authority\"]} if expected.get(\"authority\") else set()",
+    "new": "    return set()",
+    "origin": "mut.py"
+  },
+  {
+    "label": "load_baseline drops CURATED guard",
+    "file": "api/precomputed.py",
+    "old": "def load_baseline(key: str) -> dict[str, Any] | None:\n    if key not in CURATED:\n        return None",
+    "new": "def load_baseline(key: str) -> dict[str, Any] | None:",
+    "origin": "mut.py"
+  },
+  {
+    "label": "load drops CURATED guard",
+    "file": "api/precomputed.py",
+    "old": "    if key not in CURATED:\n        return None\n    path = _path(key, arm)",
+    "new": "    path = _path(key, arm)",
+    "origin": "mut.py"
+  },
+  {
+    "label": "_path ignores arm",
+    "file": "api/precomputed.py",
+    "old": "    suffix = \"\" if arm == \"agent\" else f\".{arm}\"",
+    "new": "    suffix = \"\"",
+    "origin": "mut.py"
+  },
+  {
+    "label": "overall_scores->{}",
+    "file": "api/precomputed.py",
+    "old": "def overall_scores() -> dict[str, Any]:\n    if not SCORES.exists():",
+    "new": "def overall_scores() -> dict[str, Any]:\n    if True:",
+    "origin": "mut.py"
+  },
+  {
+    "label": "scenario_baseline always 404",
+    "file": "api/app.py",
+    "old": "    record = precomputed.load_baseline(key)\n    if record is None:",
+    "new": "    record = precomputed.load_baseline(key)\n    if True:",
+    "origin": "mut.py"
+  },
+  {
+    "label": "health drops overall_scores",
+    "file": "api/app.py",
+    "old": "        \"overall_scores\": precomputed.overall_scores(),",
+    "new": "        \"overall_scores\": {},",
+    "origin": "mut.py"
+  },
+  {
+    "label": "stale always False",
+    "file": "api/app.py",
+    "old": "    payload[\"stale\"] = record.key in precomputed.stale(",
+    "new": "    payload[\"stale\"] = False and record.key in precomputed.stale(",
+    "origin": "mut.py"
+  },
+  {
+    "label": "innerHTML via bracket",
+    "file": "api/static/index.html",
+    "old": "  if (opts.text !== undefined) node.textContent = opts.text;",
+    "new": "  if (opts.text !== undefined) node[\"inner\"+\"HTML\"] = opts.text;",
+    "origin": "mut.py"
+  },
+  {
+    "label": "insertAdjacentHTML",
+    "file": "api/static/index.html",
+    "old": "  if (opts.text !== undefined) node.textContent = opts.text;",
+    "new": "  if (opts.text !== undefined) node.insertAdjacentHTML(\"beforeend\", opts.text);",
+    "origin": "mut.py"
+  },
+  {
+    "label": "external script tag",
+    "file": "api/static/index.html",
+    "old": "<script>\n\"use strict\";",
+    "new": "<script src=\"https://evil.example/x.js\"></script>\n<script>\n\"use strict\";",
+    "origin": "mut.py"
+  },
+  {
+    "label": "baseTag always right",
+    "file": "api/static/index.html",
+    "old": "      markTag($(\"baseTag\"), false, \"wrong\");",
+    "new": "      markTag($(\"baseTag\"), true, \"wrong\");",
+    "origin": "mut.py"
+  },
+  {
+    "label": "agentTag always matches",
+    "file": "api/static/index.html",
+    "old": "  markTag($(\"agentTag\"), a.matched_expectation,",
+    "new": "  markTag($(\"agentTag\"), true,",
+    "origin": "mut.py"
+  },
+  {
+    "label": "footer stats removed",
+    "file": "api/static/index.html",
+    "old": "    $(\"footStats\").textContent =",
+    "new": "    $(\"footStats\").textContent = \"\" ||",
+    "origin": "mut.py"
+  },
+  {
+    "label": "slice box never shown",
+    "file": "api/static/index.html",
+    "old": "  $(\"sliceBox\").classList.remove(\"hidden\");",
+    "new": "  $(\"sliceBox\").classList.add(\"hidden\");",
+    "origin": "mut.py"
+  },
+  {
+    "label": "trace reducer removed (append-only becomes replace)",
+    "file": "agent/state.py",
+    "old": "    trace: Annotated[list[TraceEvent], operator.add]",
+    "new": "    trace: list[TraceEvent]",
+    "origin": "mutate_6_1.py"
+  },
+  {
+    "label": "unknown route falls through to retrieve instead of raising",
+    "file": "agent/graph.py",
+    "old": "    raise ValueError(f\"unknown route {route!r}\")",
+    "new": "    return \"retrieve\"",
+    "origin": "mutate_6_1.py"
+  },
+  {
+    "label": "clarify is wired into the answering path instead of terminating",
+    "file": "agent/graph.py",
+    "old": "        graph.add_edge(terminal, END)",
+    "new": "        graph.add_edge(terminal, \"resolve\" if terminal == \"clarify\" else END)",
+    "origin": "mutate_6_1.py"
+  },
+  {
+    "label": "initial_state ignores the supplied as_of",
+    "file": "agent/state.py",
+    "old": "        as_of=as_of or date.today(),",
+    "new": "        as_of=date.today(),",
+    "origin": "mutate_6_1.py"
+  },
+  {
+    "label": "MissingFact gains a value EmployeeContext has no field for",
+    "file": "domain.py",
+    "old": "    \"employer_size\",\n]",
+    "new": "    \"employer_size\",\n    \"union_member\",\n]",
+    "origin": "mutate_6_1.py"
+  },
+  {
+    "label": "macro accuracy computed as micro (majority route dominates)",
+    "file": "eval/run_routes.py",
+    "old": "        stats = self.per_route()\n        return sum(s[\"accuracy\"] for s in stats.values()) / len(stats)",
+    "new": "        return self.micro_accuracy",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "over-clarification denominator includes scenarios that SHOULD clarify",
+    "file": "eval/run_routes.py",
+    "old": "        eligible = [o for o in self.outcomes if o.expected != \"clarify\"]",
+    "new": "        eligible = list(self.outcomes)",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "under-clarification counts wrong direction",
+    "file": "eval/run_routes.py",
+    "old": "        return sum(o.predicted != \"clarify\" for o in eligible) / len(eligible)",
+    "new": "        return sum(o.predicted == \"clarify\" for o in eligible) / len(eligible)",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "missing-fact accuracy counts clarifies that never fired",
+    "file": "eval/run_routes.py",
+    "old": "        hits = [o for o in self.outcomes if o.expected == \"clarify\" and o.correct]",
+    "new": "        hits = [o for o in self.outcomes if o.expected == \"clarify\"]",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "confusion matrix transposed",
+    "file": "eval/run_routes.py",
+    "old": "            matrix[o.expected][o.predicted] = matrix[o.expected].get(o.predicted, 0) + 1",
+    "new": "            matrix[o.predicted][o.expected] = matrix[o.predicted].get(o.expected, 0) + 1",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "clarify with no fact named is kept instead of downgraded",
+    "file": "agent/nodes/triage.py",
+    "old": "        if route == \"clarify\" and missing_fact is None:\n            route = \"answer\"",
+    "new": "        if route == \"clarify\" and missing_fact is None:\n            pass",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "question-stated jurisdiction overrides the system of record",
+    "file": "agent/nodes/triage.py",
+    "old": "        jurisdiction = state[\"employee_context\"].state or (\n            None if stated == NO_FACT else stated\n        )",
+    "new": "        jurisdiction = (None if stated == NO_FACT else stated) or state[\n            \"employee_context\"\n        ].state",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "the prompt version is dropped from the cache key material",
+    "file": "agent/nodes/triage.py",
+    "old": "system=f\"{SYSTEM}\\n\\n<!-- {PROMPT_VERSION} -->\",",
+    "new": "system=SYSTEM,",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "the raw question is dropped from the trace",
+    "file": "agent/nodes/triage.py",
+    "old": "                        \"raw_question\": state[\"question\"],",
+    "new": "                        \"raw_question\": result[\"search_query\"],",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "facts the caller did not supply are listed as known",
+    "file": "agent/nodes/triage.py",
+    "old": "    supplied = {k: v for k, v in ctx.model_dump().items() if v is not None}",
+    "new": "    supplied = dict(ctx.model_dump())",
+    "origin": "mutate_6_2.py"
+  },
+  {
+    "label": "[review 1] precedence `correct` always true",
+    "file": "eval/run_precedence.py",
+    "old": "        got = set(self.defensible)\n        return bool(got) and got <= self.expected",
+    "new": "        return True",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 1] `naive_correct` always true",
+    "file": "eval/run_precedence.py",
+    "old": "        return self.naive_layer in self.expected",
+    "new": "        return True",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 1] `addressed_what_it_should` always true",
+    "file": "eval/run_precedence.py",
+    "old": "        named = set(self.resolution.non_controlling_to_address)\n        return set(self.must_address) <= named",
+    "new": "        return True",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 1] end-to-end `verified` always true",
+    "file": "eval/run_end_to_end.py",
+    "old": "        v = self.final.get(\"verification\")\n        if v is None:\n            return self.route in (\"clarify\", \"refuse\", \"escalate\")\n        return v.passed",
+    "new": "        return True",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 10] naive baseline takes the LAST hit",
+    "file": "agent/build.py",
+    "old": "    top = hits[0]",
+    "new": "    top = hits[-1]",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 2] number words matched as substrings again",
+    "file": "agent/nodes/verify.py",
+    "old": "    for word in _WORD_NUMBER.findall(corpus_text):\n        found.add(WORD_TO_DIGITS[\" \".join(word.lower().split())])",
+    "new": "    for word, digits in WORD_TO_DIGITS.items():\n        if word in corpus_text.lower():\n            found.add(digits)",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 4] comma normalisation dropped",
+    "file": "agent/nodes/verify.py",
+    "old": "    return number.replace(\",\", \"\")",
+    "new": "    return number",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 13] only the first defensible citation accepted",
+    "file": "agent/nodes/verify.py",
+    "old": "            bool(acceptable_citations & named) if acceptable_citations else True",
+    "new": "            sorted(acceptable_citations)[0] in named if acceptable_citations else True",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 8] rule 2b relabelled back onto rule 1",
+    "file": "agent/precedence.py",
+    "old": "        return \"policy_below_floor\", winning_statutes",
+    "new": "        return \"statutory_floor\", winning_statutes",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[review 12] rank sentinel coerced to most-generous again",
+    "file": "agent/nodes/resolve.py",
+    "old": "        if outcome != \"silent\" and (not isinstance(rank, int) or rank < 1):\n            outcome = \"silent\"",
+    "new": "        rank = rank or 1",
+    "origin": "mutate_hardening.py"
+  },
+  {
+    "label": "[r2] child-event loop dropped entirely",
+    "file": "agent/tracing.py",
+    "old": "            for event in state.get(\"trace\", []):",
+    "new": "            for event in []:",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] child input/output swapped",
+    "file": "agent/tracing.py",
+    "old": "input={\"summary\": REDACTED if redacting() else event.summary},",
+    "new": "input=event.detail,",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] root output update deleted",
+    "file": "agent/tracing.py",
+    "old": "            root.update(output=_summarise_output(state))",
+    "new": "            pass",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] usage never sent",
+    "file": "agent/tracing.py",
+    "old": "            if usage and usage.calls:",
+    "new": "            if False:",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] elapsed_ms never sent",
+    "file": "agent/tracing.py",
+    "old": "            if elapsed_ms is not None:",
+    "new": "            if False:",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] flush() never called",
+    "file": "agent/tracing.py",
+    "old": "        client.flush()",
+    "new": "        pass",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] session_id never attached",
+    "file": "agent/tracing.py",
+    "old": "            metadata={\"session_id\": session_id} if session_id else None,",
+    "new": "            metadata=None,",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] observations never ended",
+    "file": "agent/tracing.py",
+    "old": "                child.end()",
+    "new": "                pass",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r7] per-generation usage never attached",
+    "file": "agent/tracing.py",
+    "old": "                if call:",
+    "new": "                if False:",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r7] cache hit reports the previous call's tokens",
+    "file": "agent/models.py",
+    "old": "            self.last_call = None\n            return json.loads",
+    "new": "            return json.loads",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r2] pre-invoke state exported",
+    "file": "agent/tracing.py",
+    "old": "    with timed() as clock:\n        final = graph.invoke(state)\n    url = export(\n        final,",
+    "new": "    with timed() as clock:\n        final = graph.invoke(state)\n    url = export(\n        state,",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r4] verified conflates failed with never-ran",
+    "file": "agent/tracing.py",
+    "old": "    verification = state.get(\"verification\")\n    if verification is not None:\n        return \"passed\" if verification.passed else \"failed\"\n    if state.get(\"route\") in (\"clarify\", \"refuse\", \"escalate\"):\n        return \"not_applicable\"\n    return \"did_not_run\"",
+    "new": "    verification = state.get(\"verification\")\n    return \"passed\" if (verification and verification.passed) else \"failed\"",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r6] rewritten query dropped from the mirror",
+    "file": "agent/tracing.py",
+    "old": "        \"query_sent_to_index\": state.get(\"rewritten_query\"),",
+    "new": "        \"query_sent_to_index\": None,",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r6] defensible authorities dropped",
+    "file": "agent/tracing.py",
+    "old": "        \"defensible_authorities\": list(resolution.defensible) if resolution else [],",
+    "new": "        \"defensible_authorities\": [],",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r6] model metadata invented on every node",
+    "file": "agent/tracing.py",
+    "old": "                    metadata=(\n                        {\"model\": event.detail[\"model\"]}\n                        if isinstance(event.detail, dict) and event.detail.get(\"model\")\n                        else None\n                    ),",
+    "new": "                    metadata={\"model\": None},",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r8] parse_arguments accepts a non-object",
+    "file": "agent/models.py",
+    "old": "    if not isinstance(value, dict):",
+    "new": "    if False:",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[r3] timed() reports a constant",
+    "file": "agent/tracing.py",
+    "old": "        box[\"elapsed_ms\"] = (time.perf_counter() - started) * 1000",
+    "new": "        box[\"elapsed_ms\"] = 0.0",
+    "origin": "mutate_phase7.py"
+  },
+  {
+    "label": "[A3] budget recorded BEFORE the work runs",
+    "file": "api/app.py",
+    "old": "    try:\n        with track_usage() as usage:",
+    "new": "    protection.record(ip, payload.session_id)\n    try:\n        with track_usage() as usage:",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[A3b] budget not recorded on failure",
+    "file": "api/app.py",
+    "old": "    finally:\n        protection.record(ip, payload.session_id)",
+    "new": "    except Exception:\n        raise\n    protection.record(ip, payload.session_id)",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#4] leftmost forwarded hop trusted again",
+    "file": "api/app.py",
+    "old": "            return hops[-1]",
+    "new": "            return hops[0]",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#4b] platform header ignored",
+    "file": "api/app.py",
+    "old": "    if fly_client_ip and fly_client_ip.strip():\n        return fly_client_ip.strip()",
+    "new": "    if False:\n        pass",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[P3] slice scores always empty",
+    "file": "api/precomputed.py",
+    "old": "        return json.loads(SCORES.read_text()).get(\"by_slice\", {})",
+    "new": "        return {}",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[P11] route served from expected, not the run",
+    "file": "api/precomputed.py",
+    "old": "            \"route\": self.route,",
+    "new": "            \"route\": self.expected.get(\"route\"),",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[P5] CURATED allowlist removed (traversal guard)",
+    "file": "api/precomputed.py",
+    "old": "    if key not in CURATED:\n        return None",
+    "new": "    if False:\n        return None",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[P9] stale() any -> all",
+    "file": "api/precomputed.py",
+    "old": "        if record and any(",
+    "new": "        if record and all(",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#3] key eviction removed",
+    "file": "api/limits.py",
+    "old": "        if len(self._events) > self.MAX_KEYS:\n            self._evict(now, keep=key)",
+    "new": "        pass",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#3b] eviction drops LIVE keys",
+    "file": "api/limits.py",
+    "old": "            if not events:\n                del self._events[key]",
+    "new": "            del self._events[key]",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#3c] eviction reaches the global key",
+    "file": "api/limits.py",
+    "old": "            if key == keep or key == \"all\":",
+    "new": "            if key == keep:",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#5] cost apportioned by call share again",
+    "file": "agent/models.py",
+    "old": "        for model, (tin, tout) in self.tokens_by_model.items():",
+    "new": "        for model, (tin, tout) in []:",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "[#6] per-request usage not collected",
+    "file": "agent/models.py",
+    "old": "        scoped = _REQUEST_USAGE.get()\n        if scoped is not None:\n            scoped.add(model, *tokens)",
+    "new": "        pass",
+    "origin": "mutate_phase8.py"
+  },
+  {
+    "label": "cap ignored entirely (every passage shown)",
+    "file": "agent/nodes/resolve.py",
+    "old": "    if cap is None:\n        return list(hits)",
+    "new": "    if True:\n        return list(hits)",
+    "origin": "DL-38"
+  },
+  {
+    "label": "cap counted globally instead of per layer",
+    "file": "agent/nodes/resolve.py",
+    "old": "        if seen[hit.authority_layer] < cap:",
+    "new": "        if len(kept) < cap:",
+    "origin": "DL-38"
+  },
+  {
+    "label": "a cap of 0 silently becomes uncapped",
+    "file": "agent/nodes/resolve.py",
+    "old": "    if cap is None:\n        return list(hits)",
+    "new": "    if not cap:\n        return list(hits)",
+    "origin": "DL-38"
+  },
+  {
+    "label": "cap off by one (keeps cap+1 per layer)",
+    "file": "agent/nodes/resolve.py",
+    "old": "        if seen[hit.authority_layer] < cap:",
+    "new": "        if seen[hit.authority_layer] <= cap:",
+    "origin": "DL-38"
+  },
+  {
+    "label": "prompt capped but citations validated against the full set",
+    "file": "agent/nodes/resolve.py",
+    "old": "        valid = {h.citation for h in shown}",
+    "new": "        valid = {h.citation for h in state[\"retrieved\"]}",
+    "origin": "DL-38"
+  },
+  {
+    "label": "cap applied to validation but not to the prompt",
+    "file": "agent/nodes/resolve.py",
+    "old": "            user=_user_message(seen_state),",
+    "new": "            user=_user_message(state),",
+    "origin": "DL-38"
+  },
+  {
+    "label": "trace hides what the decision was allowed to see",
+    "file": "agent/nodes/resolve.py",
+    "old": "                        \"passage_cap\": passage_cap,",
+    "new": "                        \"passage_cap\": None,",
+    "origin": "DL-38"
+  },
+  {
+    "label": "budget guard never fires",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return spent + price <= cap - headroom",
+    "new": "    return True",
+    "origin": "DL-38"
+  },
+  {
+    "label": "budget guard spends the reserve",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return spent + price <= cap - headroom",
+    "new": "    return spent + price <= cap",
+    "origin": "DL-38"
+  },
+  {
+    "label": "budget guard off by one at the boundary",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return spent + price <= cap - headroom",
+    "new": "    return spent + price < cap - headroom",
+    "origin": "DL-38"
+  },
+  {
+    "label": "call priced without the reserved output budget",
+    "file": "eval/run_context_sweep.py",
+    "old": "        estimate_tokens([SYSTEM, _user_message(trimmed)]) + RESOLVE_MAX_TOKENS",
+    "new": "        estimate_tokens([SYSTEM, _user_message(trimmed)])",
+    "origin": "DL-38"
+  },
+  {
+    "label": "cost_of ignores the cap",
+    "file": "eval/run_context_sweep.py",
+    "old": "    trimmed = {**state, \"retrieved\": cap_per_layer(state[\"retrieved\"], cap)}",
+    "new": "    trimmed = {**state, \"retrieved\": state[\"retrieved\"]}",
+    "origin": "DL-38"
+  },
+  {
+    "label": "throttled calls recorded as skips again",
+    "file": "eval/run_context_sweep.py",
+    "old": "            if not is_rate_limit(exc):\n                raise",
+    "new": "            if True:\n                raise",
+    "origin": "DL-38"
+  },
+  {
+    "label": "a real model failure retried as if throttled",
+    "file": "eval/run_context_sweep.py",
+    "old": "            if not is_rate_limit(exc):\n                raise",
+    "new": "            if False:\n                raise",
+    "origin": "DL-38"
+  },
+  {
+    "label": "retry never sleeps (hammers the limit)",
+    "file": "eval/run_context_sweep.py",
+    "old": "                sleeper(RATE_LIMIT_SLEEP_SECONDS)",
+    "new": "                pass",
+    "origin": "DL-38"
+  },
+  {
+    "label": "retry sleeps after the final attempt too",
+    "file": "eval/run_context_sweep.py",
+    "old": "            if attempt < RATE_LIMIT_RETRIES - 1:",
+    "new": "            if True:",
+    "origin": "DL-38"
+  },
+  {
+    "label": "credit exhaustion mistaken for throttling",
+    "file": "eval/run_context_sweep.py",
+    "old": "    return \"rate limit\" in str(exc).lower() or \"429\" in str(exc)",
+    "new": "    return True",
+    "origin": "DL-38"
+  },
+  {
+    "label": "rewrite fails open instead of erroring",
+    "file": "deploy/build_static.py",
+    "old": "        if old not in html:\n            raise SystemExit(",
+    "new": "        if False:\n            raise SystemExit(",
+    "origin": "phase10"
+  },
+  {
+    "label": "static build claims it can answer live",
+    "file": "deploy/build_static.py",
+    "old": "        \"live_ask\": False,",
+    "new": "        \"live_ask\": True,",
+    "origin": "phase10"
+  },
+  {
+    "label": "live server claims it cannot answer",
+    "file": "api/app.py",
+    "old": "        \"live_ask\": True,",
+    "new": "        \"live_ask\": False,",
+    "origin": "phase10"
+  },
+  {
+    "label": "built page fetches unverified",
+    "file": "deploy/build_static.py",
+    "old": "    verify(out, page)",
+    "new": "    pass",
+    "origin": "phase10"
+  },
+  {
+    "label": "dynamic endpoint exempted without a disable path",
+    "file": "deploy/build_static.py",
+    "old": "    if DYNAMIC_ONLY & fetched_paths(html) and \"disableAsk()\" not in html:",
+    "new": "    if False:",
+    "origin": "phase10"
+  },
+  {
+    "label": "template fetches never expanded to per-scenario files",
+    "file": "deploy/build_static.py",
+    "old": "        for key in precomputed.available():\n            paths.add(re.sub(r\"\\$\\{[^}]+\\}\", key, raw))",
+    "new": "        pass",
+    "origin": "phase10"
+  },
+  {
+    "label": "page no longer disables the ask box",
+    "file": "api/static/index.html",
+    "old": "  if (health.live_ask === false) disableAsk();",
+    "new": "  if (false) disableAsk();",
+    "origin": "phase10"
+  },
+  {
+    "label": "decision log anchored without checking the counts agree",
+    "file": "deploy/page.py",
+    "old": "    if len(slots) != len(titles):",
+    "new": "    if False:",
+    "origin": "phase10"
+  },
+  {
+    "label": "decision log renderer passes raw HTML through",
+    "file": "deploy/page.py",
+    "old": "    md = MarkdownIt(\"default\", {\"html\": False, \"linkify\": False})",
+    "new": "    md = MarkdownIt(\"default\", {\"html\": True, \"linkify\": False})",
+    "origin": "phase10"
+  },
+  {
+    "label": "path regex excludes ) again, silently skipping two fetches",
+    "file": "deploy/build_static.py",
+    "old": "    for _quote, raw in re.findall(r'fetch\\(([\"`])(/api/[^\"`]*)\\1', html):",
+    "new": "    for _quote, raw in re.findall(r'fetch\\(([\"`])(/api/[^\"`)]*)\\1', html):",
+    "origin": "phase10"
+  },
+  {
+    "label": "nav current-marker never moves to the log page",
+    "file": "deploy/page.py",
+    "old": "    return markup.replace(target, target + ' class=\"is-current\"', 1)",
+    "new": "    return markup",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "log page copies a nav instead of lifting it",
+    "file": "deploy/page.py",
+    "old": "    markup = markup.replace(' class=\"is-current\"', \"\")",
+    "new": "    markup = markup",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "email written literally into the HTML",
+    "file": "api/static/index.html",
+    "old": "  var user = [\"hossain\", \"zulqarnayan\"].join(\"\");",
+    "new": "  var user = \"hossainzulqarnayan\";",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "off-origin links lose noopener",
+    "file": "api/static/index.html",
+    "old": "target=\"_blank\" rel=\"noopener noreferrer\">GitHub</a>",
+    "new": "target=\"_blank\">GitHub</a>",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "anchor exemption swallows a real external load",
+    "file": "deploy/build_static.py",
+    "old": "    loading = re.sub(r\"<a\\b[^>]*>\", \"\", html, flags=re.I)",
+    "new": "    loading = re.sub(r\"<[^>]*>\", \"\", html, flags=re.I)",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "build stops checking for off-origin loads",
+    "file": "deploy/build_static.py",
+    "old": "    offsite = external_loads(html)\n    if offsite:",
+    "new": "    offsite = []\n    if offsite:",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "css url() loads no longer counted",
+    "file": "deploy/build_static.py",
+    "old": "    found += re.findall(r\"url\\(\\s*[\\\"\\']?((?:https?:)?//[^)\\\"\\']+)\", html, re.I)",
+    "new": "    found += []",
+    "origin": "phase10-nav"
+  },
+  {
+    "label": "headings not demoted, plan gets many h1s",
+    "file": "deploy/page.py",
+    "old": "    return re.sub(r\"^(#{1,5}) \", r\"#\\1 \", markdown, flags=re.M)",
+    "new": "    return markdown",
+    "origin": "plan-page"
+  },
+  {
+    "label": "plan retitle skipped, two competing headings",
+    "file": "deploy/render_plan.py",
+    "old": "        if not lines or not lines[0].startswith(\"# \"):",
+    "new": "        if False:",
+    "origin": "plan-page"
+  },
+  {
+    "label": "tooling directive published to readers",
+    "file": "deploy/render_plan.py",
+    "old": "    return page.demote(strip_tooling(\"\\n\\n\".join(parts)))",
+    "new": "    return page.demote(\"\\n\\n\".join(parts))",
+    "origin": "plan-page"
+  },
+  {
+    "label": "strip rule silently matches nothing",
+    "file": "deploy/render_plan.py",
+    "old": "    if not n:\n        raise SystemExit(",
+    "new": "    if False:\n        raise SystemExit(",
+    "origin": "plan-page"
+  },
+  {
+    "label": "plan page never written",
+    "file": "deploy/build_static.py",
+    "old": "    (out / \"plan.html\").write_text(render_plan.render())",
+    "new": "    (out / \"plan.html\").write_text(\"\")",
+    "origin": "plan-page"
+  },
+  {
+    "label": "em dash guard checks nothing",
+    "file": "deploy/build_static.py",
+    "old": "    return html.count(EM_DASH)",
+    "new": "    return 0",
+    "origin": "plan-page"
+  },
+  {
+    "label": "build stops checking pages for em dashes",
+    "file": "deploy/build_static.py",
+    "old": "    if offenders:\n        raise SystemExit(\n            \"build_static: em dashes reached these pages: \"",
+    "new": "    if False:\n        raise SystemExit(\n            \"build_static: em dashes reached these pages: \"",
+    "origin": "plan-page"
+  }
+]

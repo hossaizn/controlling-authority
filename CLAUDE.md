@@ -21,8 +21,8 @@ Public repo: `github.com/hossaizn/controlling-authority`
 
 ## Status
 
-**Phases 0 through 7 merged.** Phase 8 (API + protection layer) is next, then
-9 (demo) and 10 (ship).
+**Phases 0 through 9 merged.** Phase 10 ships the demo as a static site on
+Cloudflare Pages (`deploy/build_static.py`); see DL-39 for why not a container.
 
 **Tracing is exported, not instrumented (Phase 7).** Nodes stay unaware of
 Langfuse; `agent/tracing.py` walks the finished state trace and mirrors it.
@@ -69,11 +69,11 @@ top-ranked passage, same retrieval, same run:
 
 | | naive | precedence as code |
 |---|---|---|
-| conflict slice | 0.500 | **0.833** |
-| overall | 0.632 | **0.877** |
+| conflict slice | 0.556 | **0.833** |
+| overall | 0.649 | **0.877** |
 
 The handbook is the top-ranked passage 26 times of 57. The spec's opening claim
-is now a measured +24.6 points rather than a premise.
+is now a measured +22.8 points rather than a premise.
 
 **Triage, DL-22:** route accuracy **0.815 macro**, clearing the 0.80 upgrade
 threshold by less than one clarify scenario. Weakest route is clarify at 0.533.

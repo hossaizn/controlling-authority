@@ -165,6 +165,11 @@ def health(request: Request) -> dict:
     protection: Protection = request.app.state.protection
     return {
         "status": "ok",
+        # True here, false in the static build. The page reads it and disables
+        # the ask box rather than offering a control that cannot work; see
+        # `deploy/build_static.py`.
+        "live_ask": True,
+        "deployment": "server",
         "limits": protection.snapshot(),
         "precomputed_available": precomputed.available(),
         "precomputed_stale": precomputed.stale(

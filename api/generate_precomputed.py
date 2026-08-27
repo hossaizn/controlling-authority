@@ -58,6 +58,23 @@ def main() -> int:
         )
         return 1
     scored = json.loads(run.read_text())
+
+    # The headline comparison lives in the precedence run, not the end-to-end
+    # one, and the demo quotes it. Reading it here keeps the page's number tied
+    # to a run file instead of being typed into markup, where it would drift the
+    # first time either arm moved. DL-26 already caught that delta changing.
+    from agent.nodes.resolve import PROMPT_VERSION
+
+    prec_run = Path(f"eval/runs/precedence_{PROMPT_VERSION}.json")
+    if not prec_run.exists():
+        print(
+            f"ERROR: {prec_run} is missing. Run "
+            "`uv run python -m eval.run_precedence` first: the demo quotes the "
+            "delta against the naive baseline and must not ship without it."
+        )
+        return 1
+    prec = json.loads(prec_run.read_text())
+    delta = prec["precedence_accuracy"] - prec["naive_baseline_accuracy"]
     precomputed.SCORES.parent.mkdir(parents=True, exist_ok=True)
     precomputed.SCORES.write_text(
         json.dumps(
@@ -70,6 +87,9 @@ def main() -> int:
                     "route_accuracy_macro": round(scored["route_accuracy_macro"], 4),
                     "precedence_correct": round(scored["precedence_correct"], 4),
                     "n": scored["n"],
+                    "precedence_delta_points": round(100 * delta, 1),
+                    "naive_baseline": round(prec["naive_baseline_accuracy"], 4),
+                    "precedence_n": prec["n"],
                 },
                 "by_slice": {
                     k: {
