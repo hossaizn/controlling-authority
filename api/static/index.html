@@ -242,16 +242,21 @@
 
   <h1>Controlling Authority</h1>
   <p class="sub">
-    A leave question has no answer until you know <em>which authority
-    governs</em>: federal law, state law, or the company handbook. The handbook is
-    usually the closest match to what someone asks. Where it promises less than
-    the law requires, the closest match is the wrong answer. Working out which
-    layer wins is the hard part. Retrieval only feeds it.
+    Ask how much leave you get and three authorities might answer: federal law,
+    your state, and your company handbook. The handbook is the closest match to
+    the question, and when it promises less than the law requires, the closest
+    match is wrong. Nothing in the text tells you which one wins.
   </p>
   <p class="sub">
-    The <a href="/decisions">decision log</a> records every choice behind this,
-    including the experiments that failed and the features that were built,
-    measured, and then dropped.
+    I picked this because it is a real problem in HR software, and because
+    better retrieval does not solve it. Fetching the right passage is the easy
+    half. Something still has to decide which authority governs, and I wanted
+    to know whether that decision belongs in code instead of a prompt.
+  </p>
+  <p class="sub">
+    It does. Same retrieval, same runs, one component swapped, 22.8 points
+    apart. The <a href="/decisions">decision log</a> has the rest, including the
+    experiments that failed and the features I built, measured, and dropped.
   </p>
 
 
