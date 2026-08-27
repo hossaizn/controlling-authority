@@ -30,8 +30,7 @@ TITLE = "Controlling Authority: decision log"
 INTRO = """
 Every non-obvious choice in this project, with the reasoning behind it. The
 failed experiments stay in. So do the diagnoses that turned out wrong, and the
-features that were built, measured, and then dropped. A log holding only
-successes is a sales document.
+features that were built, measured, and then dropped.
 """
 
 
