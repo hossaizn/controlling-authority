@@ -10,6 +10,7 @@ from datetime import date
 
 from agent.nodes.resolve import (
     LAYERS,
+    cap_per_layer,
     PROMPT_VERSION,
     READ_TOOL,
     _passages_by_layer,
@@ -308,3 +309,86 @@ def test_the_summary_explains_the_rule_in_plain_words() -> None:
          "says": "same accrual", "generosity_rank": 1},
     ])
     assert "restates the statute" in out["trace"][0].summary
+
+
+# --- the per-layer passage cap (DL-38) --------------------------------------
+
+
+def test_no_cap_keeps_every_passage() -> None:
+    """`None` is the behaviour this node had before the question was asked."""
+    hits = [hit(f"fed-{i}", "federal") for i in range(6)]
+    assert len(cap_per_layer(hits, None)) == 6
+
+
+def test_the_cap_counts_per_layer_not_overall() -> None:
+    """A global cut of 2 would leave two federal passages and nothing else,
+    and precedence needs a finding from each layer to compare anything."""
+    hits = (
+        [hit(f"fed-{i}", "federal") for i in range(5)]
+        + [hit("ca-1", "state")]
+        + [hit("hb-1", "company")]
+    )
+    kept = cap_per_layer(hits, 2)
+    assert [h.citation for h in kept] == ["fed-0", "fed-1", "ca-1", "hb-1"]
+
+
+def test_the_cap_keeps_the_top_ranked_passages_of_each_layer() -> None:
+    """Retrieval order is the signal: DL-38 measured 84% of cited evidence as
+    the top passage of its layer. Keeping a later one would discard that."""
+    hits = [hit(f"fed-{i}", "federal") for i in range(4)]
+    assert [h.citation for h in cap_per_layer(hits, 2)] == ["fed-0", "fed-1"]
+
+
+def test_a_layer_thinner_than_the_cap_is_untouched() -> None:
+    hits = [hit("ca-1", "state"), hit("hb-1", "company")]
+    assert len(cap_per_layer(hits, 3)) == 2
+
+
+def test_a_cap_of_zero_shows_nothing() -> None:
+    """Distinct from None. `cap or default` would silently turn this into the
+    uncapped case, which is the opposite of what it asks for."""
+    assert cap_per_layer([hit("fed-0", "federal")], 0) == []
+
+
+def test_the_cap_reaches_the_prompt() -> None:
+    hits = [hit(f"fed-{i}", "federal", text=f"body-{i}") for i in range(4)]
+    state = initial_state(
+        "q", employee_context=EmployeeContext(state="CA"), as_of=date(2026, 4, 1)
+    )
+    state["retrieved"] = hits
+    caller = FakeCaller([])
+    make_resolve(caller, passage_cap=2)(state)
+    assert "body-1" in caller.user
+    assert "body-2" not in caller.user, "passage past the cap reached the prompt"
+
+
+def test_a_citation_beyond_the_cap_is_not_accepted() -> None:
+    """The model cannot have read it. Accepting it would let `verify` check the
+    answer against evidence that never entered the decision."""
+    hits = [hit(f"fed-{i}", "federal") for i in range(4)]
+    state = initial_state(
+        "q", employee_context=EmployeeContext(state="CA"), as_of=date(2026, 4, 1)
+    )
+    state["retrieved"] = hits
+    caller = FakeCaller([
+        {"layer": "federal", "outcome": "grants", "citation": "fed-3",
+         "says": "x", "generosity_rank": 1}
+    ])
+    out = make_resolve(caller, passage_cap=2)(state)
+    federal = next(f for f in out["resolution"].considered if f.layer == "federal")
+    assert federal.citation is None
+    assert federal.outcome == "silent"
+
+
+def test_the_trace_records_what_the_decision_was_allowed_to_see() -> None:
+    """A capped run and an uncapped one must not look alike after the fact."""
+    hits = [hit(f"fed-{i}", "federal") for i in range(5)]
+    state = initial_state(
+        "q", employee_context=EmployeeContext(state="CA"), as_of=date(2026, 4, 1)
+    )
+    state["retrieved"] = hits
+    out = make_resolve(FakeCaller([]), passage_cap=2)(state)
+    detail = out["trace"][0].detail
+    assert detail["passage_cap"] == 2
+    assert detail["passages_shown"] == 2
+    assert detail["passages_retrieved"] == 5

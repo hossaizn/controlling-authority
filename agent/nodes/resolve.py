@@ -155,6 +155,35 @@ question is about eligibility, compare the eligibility tests, not the amount of
 leave each one grants."""
 
 
+# How many passages of each layer reach the prompt. `None` is every passage,
+# which is what this node did before the question was asked at all.
+#
+# **Per layer rather than overall**, measured in DL-38: federal is 54% of the
+# passage tokens at a mean of 6.11 passages, while state is 2.28 and company
+# 1.74. A global cut would thin the layers that are already thin, and precedence
+# needs a finding from each layer to compare anything.
+DEFAULT_PASSAGE_CAP: int | None = None
+
+
+def cap_per_layer(hits: list, cap: int | None) -> list:
+    """The top `cap` passages of each layer, in retrieval order.
+
+    Retrieval order is preserved rather than regrouped, because rank within a
+    layer is the signal being trusted: DL-38 measured that 84% of the evidence
+    `resolve` cites is the top passage of its layer and 96.6% is within the top
+    three.
+    """
+    if cap is None:
+        return list(hits)
+    kept: list = []
+    seen: dict[str, int] = defaultdict(int)
+    for hit in hits:
+        if seen[hit.authority_layer] < cap:
+            kept.append(hit)
+            seen[hit.authority_layer] += 1
+    return kept
+
+
 def _passages_by_layer(state: AgentState) -> dict[str, list]:
     grouped: dict[str, list] = defaultdict(list)
     for hit in state.get("retrieved", []):
@@ -304,7 +333,11 @@ def handbook_to_address(state: AgentState, resolution: Resolution) -> list[str]:
     return seen
 
 
-def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
+def make_resolve(
+    caller: StructuredCaller | None = None,
+    model: str = HAIKU,
+    passage_cap: int | None = DEFAULT_PASSAGE_CAP,
+):
     caller = caller or StructuredCaller()
 
     def resolve(state: AgentState) -> dict:
@@ -325,21 +358,29 @@ def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
                 ],
             }
 
+        # The cap is applied ONCE and everything downstream reads the capped
+        # view. Capping only the prompt would leave `valid` containing citations
+        # the model was never shown, so `resolve_citation` would accept a
+        # citation that could not have been read, and `verify` would then check
+        # the answer against evidence that never entered the decision.
+        shown = cap_per_layer(state["retrieved"], passage_cap)
+        seen_state: AgentState = {**state, "retrieved": shown}
+
         result = caller.call(
             system=f"{SYSTEM}\n\n<!-- {PROMPT_VERSION} -->",
-            user=_user_message(state),
+            user=_user_message(seen_state),
             tool=READ_TOOL,
             model=model,
             max_tokens=2048,
         )
-        valid = {h.citation for h in state["retrieved"]}
+        valid = {h.citation for h in shown}
         findings = _to_findings(result.get("findings", []), valid)
 
         try:
             resolution = resolve_precedence(findings)
             # Handbook policies the reader has probably already opened come
             # first, ahead of any statute that merely lost the comparison.
-            handbook = handbook_to_address(state, resolution)
+            handbook = handbook_to_address(seen_state, resolution)
             others = [
                 c for c in resolution.non_controlling_to_address if c not in handbook
             ]
@@ -377,6 +418,12 @@ def make_resolve(caller: StructuredCaller | None = None, model: str = HAIKU):
                             for f in resolution.considered
                         ],
                         "model": model,
+                        # The trace has to show what the decision was allowed to
+                        # see, not just what retrieval found, or a capped run and
+                        # an uncapped one are indistinguishable after the fact.
+                        "passage_cap": passage_cap,
+                        "passages_shown": len(shown),
+                        "passages_retrieved": len(state["retrieved"]),
                         "usage": getattr(caller, "last_call", None),
                     },
                 )
