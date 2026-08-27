@@ -126,7 +126,7 @@ Seven scenarios do not justify ingesting the whole Workers' Compensation Law. Th
 
 3. **Route accuracy rewarded never clarifying.** With 57 answer and 15 clarify scenarios, a system that never asks a clarifying question had an **83% micro-accuracy ceiling** while scoring zero on the behaviour DL-5 exists to test. Worse, `test_clarify_is_outnumbered_by_answer` actively enforced that imbalance. DL-5 guarded over-clarification and nothing guarded the reverse. Route accuracy is now macro-averaged.
 
-**A consequence that changed the schema.** Rule 5 exposed a case nobody had considered: the *answer* can be determinate while the *controlling authority* is not. Sick leave accruing at one hour per thirty worked is the same number in every state, but California compels it by statute and Ohio only through the handbook. Demanding one authority would penalise a correct system for a fact it was never given. Hence `acceptable_authorities`.
+**A consequence that changed the schema.** Rule 5 exposed a case nobody had considered: the *answer* can be determinate while the *controlling authority* is not. Sick leave accruing at one hour per thirty worked is the same number in every state, but California compels it by statute and Ohio only through the handbook. Demanding one authority would penalise a correct system for a fact it was never given. That is what `acceptable_authorities` exists for.
 
 **Data defects.** A scenario declared a fact missing while supplying it. A pairing was asserted in prose and was simply false, the two scenarios being unrelated. Another control case duplicated a conflict case and withheld nothing. Four scenarios in the conflict slice contained no conflict, one of them a duplicate. Two defects the scenarios depended on were undocumented (now D-7, D-8). One control case turned on a conditional catch-all, making a clarifying question defensible and the ground truth wrong.
 
@@ -1366,9 +1366,9 @@ Composing one would have added two model calls per scenario to restate a conclus
 | scenario | agent | rule | naive | naive correct |
 |---|---|---|---|---|
 | conflict | **company** | policy_may_exceed | state | **no** |
-| straightforward | federal | — | federal | yes |
-| superseded | company | — | company | yes |
-| refuse / escalate / ambiguous | (declines) | — | *(never resolves)* | see DL-32 |
+| straightforward | federal | none | federal | yes |
+| superseded | company | none | company | yes |
+| refuse / escalate / ambiguous | (declines) | none | *(never resolves)* | see DL-32 |
 
 The conflict row is the one the spec asks for, and it fails in the harder direction: the handbook grants ten paid bereavement days against a five-day statutory floor, so **policy** controls and the naive system reaches for the statute.
 
@@ -1415,7 +1415,7 @@ Recorded as a value in a test, so a future change that produces more deltas fail
 
 **`matched_expectation` compared the route alone** while the page labelled it "matches ground truth" in green. A run reaching the right conclusion from the wrong authority, which the spec calls luck rather than correctness, would have rendered as a match. It now checks route, authority and required citations.
 
-**The page's rendering had no tests.** Six mutations survived, including forcing the baseline tag to "right, by luck" and blanking the footer's measured score. Every honesty element the page draws was unasserted; only the payload was tested. The checks added are **structural, on the source, not render tests** — a real one needs a JS runtime this project does not have. They catch deletion and inversion, which is what the mutations did, and would not catch a CSS change that hides an element. Stated rather than glossed.
+**The page's rendering had no tests.** Six mutations survived, including forcing the baseline tag to "right, by luck" and blanking the footer's measured score. Every honesty element the page draws was unasserted; only the payload was tested. The checks added are **structural, on the source, not render tests**. A real render test needs a JS runtime this project does not have. They catch deletion and inversion, which is what the mutations did. They would not catch a CSS change that hides an element. Stated rather than glossed.
 
 ### And one the tests did to themselves
 
@@ -1621,7 +1621,7 @@ The first run with a cross-family verifier: Haiku composing from cache, `gpt-oss
 
 The run reports `fully_correct_strict` of 0.612. **That number must not be set beside the 0.620 baseline.** Only 49 scenarios scored, only 15 reached `verify` against 58 before, and the slices are badly skewed: `straightforward` fell from n=17 to n=2, `conflict` from 18 to 7.
 
-Two figures over different populations are two different measurements. **The partial-run machinery did its job** — a result with a stated denominator beats an outage — but a stated denominator is a warning, not a licence.
+Two figures over different populations are two different measurements. **The partial-run machinery did its job.** A result with a stated denominator beats an outage. A stated denominator is still a warning rather than a licence.
 
 ### The paired comparison, which is valid
 
@@ -1717,14 +1717,14 @@ That is DL-24's bias with the sign flipped, and it was caught there by the same 
 So the question is not "is capping safe" but the sharper one: **where does trimming start to cost accuracy?**
 
 - **Arms:** per-layer cap 3 against per-layer cap 2, on `openai/gpt-oss-120b`, free.
-- **Population:** the conflict slice, n=18. Chosen because **every citation any cap drops is in it** — it carries the entire risk, and `run_precedence` already supports `only_slice` for exactly this budget reason.
+- **Population:** the conflict slice, n=18. Chosen because **every citation any cap drops is in it**. It carries the entire risk, and `run_precedence` already supports `only_slice` for exactly this budget reason.
 - **Primary metric:** precedence correctness, the existing scorer, unmodified.
 
 ### Thresholds, fixed now
 
 - **Adopt cap=2** if its precedence correctness on the conflict slice is **no more than 1 scenario below cap=3**. The whole corpus then fits free infrastructure, which cap=3 does not.
 - **Reject cap=2 and adopt cap=3** if it loses 2 or more.
-- **Reject both** if cap=3 itself falls more than 2 scenarios below the cached Haiku conflict figure of 15/18. That figure is a **reference, not a paired comparator** — different model family — and it is used only as a floor, never quoted as a delta.
+- **Reject both** if cap=3 itself falls more than 2 scenarios below the cached Haiku conflict figure of 15/18. That figure is a **reference, not a paired comparator**, because it comes from a different model family. It is used only as a floor, never quoted as a delta.
 
 ### Falsifier
 

@@ -25,13 +25,13 @@ ROOT = Path(__file__).resolve().parent.parent
 LOG = ROOT / "eval" / "decision_log.md"
 PAGE = ROOT / "api" / "static" / "index.html"
 
-TITLE = "Decision log — Controlling Authority"
+TITLE = "Controlling Authority: decision log"
 
 INTRO = """
-Every non-obvious choice in this project, with the reasoning that produced it.
-It includes the experiments that failed, the diagnoses that turned out to be
-wrong, and the features that were built, measured, and then not adopted. Those
-are kept deliberately: a log containing only successes is a sales document.
+Every non-obvious choice in this project, with the reasoning behind it. The
+failed experiments stay in. So do the diagnoses that turned out wrong, and the
+features that were built, measured, and then dropped. A log holding only
+successes is a sales document.
 """
 
 
@@ -130,7 +130,7 @@ def render() -> str:
 </head>
 <body>
 <div class="wrap">
-  <p class="nav"><a href="/">&larr; Back to the demo</a></p>
+  <p class="nav"><a href="/">Back to the demo</a></p>
   <h1>Decision log</h1>
   <p class="sub">{INTRO.strip()}</p>
   <h2 id="contents">Contents</h2>

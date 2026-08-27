@@ -825,14 +825,14 @@ def test_the_page_renders_the_measured_overall_score() -> None:
     src = page_source()
     assert "fully_correct" in src
     assert "route_accuracy_macro" in src
-    assert "including where it fails" in src
+    assert "failures included" in src
 
 
 def test_the_page_renders_the_slice_score() -> None:
     """One working example is not a working slice."""
     src = page_source()
     assert "renderSlice" in src
-    assert "One working example is not a working slice" in src
+    assert "proves nothing about the slice" in src
 
 
 def test_the_page_distinguishes_all_three_baseline_outcomes() -> None:
@@ -853,12 +853,12 @@ def test_the_page_labels_the_agent_against_ground_truth() -> None:
 def test_the_page_surfaces_staleness() -> None:
     src = page_source()
     assert "staleWarn" in src
-    assert "may not reflect current behaviour" in src
+    assert "might not match current behaviour" in src
 
 
 def test_the_page_handles_a_missing_scores_snapshot() -> None:
     """Otherwise the footer sits on "Loading measured results…" forever."""
-    assert "Measured results are not available" in page_source()
+    assert "No scores snapshot in this deployment" in page_source()
 
 
 def test_the_page_handles_a_non_json_error_response() -> None:
@@ -888,7 +888,7 @@ def test_the_page_renders_flagged_claims() -> None:
     reasoning, and the sentence to be careful about. A referral gives nothing."""
     src = page_source()
     assert "renderFlags" in src
-    assert "could not be tied to its cited passage" in src
+    assert "could not tie one claim to its cited passage" in src
     assert "aFlags" in src
 
 

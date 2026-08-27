@@ -81,37 +81,37 @@
 
   <h1>Controlling Authority</h1>
   <p class="sub">
-    Employee leave questions have no answer until you know <em>which authority
+    A leave question has no answer until you know <em>which authority
     governs</em>: federal law, state law, or the company handbook. The handbook is
-    usually the closest match to the question and, where it falls below a
-    statutory floor, the wrong answer. Determining precedence is the work;
-    retrieval is a means to it.
+    usually the closest match to what someone asks. Where it promises less than
+    the law requires, the closest match is the wrong answer. Working out which
+    layer wins is the hard part. Retrieval only feeds it.
   </p>
   <p class="sub">
-    <a href="/decisions.html">Read the decision log</a> for why this is built
-    the way it is, including the experiments that failed and the features that
-    were measured and then not adopted.
+    The <a href="/decisions">decision log</a> records every choice behind this,
+    including the experiments that failed and the features that were built,
+    measured, and then dropped.
   </p>
 
   <h2>Example scenarios</h2>
   <div class="panel">
     <div class="buttons" id="scenarios"></div>
     <p class="meta" style="margin:12px 0 0">
-      Pre-computed from real runs. Free, instant, and always available: they cost
-      nothing to serve, so they are exempt from every rate limit.
+      Each one is a recorded run, not a canned response. They cost nothing to
+      serve, so no rate limit applies to them.
     </p>
   </div>
 
   <h2>Ask your own</h2>
   <div class="panel">
     <div class="row">
-      <input type="text" id="q" placeholder="e.g. my grandmother died, how many days do I get?">
+      <input type="text" id="q" placeholder="my grandmother died, how many days do I get?">
       <input type="date" id="asof" value="2026-08-01" title="Answer as of this date">
       <button id="go">Ask</button>
     </div>
     <p class="meta" style="margin:10px 0 0" id="askNote">
-      Rate limited, because live inference is real money. The as-of date changes
-      which law was in force.
+      Rate limited, because live inference costs money. Change the date to see
+      which law was in force then.
     </p>
   </div>
 
@@ -126,9 +126,9 @@
           <span id="agentTag" class="tag"></span>
         </div>
         <dl class="kv">
-          <dt>Controlling</dt><dd id="aAuth">—</dd>
-          <dt>Rule</dt><dd id="aRule">—</dd>
-          <dt>Route</dt><dd id="aRoute">—</dd>
+          <dt>Controlling</dt><dd id="aAuth">none</dd>
+          <dt>Rule</dt><dd id="aRule">none</dd>
+          <dt>Route</dt><dd id="aRoute">none</dd>
         </dl>
         <p class="answer" id="aAnswer"></p>
         <p id="aCites" class="meta"></p>
@@ -141,9 +141,9 @@
           <span id="baseTag" class="tag"></span>
         </div>
         <dl class="kv">
-          <dt>Controlling</dt><dd id="bAuth">—</dd>
-          <dt>Rule</dt><dd id="bRule">—</dd>
-          <dt>Top passage</dt><dd id="bTop">—</dd>
+          <dt>Controlling</dt><dd id="bAuth">none</dd>
+          <dt>Rule</dt><dd id="bRule">none</dd>
+          <dt>Top passage</dt><dd id="bTop">none</dd>
         </dl>
         <p class="meta" id="bNote"></p>
       </div>
@@ -168,7 +168,7 @@
   <footer>
     <p id="footStats">Loading measured results…</p>
     <p>
-      Not legal advice. Corpus: 29 CFR 825, California and New York leave
+      Not legal advice. The corpus is 29 CFR 825, California and New York leave
       statutes, Ohio absence records, and a company handbook seeded with
       deliberate defects.
     </p>
@@ -217,15 +217,16 @@ async function boot() {
   const o = health.overall_scores || {};
   if (typeof o.fully_correct !== "number") {
     $("footStats").textContent =
-      "Measured results are not available in this deployment. The scores " +
-      "snapshot is missing, so no numbers are shown rather than stale ones.";
+      "No scores snapshot in this deployment, so no numbers are shown. " +
+      "Stale numbers would be worse than none.";
   } else {
     $("footStats").textContent =
-      `Measured end to end over ${o.n} hand-written scenarios: ` +
-      `${(o.fully_correct * 100).toFixed(1)}% fully correct — right route, right ` +
-      `authority, required citations present, nothing forbidden, and grounded — ` +
-      `with route accuracy ${(o.route_accuracy_macro * 100).toFixed(1)}% ` +
-      `macro-averaged. These are the real numbers, including where it fails.`;
+      `Measured end to end over ${o.n} hand-written scenarios. ` +
+      `${(o.fully_correct * 100).toFixed(1)}% fully correct, meaning right route, ` +
+      `right authority, required citations present, nothing forbidden cited, and ` +
+      `grounded, all at once. Route accuracy ` +
+      `${(o.route_accuracy_macro * 100).toFixed(1)}% macro-averaged. ` +
+      `These are the real numbers, failures included.`;
   }
 
   // A deployment that cannot answer says so, rather than offering a control
@@ -239,12 +240,12 @@ function disableAsk() {
   $("q").disabled = true;
   $("asof").disabled = true;
   $("go").disabled = true;
-  $("q").placeholder = "Live answering is off in this deployment";
+  $("q").placeholder = "Live answering is off here";
   $("askNote").textContent =
-    "This is the static deployment, so live answering is off: every curated " +
-    "scenario above is a real recorded run, but new questions need a model " +
-    "call. Clone the repo and run `docker compose up` to enable this box. " +
-    "The reasoning behind that trade-off is in the decision log.";
+    "Live answering is off on this deployment. The scenarios above are " +
+    "recorded runs and work as they are. A new question needs a model call, " +
+    "so clone the repo and run docker compose up to switch this box on. " +
+    "The decision log explains the trade.";
 }
 
 function markTag(node, ok, label) {
@@ -256,7 +257,7 @@ function renderTrace(trace) {
   const box = $("trace");
   clear(box);
   if (!trace || !trace.length) {
-    box.appendChild(el("p", {className: "meta", text: "No trace recorded."}));
+    box.appendChild(el("p", {className: "meta", text: "Nothing recorded."}));
     return;
   }
   for (const e of trace) {
@@ -279,11 +280,11 @@ function renderSlice(sliceName, sp) {
   }
   $("sliceBox").classList.remove("hidden");
   $("sliceText").textContent =
-    `This is one case from the ${sliceName || "?"} slice, which scores ` +
+    `One case from the ${sliceName || "unnamed"} slice. That slice scores ` +
     `${(sp.fully_correct * 100).toFixed(1)}% fully correct across ${sp.n} ` +
-    `scenarios (${(sp.route_accuracy * 100).toFixed(0)}% on routing alone). ` +
-    `One working example is not a working slice, so the measured score is ` +
-    `shown beside it.`;
+    `scenarios, ${(sp.route_accuracy * 100).toFixed(0)}% on routing alone. ` +
+    `A single working example proves nothing about the slice, so you get the ` +
+    `score next to it.`;
 }
 
 /**
@@ -300,8 +301,8 @@ function renderFlags(advisories) {
   box.classList.remove("hidden");
   box.appendChild(el("strong", {
     text: advisories.length === 1
-      ? "One claim could not be tied to its cited passage:"
-      : `${advisories.length} claims could not be tied to their cited passages:`,
+      ? "The verifier could not tie one claim to its cited passage:"
+      : `The verifier could not tie ${advisories.length} claims to their cited passages:`,
   }));
   const list = el("ul", {className: "meta"});
   for (const a of advisories) list.appendChild(el("li", {text: a}));
@@ -328,12 +329,12 @@ async function showScenario(key, btn) {
 
   $("staleWarn").classList.toggle("hidden", !a.stale);
   $("staleWarn").textContent = a.stale
-    ? "This record was generated under different prompt or corpus versions and may not reflect current behaviour."
+    ? "Generated under an older prompt or corpus version, so it might not match current behaviour."
     : "";
 
   $("aAuth").textContent =
-    a.controlling_authority || (a.defensible_authorities || []).join(" or ") || "—";
-  $("aRule").textContent = a.precedence_rule || "—";
+    a.controlling_authority || (a.defensible_authorities || []).join(" or ") || "none";
+  $("aRule").textContent = a.precedence_rule || "none";
   $("aRoute").textContent = a.route;
   $("aAnswer").textContent = a.answer || "";
   setCitations($("aCites"), a.citations);
@@ -344,13 +345,13 @@ async function showScenario(key, btn) {
   if (b) {
     $("basePanel").classList.remove("hidden");
     $("bAuth").textContent =
-      b.controlling_authority || (b.resolved === false ? `declines (${b.route})` : "—");
+      b.controlling_authority || (b.resolved === false ? `declines (${b.route})` : "none");
     $("bRule").textContent = b.precedence_rule || "not reached";
     clear($("bTop"));
     if (b.top_passage && b.top_passage.citation) {
       $("bTop").appendChild(el("span", {className: "cite", text: b.top_passage.citation}));
     } else {
-      $("bTop").textContent = "—";
+      $("bTop").textContent = "none";
     }
     if (b.resolved === false) {
       // Both arms share a triage and only the answering path reaches a
@@ -362,13 +363,13 @@ async function showScenario(key, btn) {
     } else if (b.correct) {
       markTag($("baseTag"), true, "right, by luck");
       $("bNote").textContent =
-        "Here the closest passage happens to belong to the layer that governs, " +
-        "so a naive system is right without reasoning.";
+        "The closest passage belongs to the layer that governs, so a naive " +
+        "system lands on the right answer without reasoning.";
     } else {
       markTag($("baseTag"), false, "wrong");
       $("bNote").textContent =
-        "A system that trusts the most relevant passage selects this authority, " +
-        "and it is not the one that governs.";
+        "A system that trusts the most relevant passage picks this authority. " +
+        "The one that governs is different.";
     }
   } else {
     $("basePanel").classList.add("hidden");
@@ -390,7 +391,7 @@ async function showPair(btn) {
   $("pairBox").classList.remove("hidden");
   clear($("pairQ"));
   $("pairQ").appendChild(document.createTextNode(
-    "Identical question, identical employee, different date: "));
+    "Same question, same employee, different date. "));
   $("pairQ").appendChild(el("em", {text: rs[0].question}));
 
   const cols = $("pairCols");
@@ -430,9 +431,9 @@ async function ask() {
     $("staleWarn").classList.add("hidden");
 
     if (!r.ok) {
-      $("aAuth").textContent = "—";
-      $("aRule").textContent = "—";
-      $("aRoute").textContent = "—";
+      $("aAuth").textContent = "none";
+      $("aRule").textContent = "none";
+      $("aRoute").textContent = "none";
       $("aAnswer").textContent = body.error || "Something went wrong.";
       setCitations($("aCites"), []);
       renderFlags([]);
@@ -442,8 +443,8 @@ async function ask() {
       return;
     }
     $("aAuth").textContent =
-      body.controlling_authority || (body.defensible_authorities || []).join(" or ") || "—";
-    $("aRule").textContent = body.precedence_rule || "—";
+      body.controlling_authority || (body.defensible_authorities || []).join(" or ") || "none";
+    $("aRule").textContent = body.precedence_rule || "none";
     $("aRoute").textContent = body.route;
     $("aAnswer").textContent = body.answer || "";
     setCitations($("aCites"), body.citations);

@@ -237,3 +237,17 @@ def test_template_fetches_expand_to_every_scenario() -> None:
         f"/api/scenario/{k}.json" for k in precomputed.available()
     }
     assert len(paths) > 1
+
+
+def test_the_demo_links_to_the_decision_log_without_a_redirect() -> None:
+    """Cloudflare Pages strips `.html`, so `/decisions.html` answers 308 and the
+    browser pays an extra round trip to reach the same page. Linking the served
+    path directly also means the link is pinned: the decision log is the artifact
+    this project is about, and a demo that does not reach it hides it."""
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parent.parent / "api/static/index.html"
+    ).read_text()
+    assert '<a href="/decisions">' in html
+    assert '"/decisions.html"' not in html

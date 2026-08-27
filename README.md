@@ -1,10 +1,10 @@
 # Controlling Authority
 
-An agent that answers employee leave questions by determining **which authority controls** — federal law, state law, or the company handbook — then answering from that authority with citations.
+An agent that answers employee leave questions by working out **which authority controls**, federal law, state law, or the company handbook, then answering from that authority with citations.
 
 > *Controlling authority* is the legal term for the source that governs when several apply at once. Determining it is the actual work here. Retrieval is a means to that end.
 
-**[→ Live demo](https://controlling-authority.pages.dev)**  ·  **[→ Decision log](https://controlling-authority.pages.dev/decisions.html)**
+**[→ Live demo](https://controlling-authority.pages.dev)**  ·  **[→ Decision log](https://controlling-authority.pages.dev/decisions)**
 
 ---
 
@@ -12,7 +12,7 @@ An agent that answers employee leave questions by determining **which authority 
 
 On this corpus the correct answer frequently contradicts the *most semantically relevant document*. The handbook is the closest match to the question and, where it falls below a statutory floor, the wrong answer. No amount of retrieval tuning fixes that: it is a reasoning problem over retrieved evidence.
 
-So precedence is implemented as **code**, not as a prompt, and measured against a system that trusts the top-ranked passage — same retrieval, same run, one component swapped:
+So precedence lives in **code** rather than in a prompt. Measured against a system that trusts the top-ranked passage, with the same retrieval, the same run, and one component swapped:
 
 | | trusts top passage | precedence as code |
 |---|---|---|
@@ -24,7 +24,7 @@ So precedence is implemented as **code**, not as a prompt, and measured against 
 
 ## End to end
 
-`fully_correct` is a five-way conjunction: right route, right authority, required citations present, nothing forbidden cited, and grounded — all at once, across all 92 scenarios.
+`fully_correct` is a five-way conjunction. Right route, right authority, required citations present, nothing forbidden cited, and grounded, all at once, across all 92 scenarios.
 
 | metric | value |
 |---|---|
@@ -42,7 +42,7 @@ The weak numbers are here on purpose. `under_clarification` at 0.467 and `addres
 
 ## Read the decision log first
 
-[`eval/decision_log.md`](eval/decision_log.md) — 39 entries, written as each decision was made rather than reconstructed afterwards. **Reverted experiments stay in.** A log containing only successes is a sales document.
+[`eval/decision_log.md`](eval/decision_log.md) holds 39 entries, written as each decision was made rather than reconstructed afterwards. **Reverted experiments stay in.** A log holding only successes is a sales document.
 
 A few that show the method:
 
@@ -60,7 +60,7 @@ Precedence rules 1, 2, 4 and 5 are a pure function in [`agent/precedence.py`](ag
 
 1. **Statutory floor.** Where federal and state both apply, the more employee-favourable governs. Not "state beats federal."
 2. **Company policy may exceed, never reduce.** Above statute it controls; below statute it is unenforceable.
-3. **Effective dating.** Only provisions in force on the query date are eligible. *(Not reimplemented — the store's date filter already enforces it.)*
+3. **Effective dating.** Only provisions in force on the query date are eligible. *(Not reimplemented, because the store's date filter already enforces it.)*
 4. **Silence is not permission.** A layer that does not address a topic cannot override one that does.
 5. **Concurrence tie-break.** A handbook restating a statute does not become the thing that compels it.
 
@@ -93,20 +93,20 @@ deploy/     static site build for Cloudflare Pages
 | State | California (4 sections), New York (WCL 204), Ohio (recorded absences only) | 2026-08-26 |
 | Company | Synthetic handbook, seeded with deliberate conflicts | n/a |
 
-Ohio is the control case: no state family-leave statute for private employers. **A negative claim cannot reach the same standard as a positive one** — you cannot grep for the absence of a law — so absence records are marked *"searched, not found, scope stated"* and dated, never ticked like positive claims.
+Ohio is the control case, with no state family-leave statute for private employers. **A negative claim cannot reach the same standard as a positive one**, because you cannot grep for the absence of a law. So absence records are marked *"searched, not found, scope stated"* and dated, never ticked like positive claims.
 
 `corpus/handbook/DEFECTS.md` states which handbook clauses are deliberately wrong. **It is never ingested**, and two independent guards enforce that: ingesting the answer key would make every conflict scenario answerable by lookup.
 
 ## Testing
 
-539 tests, and **mutation testing is the primary review technique** — every review that used it found real defects.
+573 tests, and **mutation testing is the primary review technique**. Every review that used it found real defects.
 
 ```bash
-uv run pytest                    # 539 tests
-uv run python -m eval.mutation   # 137 mutations, all currently caught
+uv run pytest                    # 573 tests
+uv run python -m eval.mutation   # 147 mutations, all currently caught
 ```
 
-The mutation catalogue is committed because running it reactively kept finding holes that review did not: eval scorers that could all be hardcoded `True` with the suite green, an XSS guard that two different bypasses walked straight past, a path-traversal guard with no coverage, and a naive baseline that could be swapped for the real resolver without a single test failing — which is the control arm of the headline claim above.
+The mutation catalogue is committed because running it reactively kept finding holes that review did not: eval scorers that could all be hardcoded `True` with the suite green, an XSS guard that two different bypasses walked straight past, a path-traversal guard with no coverage, and a naive baseline that could be swapped for the real resolver without a single test failing. That baseline is the control arm of the headline claim above.
 
 **A stale mutation is an error, not a skip.** `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target has moved reports "caught" while never being applied.
 
@@ -122,7 +122,7 @@ uv run pytest
 uv run uvicorn api.app:app --reload    # demo at http://localhost:8000
 ```
 
-The hosted demo is static, so its **Ask** box is disabled — new questions need a model call. Running locally enables it.
+The hosted demo is static, so its **Ask** box is off. A new question needs a model call. Running locally switches it on.
 
 To rebuild the static site:
 
@@ -132,7 +132,7 @@ uv run python -m deploy.build_static   # writes dist/
 
 ## What this deliberately does not do
 
-Recorded in full in DL-39. In short: no latency, throughput or availability SLOs were ever set — only quality ones, which were pre-registered and honoured. There is no checkpointer, no load test, no provider failover, and the rate limiter's in-memory counters are correct for one instance and wrong for two.
+Recorded in full in DL-39. No latency, throughput or availability SLOs were ever set. Only quality ones, which were pre-registered and honoured. There is no checkpointer, no load test, no provider failover, and the rate limiter's in-memory counters are correct for one instance and wrong for two.
 
 Each was raised, costed, and left undone on purpose. Naming them precisely is worth more here than closing them would be.
 
