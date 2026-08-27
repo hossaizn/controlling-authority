@@ -1783,3 +1783,15 @@ None exist. Langfuse provides observability, not alerting: nothing pages when th
 `TRACE_REDACT` defaults to empty, so employee context reaches Langfuse. For a corpus of invented scenarios containing no real employees, redaction would hide the trace the demo exists to show.
 
 It is documented in `.env.example` and in `agent/tracing.py`, and **a deployment carrying real employee data should set it before anything else**. That is a judgment about this deployment rather than a general one, and it is the only item here that would change on day one of real use.
+
+### DL-38 addendum: paused before the arms were scored, and what that costs
+
+**The experiment has not been run.** The pre-registration above stands as written; no arm was completed, and no number from it may be quoted.
+
+The per-layer cap is built, tested and mutation-covered, and **`DEFAULT_PASSAGE_CAP` is `None`**, so `resolve` behaves exactly as it did before. Nothing that ships depends on this experiment, which is why it can be left open without qualifying any other result.
+
+Two attempts were made, both on Groq's free tier. The pacer prices calls from `estimate_tokens`, which is characters divided by four, while the provider counts real tokens, so at roughly 5,300 charged tokens against an 8,000-per-minute bucket the run sustains about one call a minute and loses scenarios to 429s at the margin. Retrying recovered `conflict-003` and `conflict-005`; `conflict-016` and `conflict-017` survived three 65-second retries and were still refused.
+
+**One finding does survive the pause, because it is not about the budget.** `conflict-006` and `conflict-009` fail with `BadRequestError` on every attempt, throttled or not. That is the same tool-contract failure DL-37 recorded for `gpt-oss-120b` on `verify` prompts, now observed on `resolve` prompts as well. It is a property of the model, it will recur on a funded account, and it strengthens rather than weakens DL-37's conclusion: **the open model cannot be relied on to hold forced structured output**, which is the contract every node in this system depends on.
+
+**What it would take to finish.** The full sweep is 36 calls at roughly 155,000 input tokens. On Haiku that is a few minutes and well under a dollar. The deferred capped-against-uncapped half needs the same thing, because uncapped prompts do not fit a free per-request ceiling at all. Both are blocked on the same trivially small amount of credit, and neither blocks the deployment.
