@@ -528,3 +528,18 @@ def test_the_build_refuses_a_page_carrying_an_em_dash(tmp_path, monkeypatch) -> 
     monkeypatch.setattr(bs, "URL_REWRITES", ())
     with pytest.raises(SystemExit, match="em dashes reached"):
         bs.build(tmp_path / "out")
+
+
+def test_the_result_appears_before_the_ask_box(site) -> None:
+    """Clicking a scenario should put its two cards and its trace in front of
+    you, not below a form you did not ask for. The ask box sits after the
+    results and before the shortfalls."""
+    html = (site / "index.html").read_text()
+    positions = [
+        html.index("<h2>Example scenarios</h2>"),
+        html.index('<div id="out"'),
+        html.index('<div id="pairBox"'),
+        html.index("<h2>Ask your own</h2>"),
+        html.index("<h2>Where this falls short</h2>"),
+    ]
+    assert positions == sorted(positions), f"sections out of order: {positions}"
