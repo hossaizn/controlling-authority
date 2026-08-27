@@ -25,7 +25,14 @@
     medical leave in Ohio are governed by the federal Family and Medical Leave
     Act. Where an employer's own policy is more generous than the federal
     floor, the policy governs to that extent.
-  verified_on: null
+  scope_searched: >
+    ORC Title 41 (Labor and Industry), Title 33 (Education), Chapter 124 (civil
+    service), and Administrative Code Chapter 4112 (civil rights). The leave
+    provisions found (ORC 124.38 and the 3349/3352/3358 institutional rules)
+    grant leave to public employees and impose nothing on private employers.
+    Pregnancy-related disability is a separate matter recorded under
+    parental_leave, which carries OAC 4112-5-05(G).
+  verified_on: 2026-08-26
 
 - topic: parental_leave
   effect: federal_controls
@@ -51,7 +58,12 @@
     Ohio has no state paid sick leave statute requiring private employers to
     provide or accrue paid sick leave. Entitlement is whatever the employer's
     own policy provides.
-  verified_on: null
+  scope_searched: >
+    ORC Title 41 (Labor and Industry), Chapter 4113 (miscellaneous labor
+    provisions), Chapter 124 (civil service), and the Administrative Code. The
+    sick leave provisions found (ORC 124.38 and institutional rules) grant
+    leave to public employees and impose nothing on private employers.
+  verified_on: 2026-08-26
 
 - topic: vacation_forfeiture
   effect: employer_policy_controls
@@ -76,7 +88,13 @@
   text: >
     Ohio has no state bereavement leave entitlement for employees of private
     employers. Bereavement leave is whatever the employer's own policy provides.
-  verified_on: null
+  scope_searched: >
+    ORC Title 41 (Labor and Industry), Chapter 124 (civil service), and the
+    Administrative Code. The bereavement provisions found (rules 3349-7-131 and
+    3349-8-95 among others) bind public institutions as employers and impose
+    nothing on private ones. Contrast California, which does have a
+    private-sector entitlement at Cal. Gov. Code 12945.7.
+  verified_on: 2026-08-26
 
 # Added in Phase 3.5. Review found three Ohio scenarios resting on silence that
 # was never recorded: straightforward-005 and -010 (jury and witness duty pay)
@@ -106,10 +124,23 @@
 - topic: witness_duty_pay
   effect: employer_policy_controls
   text: >
-    Ohio has no statute requiring a private employer to pay an employee for time
-    spent appearing as a witness under subpoena. Payment is governed by the
-    employer's own policy. This record addresses payment only.
-  verified_on: null
+    Ohio's general rule is that an employer need not pay an employee for time
+    lost attending a proceeding under subpoena. There is a narrow statutory
+    exception: under ORC 2945.451 (criminal proceedings) and ORC 2151.211
+    (juvenile and family proceedings), where the proceeding pertains to an
+    offence against the employer, or an offence involving the employee during
+    the course of employment, the employer "shall not decrease or withhold the
+    employee's pay" for time lost complying with the subpoena. Both sections
+    also forbid discharging or penalising an employee for attending. Outside
+    that exception, payment is governed by the employer's own policy. This
+    record addresses payment only.
+  scope_searched: >
+    ORC Title 41 (Labor and Industry), Title 23 (Courts), Chapter 2945
+    (criminal trial procedure), Chapter 2151 (juvenile), Chapter 2335 (witness
+    fees), and the Administrative Code. Sections 2945.451 and 2151.211 read in
+    full at codes.ohio.gov on 2026-08-26, which is how the exception above was
+    found: the previous text asserted no such statute exists.
+  verified_on: 2026-08-26
 
 - topic: military_leave
   effect: employer_policy_controls

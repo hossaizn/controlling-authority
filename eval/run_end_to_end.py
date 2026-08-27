@@ -147,30 +147,66 @@ class EndToEnd:
         return self.fully_correct and self.fully_grounded
 
 
-def run(limit: int | None = None, model: str = HAIKU) -> dict:
+def run(
+    limit: int | None = None,
+    model: str = HAIKU,
+    verify_model: str | None = None,
+) -> dict:
     scenarios = load_all()[:limit]
     usage = Usage()
     caller = StructuredCaller(usage=usage)
     store = ChunkStore(get_provider(ADOPTED_MODEL), strategy=ADOPTED_STRATEGY)
     # One model across every node, which is what DL-24 compares. Mixing
     # providers per node would measure a blend rather than a model.
-    agent = build_agent(store, caller, model=model, verify_model=model)
+    agent = build_agent(
+        store, caller, model=model, verify_model=verify_model or model
+    )
 
     results: list[EndToEnd] = []
+    skipped: list[tuple[str, str]] = []
     for i, s in enumerate(scenarios, 1):
-        final = agent.invoke(initial_state(s.question, s.employee_context, s.as_of_date))
+        try:
+            final = agent.invoke(
+                initial_state(s.question, s.employee_context, s.as_of_date)
+            )
+        except Exception as exc:
+            # **A run that dies at scenario 40 loses 40 scenarios of work.**
+            # Recording the casualty and carrying on turns an outage into a
+            # partial measurement with known coverage, which is usable, instead
+            # of nothing. Coverage is printed so a partial run can never be
+            # mistaken for a complete one.
+            skipped.append((s.scenario_id, f"{type(exc).__name__}: {exc}"[:110]))
+            continue
         results.append(EndToEnd(s, final, nodes_visited(final)))
         if i % 20 == 0 or i == len(scenarios):
             print(f"  {i}/{len(scenarios)}  {usage.summary()}", flush=True)
 
-    return report(results, usage, model)
+    if skipped:
+        print()
+        print(f"  {len(skipped)} scenario(s) could not run:")
+        for sid, why in skipped[:5]:
+            print(f"    {sid:20} {why}")
+
+    return report(results, usage, model, skipped)
 
 
 def _rate(items, attr: str) -> float:
     return sum(getattr(i, attr) for i in items) / len(items) if items else 0.0
 
 
-def report(results: list[EndToEnd], usage: Usage, model: str = HAIKU) -> dict:
+def report(
+    results: list[EndToEnd],
+    usage: Usage,
+    model: str = HAIKU,
+    skipped: list[tuple[str, str]] | None = None,
+) -> dict:
+    skipped = skipped or []
+    if skipped:
+        print()
+        print(
+            f"  PARTIAL RUN: {len(results)}/{len(results) + len(skipped)} scenarios "
+            f"scored. Rates below are over what ran."
+        )
     routes = score_routes(
         [r.scenario for r in results],
         {r.scenario.scenario_id: r.final for r in results},
@@ -236,6 +272,8 @@ def report(results: list[EndToEnd], usage: Usage, model: str = HAIKU) -> dict:
         "model": model,
         "compose_prompt": COMPOSE_VERSION,
         "n": len(results),
+        "attempted": len(results) + len(skipped),
+        "skipped": [{"scenario_id": sid, "error": why} for sid, why in skipped],
         "route_accuracy_macro": routes.macro_accuracy,
         "over_clarification_rate": routes.over_clarification_rate,
         "under_clarification_rate": routes.under_clarification_rate,
@@ -286,8 +324,15 @@ def report(results: list[EndToEnd], usage: Usage, model: str = HAIKU) -> dict:
 
 
 def main() -> int:
+    """`run_end_to_end [model] [verify_model]`.
+
+    A separate verify model is the architecture the spec asked for in DL-15: a
+    model checking its own output shares its blind spots. Credit exhaustion made
+    it the only runnable configuration, which is a convenient accident.
+    """
     model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
-    result = run(model=model)
+    verify_model = sys.argv[2] if len(sys.argv) > 2 else None
+    result = run(model=model, verify_model=verify_model)
     slug = model.replace('/', '_')
     path = Path(__file__).resolve().parent / "runs" / f"end_to_end_{slug}.json"
     path.parent.mkdir(parents=True, exist_ok=True)

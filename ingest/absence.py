@@ -75,6 +75,12 @@ def load_absence_index(
             raise ValueError(f"{jurisdiction} {topic}: unknown effect {effect!r}")
 
         text = " ".join(entry["text"].split())
+        # **The scope is part of the claim.** DL-19 set the standard for a
+        # negative finding as "searched, not found, scope stated", and there was
+        # nowhere to state it: a reader could not tell a record backed by a
+        # cross-title sweep from one backed by nothing. It travels in
+        # `source_note` so the agent retrieving the absence sees it too.
+        scope = " ".join(str(entry.get("scope_searched", "")).split())
         if not text:
             raise ValueError(f"{jurisdiction} {topic}: absence records must carry text")
 
@@ -105,7 +111,10 @@ def load_absence_index(
                 effective_from_is_floor=True,
                 observed_on=observed_on,
                 source_url="",
-                source_note=f"effect={effect}",
+                source_note=(
+                    f"effect={effect}"
+                    + (f"; searched: {scope}" if scope else "")
+                ),
             )
         records.append(
             AbsenceRecord(

@@ -1565,3 +1565,39 @@ That is one case, not a measurement. **It does establish that `verify` runs comf
 The blocker was described as "verify rejects correct answers because it self-grades". Neither half survived. It was **a false-positive figures check** and **an evidence set that made the system's own conclusions unverifiable**. A cross-family verifier, the pre-registered fix, would have addressed neither.
 
 `PROMPT_VERSION` is now `verify-v2`, so every cached verdict is reissued: the evidence and the instructions both changed, and reusing verdicts formed under the old conditions would compare two different questions.
+
+---
+
+## DL-36: A fifth false Ohio absence record, found the way the other four were
+
+**Status:** applied, Phase 10 verification. Ohio absences now 8 of 8.
+
+DL-19 closed four of eight Ohio records and left four at the weaker "searched, not found, scope stated" standard. Closing them found a fifth error, in the same shape as the first three.
+
+### The error
+
+`witness_duty_pay` claimed: *"Ohio has no statute requiring a private employer to pay an employee for time spent appearing as a witness under subpoena."*
+
+**ORC 2945.451**, read in full at codes.ohio.gov:
+
+> "This section generally does not require ... an employer to pay an employee for time lost as a result of attendance at any criminal proceeding. **However, if an employee is subpoenaed to appear at a criminal proceeding and the proceeding pertains to an offense against the employer** or an offense involving the employee during the course of his employment, **the employer shall not decrease or withhold the employee's pay** for any time lost as a result of compliance with the subpoena."
+
+`ORC 2151.211` says the same for juvenile and family proceedings. Both also forbid discharging or penalising an employee for attending.
+
+**The record was right about the general rule and wrong about the exception**, which is DL-11's pattern exactly: a claim true enough in general and unsupported in the specific case that matters. And the case that matters is the one the eval asks about. `control-008` is *"Do I get paid if I'm called as a witness **for the company**?"*, which is the exception nearly verbatim.
+
+**And it was outside Title 41 again.** The provisions sit in Chapter 2945 (criminal procedure) and Chapter 2151 (juvenile). DL-19's finding was that a single-title sweep clears these confidently; a fifth instance of the same thing is no longer a coincidence about one search, it is a property of the subject. **Employment obligations in Ohio are scattered across the code by the context that creates them, not gathered under labour.**
+
+### What did not change, and why
+
+`control-008` keeps `company` as its expected authority. The handbook pays for witness duty generally; the statute protects pay only for criminal and juvenile proceedings concerning an offence against the employer. **The handbook is broader, so it still controls the question as asked**, and following the statute into its sub-case would need facts the question does not supply. That is the chain DL-19 stopped following with `Cal. Lab. Code 246.5`, stopped again here for the same reason. The scenario note records the statute so the narrowing is visible.
+
+### The standard had no field
+
+DL-19 defined a negative finding as "searched, not found, **scope stated**", and there was nowhere to state the scope. A reader could not tell a record backed by a cross-title sweep from one backed by nothing, and neither could the agent.
+
+`scope_searched` is now a field on every record, and it travels into `source_note` so the retrieved document carries it. The three records that were correct are now correct **and legible as correct**: each names the titles and chapters checked, and says explicitly that the leave provisions found (ORC 124.38, the 3349/3352/3358 institutional rules) bind public employers and impose nothing on private ones.
+
+### The two New York boxes stay open
+
+Both are marked "no scenario turns on it". Closing them means either research the eval does not fund, which DL-6's stopping rule forbids, or an assertion from recall, which DL-3 forbids. **An open box with a stated reason is a stronger artifact than a closed one with a guess behind it.**
