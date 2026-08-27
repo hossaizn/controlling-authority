@@ -234,6 +234,7 @@ def make_compose(caller: StructuredCaller | None = None, model: str = HAIKU):
                         "citations": claimed,
                         "citations_not_retrieved": invented,
                         "asked_to_address": resolution.non_controlling_to_address,
+                        "usage": getattr(caller, "last_call", None),
                         # Kept apart so the metric does not stop being a
                         # measurement. Once a requirement is enforced in code it
                         # scores 1.000 by construction, and the interesting

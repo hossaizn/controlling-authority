@@ -254,6 +254,7 @@ def make_triage(caller: StructuredCaller | None = None, model: str = HAIKU):
                         "query_fell_back_to_raw": degenerate,
                         "raw_question": state["question"],
                         "model": model,
+                        "usage": getattr(caller, "last_call", None),
                     },
                 )
             ],

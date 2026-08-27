@@ -57,7 +57,10 @@ def redacting() -> bool:
 
 
 # Nodes that call a model. Langfuse renders these as generations rather than
-# plain spans, which is what surfaces token cost in its UI.
+# plain spans, which is what surfaces token cost in its UI. The cost itself comes
+# from `usage` in the node's own trace detail; typing a span as a generation does
+# not by itself report anything, which is what an earlier version of this comment
+# wrongly implied.
 _GENERATION_NODES = {"triage", "resolve", "compose", "verify"}
 
 # Retrieval gets its own observation type so the filters and hit list are
@@ -221,6 +224,14 @@ def export(
             metadata={"session_id": session_id} if session_id else None,
         ) as root:
             for event in state.get("trace", []):
+                # Per-stage cost, which the plan requires and a single root
+                # aggregate cannot provide. Absent on cache hits and on the
+                # deterministic nodes, which is correct: they spent nothing.
+                call = (
+                    event.detail.get("usage")
+                    if isinstance(event.detail, dict)
+                    else None
+                )
                 child = root.start_observation(
                     name=event.node,
                     as_type=_observation_type(event.node),
@@ -234,6 +245,14 @@ def export(
                         else None
                     ),
                 )
+                if call:
+                    child.update(
+                        model=call.get("model"),
+                        usage_details={
+                            "input": call.get("input_tokens", 0),
+                            "output": call.get("output_tokens", 0),
+                        },
+                    )
                 child.end()
 
             root.update(output=_summarise_output(state))
