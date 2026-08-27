@@ -1,0 +1,144 @@
+{
+  "scenario_id": "superseded-002",
+  "question": "How many paid sick days do I get per year?",
+  "as_of": "2026-06-15",
+  "employee_context": {
+    "state": "OH",
+    "tenure_months": 40,
+    "hours_worked_12mo": 2000,
+    "employer_size": 400
+  },
+  "route": "answer",
+  "answer": "You are entitled to 5 paid sick days per year. Under the company policy [LEAVE-004-v2], you accrue one hour of paid sick leave for every 30 hours worked, up to a maximum of 40 hours or 5 days per year. Unused sick leave carries over to the following year, though your total accrual is capped at 80 hours at any time.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
+  "citations": [
+    "LEAVE-004-v2"
+  ],
+  "trace": [
+    {
+      "node": "triage",
+      "summary": "The index contains the company's paid sick leave policy, which specifies the annual allocation of paid sick days.",
+      "detail": {
+        "route": "answer",
+        "missing_fact": null,
+        "jurisdiction": "OH",
+        "query_sent_to_index": "paid sick leave accrual per year",
+        "query_fell_back_to_raw": false,
+        "raw_question": "How many paid sick days do I get per year?",
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    },
+    {
+      "node": "retrieve",
+      "summary": "10 passages across 3 authority layer(s), filtered to OH as of 2026-06-15",
+      "detail": {
+        "query": "paid sick leave accrual per year",
+        "jurisdiction_filter": "OH",
+        "as_of": "2026-06-15",
+        "layers_found": [
+          "company",
+          "federal",
+          "state"
+        ],
+        "ranked": 10,
+        "guarantees_fired": [],
+        "absence_records": [
+          "OH (no state provision: paid_sick_leave)"
+        ],
+        "citations": [
+          "LEAVE-004-v2",
+          "LEAVE-008",
+          "OH (no state provision: paid_sick_leave)",
+          "29 CFR 825.207",
+          "29 CFR 825.207",
+          "LEAVE-002",
+          "29 CFR 825.701",
+          "LEAVE-006",
+          "LEAVE-001",
+          "29 CFR 825.105"
+        ]
+      }
+    },
+    {
+      "node": "resolve",
+      "summary": "company law controls: only one layer addresses this, so it governs",
+      "detail": {
+        "controlling": "company",
+        "acceptable": [],
+        "rule": "silence_is_not_permission",
+        "considered": [
+          {
+            "layer": "federal",
+            "outcome": "silent",
+            "citation": null,
+            "says": "The FMLA does not establish a minimum number of paid sick days; it only governs the substitution of accrued paid leave for unpaid FMLA leave.",
+            "generosity_rank": null
+          },
+          {
+            "layer": "state",
+            "outcome": "silent",
+            "citation": null,
+            "says": "Ohio has no state paid sick leave statute requiring private employers to provide or accrue paid sick leave.",
+            "generosity_rank": null
+          },
+          {
+            "layer": "company",
+            "outcome": "grants",
+            "citation": "LEAVE-004-v2",
+            "says": "Employees accrue one hour of paid sick leave for every 30 hours worked, up to a maximum of 40 hours or 5 days per year.",
+            "generosity_rank": 1
+          }
+        ],
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    },
+    {
+      "node": "compose",
+      "summary": "drafted from company, citing 1 source(s)",
+      "detail": {
+        "citations": [
+          "LEAVE-004-v2"
+        ],
+        "citations_not_retrieved": [],
+        "asked_to_address": [],
+        "usage": null,
+        "addressed_by_model": [],
+        "addressed_by_fallback": [],
+        "model": "claude-haiku-4-5-20251001"
+      }
+    },
+    {
+      "node": "verify",
+      "summary": "5/5 checks passed",
+      "detail": {
+        "checks": {
+          "citations_were_retrieved": true,
+          "answer_is_cited": true,
+          "controlling_provision_cited": true,
+          "figures_appear_in_the_sources": true,
+          "claims_follow_from_the_sources": true
+        },
+        "failures": [],
+        "entailment_checked": true,
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    }
+  ],
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  },
+  "expected": {
+    "route": "answer",
+    "authority": "company",
+    "acceptable_authorities": [],
+    "required_citations": [
+      "LEAVE-004-v2"
+    ],
+    "slice": "superseded"
+  }
+}

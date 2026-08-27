@@ -1,0 +1,51 @@
+{
+  "scenario_id": "out-of-scope-001",
+  "question": "How do I change my 401k contribution percentage?",
+  "as_of": "2026-04-01",
+  "employee_context": {
+    "state": "OH",
+    "tenure_months": 30,
+    "hours_worked_12mo": 2000,
+    "employer_size": 400
+  },
+  "route": "refuse",
+  "answer": "That is not something the leave and time-off policies cover, so I do not have a reliable answer for you. Your HR team will be able to help.\n\nQuestions about 401(k) plans, including contribution percentages, are outside the scope of leave and time-off policies.\n\nThis is information from your employer's policies and the law as recorded, not legal advice.",
+  "citations": [],
+  "trace": [
+    {
+      "node": "triage",
+      "summary": "Questions about 401(k) plans, including contribution percentages, are outside the scope of leave and time-off policies.",
+      "detail": {
+        "route": "refuse",
+        "missing_fact": null,
+        "jurisdiction": "OH",
+        "query_sent_to_index": "How do I change my 401k contribution percentage?",
+        "query_fell_back_to_raw": true,
+        "raw_question": "How do I change my 401k contribution percentage?",
+        "model": "claude-haiku-4-5-20251001",
+        "usage": null
+      }
+    },
+    {
+      "node": "refuse",
+      "summary": "Questions about 401(k) plans, including contribution percentages, are outside the scope of leave and time-off policies.",
+      "detail": {
+        "route": "refuse",
+        "asserts_entitlement": false
+      }
+    }
+  ],
+  "provenance": {
+    "corpus_snapshot": "2026-08-01",
+    "triage_prompt": "triage-v3",
+    "resolve_prompt": "resolve-v4",
+    "compose_prompt": "compose-v1"
+  },
+  "expected": {
+    "route": "refuse",
+    "authority": null,
+    "acceptable_authorities": [],
+    "required_citations": [],
+    "slice": "out_of_scope"
+  }
+}
