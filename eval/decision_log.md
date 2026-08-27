@@ -1466,3 +1466,55 @@ The gap between them is itself the finding, and it is printed on every run: **ho
 ### Not measured yet, and why
 
 Re-running the evaluation needs live `compose` calls: the beaten-source fix in DL-27 changed one resolution, which changed its prompt, which invalidated its cache entry. Both providers are exhausted. **The 15 figure is therefore a projection from the saved run, not a measurement of the new behaviour**, and it is labelled that way until it can be re-run.
+
+---
+
+## DL-34: The verifier was mostly right, and my diagnosis was wrong
+
+**Status:** Step 1 complete, by hand, against the ingested text. Overturns the plan in DL-33.
+
+I had assumed `verify` rejects correct answers because it self-grades on the model that wrote them. **Reading all fifteen rejected cases against their cited passages does not support that**, and two things I had merged turn out to be different problems.
+
+### First correction: only 8 of the 15 were entailment at all
+
+| | |
+|---|---|
+| failed a **decidable** check | **7** |
+| failed **entailment** | **8** |
+
+Six of the seven had **no valid citation at all** after `compose` ran. Those block correctly and DL-33's change does nothing for them. They are a **composition** failure, not a verification one, and I had been counting them toward a verifier problem.
+
+### Second correction: the verifier catches real hallucinations
+
+Of the 14 flagged claims, roughly eight are ones the verifier was **right** to flag:
+
+- `conflict-001`: *"...for birth of a child ... **regardless of tenure**"*. 29 CFR 825.120 says "eligible employees", and eligibility is 12 months plus 1,250 hours under 825.110. The claim is **false**.
+- `conflict-017`: *"federal law requires no service period for bonding leave eligibility"* and *"no hours or service threshold at all"*. Both **false**, and this is the scenario whose entire point is the twelve-month boundary.
+- `conflict-019`, `conflict-020`: the retrieved chunks of `Cal. Lab. Code 246` are the accrual amounts, not the qualifying uses. The answers assert what the cited text does not contain.
+
+**A cross-family verifier would not have improved these. It might have lost them.** Step 3's value drops sharply.
+
+### What the verifier actually gets wrong, and it is structural
+
+**One plain error.** `superseded-003` claims *"Ohio has no state paid sick leave statute"* and cites the absence record, whose text reads *"Ohio has no state paid sick leave statute requiring private employers to provide or accrue paid sick leave."* The evidence was in front of it and it flagged the claim anyway.
+
+**Five where the evidence was withheld by design.** `verify` builds `cited_text` from passages whose citation appears in the answer. So a claim resting on anything else has no support to be checked against:
+
+- *"the company's 18-month requirement does not apply to you"* (`conflict-001`) and *"federal law controls, not the company policy"* (`straightforward-011`) are **precedence conclusions**. No single passage states them, because they are derived. **The system's central output is, by construction, unverifiable against its own evidence set.**
+- *"your state and company have not provided additional leave rights"* (`conflict-005`) and *"federal law is silent on..."* (`superseded-003`) are **negative claims**, supported by absence records and by the resolution rather than by a provision.
+- `conflict-011` asserts what `LEAVE-001` says while citing only the Ohio absence record, so `LEAVE-001` was never shown to the verifier.
+
+### The revised diagnosis
+
+**`compose` is the weak link, not `verify`.** It emits no citation at all in six cases, and overclaims beyond its cited text in about eight more. The verifier is doing its job on both.
+
+**And `verify`'s evidence set is too narrow.** It should see the **resolution** and the passages the answer was told to *address*, not only the ones it *relies on*. Otherwise every precedence conclusion and every recorded silence is unverifiable no matter which model reads it.
+
+### What changes in the plan
+
+- **Step 3, the cross-family verifier, is downgraded** from the highest-value work to speculative. The measured failure is not model bias.
+- **New Step 2a:** widen `verify`'s evidence to include the resolution and every retrieved passage, so derived conclusions and absence records can be checked at all.
+- **New Step 2b:** fix `compose`'s two failure modes, emitting no citation and asserting beyond the cited passage. Both are visible in the trace and neither needs a model change.
+- **DL-33 stands on its own merits.** Advisory entailment is still right, because a referral gives the reader nothing. But it was justified partly by "the verifier rejects correct answers", and that premise is now known to be false in most cases. The change survives; the reasoning in DL-33 needed this correction.
+
+**The general lesson, and it is the one this project keeps relearning:** I had a plausible mechanism, a suggestive number (15 of 19), and a pre-registered plan built on both. Reading fourteen claims against fourteen passages took one cached run and no money, and it inverted the conclusion.
