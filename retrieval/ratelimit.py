@@ -43,6 +43,15 @@ class RateBudget:
         max_tokens_per_minute: int = DEFAULT_MAX_TOKENS_PER_MINUTE,
         max_requests_per_minute: float = DEFAULT_MAX_REQUESTS_PER_MINUTE,
     ):
+        # A budget admitting fewer than one request per window can never satisfy
+        # `request_ok`, so `acquire` spins forever. Silent hangs are the worst
+        # failure a pacer can have: the run looks alive and never progresses,
+        # which is exactly what the 429 backoff already looked like.
+        if max_requests_per_minute < 1:
+            raise ValueError(
+                f"max_requests_per_minute must be at least 1, got "
+                f"{max_requests_per_minute}: a lower value can never admit a request"
+            )
         self.max_tokens = max_tokens_per_minute
         self.max_requests = max_requests_per_minute
         self._events: deque[tuple[float, int]] = deque()  # (timestamp, tokens)

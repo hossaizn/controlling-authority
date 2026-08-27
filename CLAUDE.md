@@ -190,6 +190,12 @@ Title 23, one in Title 59.
 
 - **Bash cwd drifts between calls in this workspace.** Always `cd` explicitly in
   the same command.
+- **Never stage by directory.** `git add agent/ eval/ tests/` silently excludes
+  everything outside those paths. It shipped `retrieval/ratelimit.py`'s tests
+  without its code **twice in one session**, both times leaving `main` red for a
+  clean clone while the local suite stayed green because the file was present.
+  Run `git status --short` and check for a second-column `M` before every
+  commit; a green local suite is not evidence that a commit is complete.
 - **Voyage is rate-limited to 3 req/min and 10K tokens/min without a payment
   method.** Pacing is proactive (`retrieval/ratelimit.py`); reactive backoff was
   not enough and killed one run 264 chunks in. Free tokens are unaffected: the
