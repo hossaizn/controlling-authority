@@ -31,12 +31,10 @@ PLANS = (
 
 TITLE = "Controlling Authority: implementation plan"
 
-INTRO = """
-The plan the work followed, written before the work. The decision log refers to
-these phases constantly and never says what they are, so here they are. Where
-the plan and the finished system disagree, the decision log has the measurement
-that moved it.
-"""
+# No standfirst. The contents list says what this page is faster than a
+# paragraph does, and the footer carries the one thing a reader needs: where the
+# plan and the finished system disagree.
+INTRO = ""
 
 
 def combined() -> str:

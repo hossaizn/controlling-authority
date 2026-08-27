@@ -245,7 +245,7 @@ def shell(*, title: str, heading: str, intro: str, markdown: str,
 {nav(current)}
 <div class="wrap">
   <h1>{heading}</h1>
-  <p class="sub">{intro.strip()}</p>
+{f'  <p class="sub">{intro.strip()}</p>' if intro.strip() else ""}
   <h2 id="contents">Contents</h2>
   {contents(markdown)}
   <div class="doc">
