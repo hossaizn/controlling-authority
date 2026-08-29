@@ -1125,5 +1125,96 @@
     "old": "    if offenders:\n        raise SystemExit(\n            \"build_static: em dashes reached these pages: \"",
     "new": "    if False:\n        raise SystemExit(\n            \"build_static: em dashes reached these pages: \"",
     "origin": "plan-page"
+  },
+  {
+    "label": "CR1 churn folded into agreement",
+    "file": "eval/compare_runs.py",
+    "old": "        else:\n            buckets[\"churn\"].append(row)",
+    "new": "        else:\n            buckets[\"agreed\"].append(row)",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR2 fixed and broken swapped",
+    "file": "eval/compare_runs.py",
+    "old": "        elif b_ok and not a_ok:\n            buckets[\"fixed\"].append(row)\n        elif a_ok and not b_ok:\n            buckets[\"broken\"].append(row)",
+    "new": "        elif b_ok and not a_ok:\n            buckets[\"broken\"].append(row)\n        elif a_ok and not b_ok:\n            buckets[\"fixed\"].append(row)",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR3 net adds instead of subtracting",
+    "file": "eval/compare_runs.py",
+    "old": "\"net_scenarios\": len(buckets[\"fixed\"]) - len(buckets[\"broken\"]),",
+    "new": "\"net_scenarios\": len(buckets[\"fixed\"]) + len(buckets[\"broken\"]),",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR4 prompt version guard removed",
+    "file": "eval/compare_runs.py",
+    "old": "    if baseline.get(\"prompt_version\") != arm.get(\"prompt_version\"):",
+    "new": "    if False:",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR5 scenario set guard removed (silently intersects)",
+    "file": "eval/compare_runs.py",
+    "old": "    if set(left) != set(right):",
+    "new": "    if False:",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR6 agreement rate measured from changed",
+    "file": "eval/compare_runs.py",
+    "old": "\"agreement_rate\": len(buckets[\"agreed\"]) / total,",
+    "new": "\"agreement_rate\": changed / total,",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR7 identical predictions no longer short-circuit to agreed",
+    "file": "eval/compare_runs.py",
+    "old": "        if a[\"predicted\"] == b[\"predicted\"]:\n            buckets[\"agreed\"].append(row)",
+    "new": "        if a[\"predicted\"] != b[\"predicted\"] and False:\n            buckets[\"agreed\"].append(row)",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "CR8 provider default rendered as None",
+    "file": "eval/compare_runs.py",
+    "old": "        return \"provider default\" if value is None else f\"temperature {value:g}\"",
+    "new": "        return str(value)",
+    "origin": "compare_runs review"
+  },
+  {
+    "label": "T1 cache key uses truthiness, so temperature 0 collides with unset",
+    "file": "agent/models.py",
+    "old": "    if temperature is not None:\n        payload[\"sampling\"] = {\"temperature\": temperature}",
+    "new": "    if temperature:\n        payload[\"sampling\"] = {\"temperature\": temperature}",
+    "origin": "DL-41 sampling review"
+  },
+  {
+    "label": "T2 sampling dropped from the cache key entirely",
+    "file": "agent/models.py",
+    "old": "    if temperature is not None:\n        payload[\"sampling\"] = {\"temperature\": temperature}",
+    "new": "    if False:\n        payload[\"sampling\"] = {\"temperature\": temperature}",
+    "origin": "DL-41 sampling review"
+  },
+  {
+    "label": "T3 anthropic request always sends temperature, breaking the cached arm",
+    "file": "agent/models.py",
+    "old": "            **({} if temperature is None else {\"temperature\": temperature}),\n        )\n        blocks =",
+    "new": "            **{\"temperature\": temperature},\n        )\n        blocks =",
+    "origin": "DL-41 sampling review"
+  },
+  {
+    "label": "T4 openai path drops temperature",
+    "file": "agent/models.py",
+    "old": "            tool_choice={\"type\": \"function\", \"function\": {\"name\": tool[\"name\"]}},\n            **({} if temperature is None else {\"temperature\": temperature}),",
+    "new": "            tool_choice={\"type\": \"function\", \"function\": {\"name\": tool[\"name\"]}},",
+    "origin": "DL-41 sampling review"
+  },
+  {
+    "label": "T5 run file slug ignores temperature, so arms overwrite each other",
+    "file": "eval/run_triage.py",
+    "old": "    if temperature is None:\n        return \"\"\n    return \"_t\"",
+    "new": "    if True:\n        return \"\"\n    return \"_t\"",
+    "origin": "DL-41 sampling review"
   }
 ]
