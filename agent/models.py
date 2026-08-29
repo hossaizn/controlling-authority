@@ -61,6 +61,15 @@ def track_usage():
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-4-5"
 
+# **Ships as None, meaning: send no sampling parameter, exactly as before.**
+#
+# DL-41's argument for temperature 0 on `triage`, `resolve` and `verify` is
+# sound and is not adopted here, because adopting it would make every published
+# score describe a configuration that no longer exists. Same shape as DL-38's
+# `DEFAULT_PASSAGE_CAP`: the mechanism ships off, the experiment sets it
+# explicitly, and the default moves only once a measurement says it should.
+DEFAULT_TEMPERATURE: float | None = None
+
 
 def open_model() -> str:
     """The open-weights model id, chosen by environment rather than by code.
@@ -206,12 +215,43 @@ class Usage:
         )
 
 
-def _cache_key(model: str, system: str, user: str, tool: dict) -> str:
-    payload = json.dumps(
-        {"model": model, "system": system, "user": user, "tool": tool},
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()[:32]
+def _cache_key(
+    model: str,
+    system: str,
+    user: str,
+    tool: dict,
+    temperature: float | None = None,
+) -> str:
+    """Content hash of everything that determines the response.
+
+    **Sampling parameters are part of the key, and are omitted when unset.**
+
+    DL-41 recorded two things: the key did not include sampling, so a later
+    change to temperature would silently serve results generated at the old one;
+    and fixing it looked like it had to orphan all 1,127 cached entries, 1,008 of
+    which are the Haiku arm that every published number rests on. `spec_for` says
+    re-running the control arm is the one thing a comparison cannot afford.
+
+    Both are satisfied by encoding *unset* as absence rather than as a value. A
+    call with no temperature serialises to exactly the payload this function
+    produced before sampling existed, so every legacy entry still hits. A call at
+    any explicit temperature hashes a payload with a `sampling` block and lands
+    on a different key. Unset and 0.0 are two keys, never one, so nothing mixes.
+
+    **`is not None`, not truthiness.** `if temperature:` reads 0.0 as unset, which
+    is the exact value DL-41 wants for `triage`, `resolve` and `verify`. That
+    would serve every temperature-0 call from a default-temperature entry and
+    report the experiment as a null result. Pinned by a test.
+    """
+    payload: dict[str, Any] = {
+        "model": model,
+        "system": system,
+        "user": user,
+        "tool": tool,
+    }
+    if temperature is not None:
+        payload["sampling"] = {"temperature": temperature}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
 
 
 def as_openai_tool(tool: dict[str, Any]) -> dict[str, Any]:
@@ -315,8 +355,17 @@ class StructuredCaller:
         tool: dict[str, Any],
         model: str = HAIKU,
         max_tokens: int = 1024,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
-        key = _cache_key(model, system, user, tool)
+        """`temperature=None` sends no sampling parameter at all.
+
+        Not a default of 0 dressed up as None. The provider default is whatever
+        the provider says it is, and every number in `eval/decision_log.md` was
+        measured under it. Defaulting to 0 here would change the shipped
+        configuration as a side effect of making it configurable, which is the
+        thing DL-41 refused to do in one commit.
+        """
+        key = _cache_key(model, system, user, tool, temperature)
         path = CACHE_DIR / f"{key}.json"
 
         if self.use_cache and path.exists():
@@ -335,9 +384,13 @@ class StructuredCaller:
 
         if spec.api == "anthropic":
             _BUDGETS["anthropic"].acquire(estimate_tokens([system, user]))
-            result, tokens = self._anthropic(client, system, user, tool, model, max_tokens)
+            result, tokens = self._anthropic(
+                client, system, user, tool, model, max_tokens, temperature
+            )
         else:
-            result, tokens = self._openai(client, system, user, tool, model, max_tokens)
+            result, tokens = self._openai(
+                client, system, user, tool, model, max_tokens, temperature
+            )
 
         self.usage.add(model, *tokens)
         scoped = _REQUEST_USAGE.get()
@@ -351,11 +404,24 @@ class StructuredCaller:
 
         if self.use_cache:
             path.write_text(
-                json.dumps({"model": model, "key": key, "result": result}, indent=2)
+                json.dumps(
+                    {
+                        "model": model,
+                        "key": key,
+                        # Recorded so an entry on disk states the configuration
+                        # that produced it. The key already separates them; this
+                        # makes a cache directory auditable without rehashing it.
+                        "temperature": temperature,
+                        "result": result,
+                    },
+                    indent=2,
+                )
             )
         return result
 
-    def _anthropic(self, client, system, user, tool, model, max_tokens):
+    def _anthropic(
+        self, client, system, user, tool, model, max_tokens, temperature=None
+    ):
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
@@ -365,6 +431,10 @@ class StructuredCaller:
             # Forced. Without this the model may answer in prose and the caller
             # has to handle two shapes, which is how a parser starts guessing.
             tool_choice={"type": "tool", "name": tool["name"]},
+            # Omitted rather than passed as None. Sending `temperature=None`
+            # explicitly is not the same request as sending nothing, and the
+            # cached Haiku arm was produced by a request that sent nothing.
+            **({} if temperature is None else {"temperature": temperature}),
         )
         blocks = [b for b in response.content if b.type == "tool_use"]
         if not blocks:
@@ -377,7 +447,7 @@ class StructuredCaller:
             response.usage.output_tokens,
         )
 
-    def _openai(self, client, system, user, tool, model, max_tokens):
+    def _openai(self, client, system, user, tool, model, max_tokens, temperature=None):
         # **Reasoning tokens are billed against `max_tokens` and are emitted
         # before the tool call.** `gpt-oss-120b` spent most of a 1024 budget
         # thinking, then produced a tool call one closing brace short, and the
@@ -424,6 +494,7 @@ class StructuredCaller:
             # Same invariant as the Anthropic path. A provider that ignores this
             # and answers in prose fails loudly below rather than being parsed.
             tool_choice={"type": "function", "function": {"name": tool["name"]}},
+            **({} if temperature is None else {"temperature": temperature}),
         )
         message = response.choices[0].message
         calls = message.tool_calls or []

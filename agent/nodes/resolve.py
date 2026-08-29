@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import replace
 
-from agent.models import HAIKU, StructuredCaller
+from agent.models import DEFAULT_TEMPERATURE, HAIKU, StructuredCaller
 from agent.precedence import PrecedenceError, resolve_precedence
 from agent.state import AgentState, LayerFinding, Resolution, TraceEvent
 from domain import Authority
@@ -337,6 +337,7 @@ def make_resolve(
     caller: StructuredCaller | None = None,
     model: str = HAIKU,
     passage_cap: int | None = DEFAULT_PASSAGE_CAP,
+    temperature: float | None = DEFAULT_TEMPERATURE,
 ):
     caller = caller or StructuredCaller()
 
@@ -372,6 +373,7 @@ def make_resolve(
             tool=READ_TOOL,
             model=model,
             max_tokens=2048,
+            temperature=temperature,
         )
         valid = {h.citation for h in shown}
         findings = _to_findings(result.get("findings", []), valid)

@@ -31,10 +31,14 @@ RUNS_DIR = Path(__file__).resolve().parent / "runs"
 UPGRADE_THRESHOLD = 0.80
 
 
-def run(model: str = HAIKU) -> dict:
+def run(model: str = HAIKU, temperature: float | None = None) -> dict:
+    """`temperature=None` sends no sampling parameter, which is how every number
+    in `eval/decision_log.md` was produced. Pass a value to run DL-41's other arm."""
     scenarios = load_all()
     usage = Usage()
-    triage = make_triage(StructuredCaller(usage=usage), model=model)
+    triage = make_triage(
+        StructuredCaller(usage=usage), model=model, temperature=temperature
+    )
 
     predictions: dict[str, dict] = {}
     for i, s in enumerate(scenarios, 1):
@@ -69,6 +73,7 @@ def run(model: str = HAIKU) -> dict:
 
     return {
         "model": model,
+        "temperature": temperature,
         "prompt_version": PROMPT_VERSION,
         "run_at": datetime.now().isoformat(timespec="seconds"),
         "macro_accuracy": report.macro_accuracy,
@@ -89,16 +94,29 @@ def run(model: str = HAIKU) -> dict:
     }
 
 
+def temperature_slug(temperature: float | None) -> str:
+    """Unset keeps the existing filename, so no published run file is overwritten.
+
+    Same principle as the cache key: *unset* is encoded as absence rather than as
+    a value. An arm at an explicit temperature gets its own file, and the control
+    arm on disk stays exactly where DL-22 and DL-24 cited it from.
+    """
+    if temperature is None:
+        return ""
+    return "_t" + f"{temperature:g}".replace(".", "p").replace("-", "neg")
+
+
 def main() -> int:
     model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
-    report = run(model)
+    temperature = float(sys.argv[2]) if len(sys.argv) > 2 else None
+    report = run(model, temperature)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     # Model ids contain slashes ("openai/gpt-oss-120b"), which turn a filename
     # into a nonexistent subdirectory. The run completed and printed its
     # results; only the save failed, with an exit code that read as a dead
     # experiment. run_precedence and run_end_to_end already slugify.
     slug = model.replace("/", "_")
-    path = RUNS_DIR / f"triage_{slug}_{PROMPT_VERSION}.json"
+    path = RUNS_DIR / f"triage_{slug}_{PROMPT_VERSION}{temperature_slug(temperature)}.json"
     path.write_text(json.dumps(report, indent=2, default=str))
     print(f"\nsaved {path}")
     return 0

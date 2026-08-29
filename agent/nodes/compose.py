@@ -20,7 +20,7 @@ citation 3 times in 8, which is the floor this node starts from.
 from __future__ import annotations
 
 from agent.citations import mentions
-from agent.models import HAIKU, StructuredCaller
+from agent.models import DEFAULT_TEMPERATURE, HAIKU, StructuredCaller
 from agent.state import AgentState, Resolution, TraceEvent
 
 PROMPT_VERSION = "compose-v1"
@@ -151,7 +151,11 @@ def address_note(citation: str, rule: str) -> str:
     return f"On {citation}: {_WHY_NOT_CONTROLLING.get(rule, _DEFAULT_WHY)}."
 
 
-def make_compose(caller: StructuredCaller | None = None, model: str = HAIKU):
+def make_compose(
+    caller: StructuredCaller | None = None,
+    model: str = HAIKU,
+    temperature: float | None = DEFAULT_TEMPERATURE,
+):
     caller = caller or StructuredCaller()
 
     def compose(state: AgentState) -> dict:
@@ -194,6 +198,7 @@ def make_compose(caller: StructuredCaller | None = None, model: str = HAIKU):
             tool=COMPOSE_TOOL,
             model=model,
             max_tokens=1024,
+            temperature=temperature,
         )
 
         # Citations are reconciled against what was retrieved rather than taken
