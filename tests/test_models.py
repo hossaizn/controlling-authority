@@ -437,3 +437,64 @@ def test_usage_outside_a_tracked_block_is_not_collected() -> None:
     from agent.models import _REQUEST_USAGE
 
     assert _REQUEST_USAGE.get() is None
+
+
+# --- output budget, and the two failures it produces (DL-42) -----------------
+
+
+def _no_tool_call(monkeypatch, tmp_path, finish_reason):
+    class _Completions:
+        def create(self, **kwargs):
+            return SimpleNamespace(
+                choices=[SimpleNamespace(
+                    message=SimpleNamespace(tool_calls=[]),
+                    finish_reason=finish_reason)],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2),
+            )
+
+    _install(monkeypatch, tmp_path,
+             SimpleNamespace(chat=SimpleNamespace(completions=_Completions())))
+
+
+def test_running_out_of_output_budget_is_not_reported_as_a_tool_choice_failure(
+    monkeypatch, tmp_path
+):
+    """**Conflating these two sends you to the wrong fix.**
+
+    `finish_reason=length` means the model honoured `tool_choice` and was still
+    thinking when the budget ran out. The old message accused the provider of
+    ignoring forced tool calls, and the response to that is to drop the
+    provider. The actual response is to raise one number.
+
+    Gemini 3.6-flash hit this on every `resolve` prompt, and the misdiagnosis
+    cost a run before the finish reason was read.
+    """
+    _no_tool_call(monkeypatch, tmp_path, "length")
+    with pytest.raises(RuntimeError, match="ran out of output budget"):
+        models_caller().call(system="s", user="u", tool=TOOL, model="gemini-3.6-flash")
+
+
+def test_the_budget_error_names_the_variable_that_fixes_it(monkeypatch, tmp_path):
+    """An error that describes a problem without naming its lever gets read as
+    fatal. This one has to say which knob to turn."""
+    _no_tool_call(monkeypatch, tmp_path, "length")
+    with pytest.raises(RuntimeError, match="OPEN_MODEL_REASONING_TOKENS"):
+        models_caller().call(system="s", user="u", tool=TOOL, model="gemini-3.6-flash")
+
+
+def test_a_genuine_tool_choice_failure_still_says_so(monkeypatch, tmp_path):
+    """The invariant this project will not give up. A provider that answers in
+    prose fails loudly rather than being parsed, and that message must survive
+    the new branch above it."""
+    _no_tool_call(monkeypatch, tmp_path, "stop")
+    with pytest.raises(RuntimeError, match="cannot honour tool_choice"):
+        models_caller().call(system="s", user="u", tool=TOOL, model="some-model")
+
+
+def test_the_reasoning_budget_defaults_to_the_groq_value() -> None:
+    """1,024 is Groq's constraint, not a property of reasoning. It stays the
+    default so every cached decision and published number stands; a provider
+    with room raises it by environment rather than by code."""
+    from agent.models import REASONING_HEADROOM
+
+    assert REASONING_HEADROOM == 1024

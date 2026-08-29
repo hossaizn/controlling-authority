@@ -171,7 +171,25 @@ _BUDGETS = {
 # throughput without buying anything: observed triage outputs were 294 and 814
 # tokens including reasoning. 1,024 leaves room to think and still cuts the
 # per-request reservation substantially.
-REASONING_HEADROOM = 1024
+#
+# **Configurable, because 1,024 is Groq's constraint and not a property of
+# reasoning.** Gemini 3.6-flash thinks past it and returns `finish_reason=length`
+# with no tool call at all, on a provider whose per-request ceiling is nowhere
+# near binding. Tuning a number to one free tier and then treating it as the
+# shape of the problem is how the per-request ceiling stayed invisible until 23%
+# of resolve prompts failed.
+#
+# The default is unchanged, so every cached decision and every published number
+# stands. A provider with room sets `OPEN_MODEL_REASONING_TOKENS` and gets it.
+#
+# **`max_tokens` is accepted by `_openai` and never used**, so `resolve` asks for
+# 2,048 and silently receives this instead. That is a real defect and it is not
+# being fixed in this commit: the budget feeds the provider's reservation, the
+# reservation is not part of `_cache_key`, and changing it would leave fresh runs
+# sharing cache entries with runs made under a different configuration. That is
+# DL-41's defect exactly, one field over. Recorded in DL-42 rather than patched
+# quietly mid-experiment.
+REASONING_HEADROOM = int(optional("OPEN_MODEL_REASONING_TOKENS", "1024"))
 # Just inside the bucket, so our token estimate disagreeing with theirs by a
 # few percent cannot turn a legal request into a 413.
 # **Two different limits, two variables.** These were both derived from
@@ -514,10 +532,29 @@ class StructuredCaller:
         )
         message = response.choices[0].message
         calls = message.tool_calls or []
+        finish_reason = response.choices[0].finish_reason
         if not calls:
+            # **Two different failures, and conflating them sends you to the
+            # wrong fix.** `length` means the model was still thinking when the
+            # output budget ran out; it honoured `tool_choice` and never got to
+            # emit the call. Blaming the tool contract there reads as "this
+            # provider is unusable" and the response is to drop the provider,
+            # when the actual response is to raise the budget by one variable.
+            #
+            # Gemini 3.6-flash hit this on `resolve` prompts and the original
+            # message accused it of ignoring forced tool calls, which it had not.
+            if finish_reason == "length":
+                raise RuntimeError(
+                    f"{model} ran out of output budget before emitting a tool "
+                    f"call: reserved {budget} tokens for a {prompt_tokens}-token "
+                    f"prompt under a {REQUEST_TOKEN_CEILING} per-request ceiling. "
+                    "Reasoning tokens are charged against this budget and are "
+                    "emitted before the call, so a thinking model needs more of "
+                    "it. Raise OPEN_MODEL_REASONING_TOKENS."
+                )
             raise RuntimeError(
                 f"{model} returned no tool call despite tool_choice being forced; "
-                f"finish_reason={response.choices[0].finish_reason}. "
+                f"finish_reason={finish_reason}. "
                 "A provider that cannot honour tool_choice is not usable here."
             )
         result = parse_arguments(calls[0].function.arguments, model)

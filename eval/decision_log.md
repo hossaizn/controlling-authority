@@ -1858,3 +1858,134 @@ Setting temperature now would produce a system whose published numbers describe 
 3. Re-run `run_triage`, `run_precedence` and `run_end_to_end`, and record the deltas as a paired comparison rather than replacing the numbers.
 
 **Pre-registered prediction, so this cannot be graded after the fact:** routing accuracy moves by less than 2 points and precedence correctness by less than 2 scenarios, because the forced schema already collapses most of the variance. If either moves more than that, the current numbers were noisier than this log has been treating them.
+
+### DL-41 addendum: the routing arm, and a prediction that failed on the metric this project reports
+
+**Run and graded.** Both arms on `openai/gpt-oss-120b` at $0.00: the existing
+default-temperature run as control, and a fresh temperature-0 arm over the same
+92 scenarios and the same `triage-v3` prompt. Paired per scenario by
+`eval/compare_runs.py`, not by subtracting two averages.
+
+| | provider default | temperature 0 | delta |
+|---|---|---|---|
+| **macro** accuracy | 0.8178 | **0.8440** | **+2.62 pts** |
+| **micro** accuracy | 0.8913 | 0.8913 | **+0.00** |
+| total correct | 82 / 92 | 82 / 92 | **net 0** |
+
+**The prediction was: routing moves by less than 2 points. Macro moved 2.62, so
+it is refuted on the number this project actually reports.** Micro did not move
+at all, and not one more scenario was answered correctly.
+
+### How a metric moves 2.62 points on zero net correctness
+
+Nine scenarios changed. Four fixed, four broken, one churned wrong-to-differently-wrong.
+
+| route | n | default | temperature 0 | correct |
+|---|---|---|---|---|
+| answer | 57 | 0.947 | 0.947 | 54 → 54 |
+| clarify | 15 | 0.800 | **0.667** | 12 → 10 |
+| escalate | 6 | 0.667 | **0.833** | 4 → 5 |
+| refuse | 14 | 0.857 | **0.929** | 12 → 13 |
+
+**Macro weights every route equally, so a scenario is worth 16.7 points in
+`escalate` and 1.75 points in `answer`.** The fixes landed in the small routes
+and the breaks landed in a larger one. The model did not get better; the changes
+landed where the metric is most sensitive.
+
+DL-22 chose macro deliberately, and that choice stands: the routes with the
+fewest scenarios are the ones micro-averaging lets you get away with failing.
+The cost of that choice was never written down, and this is it. **Macro at n=92
+across four routes moves multiple points on a change that alters nothing about
+how often the system is right.** CLAUDE.md already said precision here is about
+one scenario. It did not say that one scenario is worth nine times more in one
+route than another, which is the part that matters when reading any macro delta
+in this log, including DL-22's own 0.815 clearing a 0.80 threshold.
+
+### What the mechanism half of the prediction got right
+
+The reasoning behind the prediction was that a forced schema collapses most of
+the variance. **On correctness that is exactly what happened**: 83 of 92
+scenarios agreed, micro was identical to four decimal places, and the net was
+zero. The mechanism was right and the threshold was applied to a metric the
+mechanism does not govern.
+
+### The one real regression
+
+Under-clarification went **0.200 → 0.333**. Temperature 0 made the model less
+willing to ask, losing `ambiguous-003` and `ambiguous-005` from `clarify` to
+`answer`. Over-clarification did not move at all (0.026 both arms). Answering an
+ambiguous leave question instead of asking one clarifying question is the
+failure with a person on the other end of it, so this is the direction that
+matters, and it is the direction that got worse.
+
+**That alone is enough not to adopt temperature 0 for `triage` on this
+evidence.** DL-41's proposal was reasonable and is not being taken.
+
+### What this does not license saying
+
+**It is not a result about the shipped pipeline.** It is `gpt-oss-120b`, chosen
+because both arms are free there and a control already existed. Haiku is
+unmeasured at temperature 0, and DL-41's case for it stands unexamined.
+
+**`resolve` and `verify` are unmeasured.** The precedence arm needs a provider
+Groq cannot be, for the reason DL-24 gives: 23% of `resolve` prompts exceed the
+8,000-token per-request ceiling and the ones that fail are systematically the
+evidence-heaviest, so scoring the rest flatters the model rather than measuring
+it. See DL-42.
+
+**`DEFAULT_TEMPERATURE` stays `None`.** Nothing here argues for changing the
+shipped configuration, and this arm argues mildly against it.
+
+## DL-42: the output reservation is a configuration input, and it is not in the cache key
+
+**Status:** open. Found by pointing the code at a provider whose constraints
+differ from the one it was tuned against.
+
+DL-41 was about sampling missing from `_cache_key`. This is the same defect one
+field over, and it was sitting next to it the whole time.
+
+**`_openai` accepts `max_tokens` and never uses it.** The reservation is
+`min(REASONING_HEADROOM, available)`, so `resolve` asks for 2,048 and silently
+receives 1,024. The value was chosen against Groq's free tier, where the
+reserved budget is charged to an 8,000-token bucket, and it was correct there.
+
+Pointing the same code at Gemini 3.6-flash produced `finish_reason=length` with
+no tool call on every `resolve` prompt: a thinking model, still thinking when a
+budget sized for a different provider ran out.
+
+### Two things this exposed
+
+**The error message named the wrong cause.** A missing tool call was reported as
+"a provider that cannot honour tool_choice is not usable here", which is the
+sentence that means *drop this provider*. The provider had honoured it. Fixed:
+`finish_reason == "length"` now raises its own error naming the budget, the
+prompt size, the ceiling and the variable that changes it.
+
+**The reservation changes the answer and is absent from the key.** Two runs at
+different budgets write to the same cache entry, so a later run silently serves
+a decision produced under a configuration it is not using. This is not
+hypothetical: it happened in this session, to Gemini entries written under two
+budgets while the ceiling was being tuned.
+
+### Why it is not fixed here
+
+`REASONING_HEADROOM` is now read from `OPEN_MODEL_REASONING_TOKENS` with the
+default unchanged, so every cached decision and every published number stands.
+Honouring `max_tokens` is the correct fix and needs the reservation in the key
+first, or fresh runs share entries with runs made under a different
+configuration. **Fixing the second half without the first would make the cache
+lie**, which is worse than the current state where it merely under-serves.
+
+### What fixing it looks like
+
+1. Include the reservation in `_cache_key`, encoded as absence at the historical
+   default so the 1,008 Haiku and 92 Groq entries stay reachable. Same technique
+   that made DL-41's fix cost nothing.
+2. Then honour `max_tokens` in `_openai`.
+3. Purge the Gemini entries written under mixed budgets. They sit at keys that
+   do not describe them and cannot be distinguished after the fact.
+
+**Pre-registered prediction:** honouring `max_tokens` moves no published number,
+because every Anthropic run already used it and the Groq arms all ran at
+prompts where `min(1024, available)` was 1024 anyway. If a Groq number moves,
+the reservation was binding somewhere it was not expected to be.
