@@ -18,7 +18,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from agent.models import HAIKU, StructuredCaller, Usage
+from agent.models import HAIKU, StructuredCaller, Usage, temperature_slug
 from agent.nodes.triage import PROMPT_VERSION, make_triage
 from agent.state import initial_state
 from eval.run_routes import format_report, score
@@ -92,18 +92,6 @@ def run(model: str = HAIKU, temperature: float | None = None) -> dict:
         },
         "outcomes": [asdict(o) for o in report.outcomes],
     }
-
-
-def temperature_slug(temperature: float | None) -> str:
-    """Unset keeps the existing filename, so no published run file is overwritten.
-
-    Same principle as the cache key: *unset* is encoded as absence rather than as
-    a value. An arm at an explicit temperature gets its own file, and the control
-    arm on disk stays exactly where DL-22 and DL-24 cited it from.
-    """
-    if temperature is None:
-        return ""
-    return "_t" + f"{temperature:g}".replace(".", "p").replace("-", "neg")
 
 
 def main() -> int:

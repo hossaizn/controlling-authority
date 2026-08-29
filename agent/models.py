@@ -71,6 +71,22 @@ SONNET = "claude-sonnet-4-5"
 DEFAULT_TEMPERATURE: float | None = None
 
 
+def temperature_slug(temperature: float | None) -> str:
+    """Filename fragment naming a sampling arm. Unset produces the empty string.
+
+    Lives beside `_cache_key` because both answer one question: how a sampling
+    configuration is identified. Both encode *unset* as absence, so an unset run
+    keeps the exact filename and the exact cache key it had before sampling was
+    configurable, and no published artifact moves.
+
+    Without this the second arm overwrites the first and the delta reads as
+    zero, which is DL-41's own registered prediction arriving by accident.
+    """
+    if temperature is None:
+        return ""
+    return "_t" + f"{temperature:g}".replace(".", "p").replace("-", "neg")
+
+
 def open_model() -> str:
     """The open-weights model id, chosen by environment rather than by code.
 

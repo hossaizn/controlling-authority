@@ -34,7 +34,7 @@ from datetime import datetime
 from pathlib import Path
 
 from agent.build import naive_resolve
-from agent.models import HAIKU, StructuredCaller, Usage
+from agent.models import HAIKU, StructuredCaller, Usage, temperature_slug
 from agent.nodes.resolve import PROMPT_VERSION, make_resolve
 from agent.nodes.retrieve import make_retrieve
 from agent.nodes.triage import make_triage
@@ -89,7 +89,11 @@ class PrecedenceOutcome:
         return set(self.must_address) <= named
 
 
-def run(model: str = HAIKU, only_slice: str | None = None) -> dict:
+def run(
+    model: str = HAIKU,
+    only_slice: str | None = None,
+    temperature: float | None = None,
+) -> dict:
     """`only_slice` restricts the run to one slice.
 
     Added because Groq's free tier caps a model at 200,000 tokens per day and
@@ -107,9 +111,9 @@ def run(model: str = HAIKU, only_slice: str | None = None) -> dict:
     caller = StructuredCaller(usage=usage)
 
     store = ChunkStore(get_provider(ADOPTED_MODEL), strategy=ADOPTED_STRATEGY)
-    triage = make_triage(caller, model)
+    triage = make_triage(caller, model, temperature=temperature)
     retrieve = make_retrieve(store)
-    resolve = make_resolve(caller, model)
+    resolve = make_resolve(caller, model, temperature=temperature)
 
     outcomes: list[PrecedenceOutcome] = []
     for i, s in enumerate(scenarios, 1):
@@ -135,10 +139,15 @@ def run(model: str = HAIKU, only_slice: str | None = None) -> dict:
         if i % 15 == 0 or i == len(scenarios):
             print(f"  {i}/{len(scenarios)}  {usage.summary()}", flush=True)
 
-    return report(outcomes, usage, model)
+    return report(outcomes, usage, model, temperature)
 
 
-def report(outcomes: list[PrecedenceOutcome], usage: Usage, model: str = HAIKU) -> dict:
+def report(
+    outcomes: list[PrecedenceOutcome],
+    usage: Usage,
+    model: str = HAIKU,
+    temperature: float | None = None,
+) -> dict:
     n = len(outcomes)
     correct = sum(o.correct for o in outcomes)
 
@@ -196,6 +205,7 @@ def report(outcomes: list[PrecedenceOutcome], usage: Usage, model: str = HAIKU) 
     return {
         "prompt_version": PROMPT_VERSION,
         "model": model,
+        "temperature": temperature,
         "run_at": datetime.now().isoformat(timespec="seconds"),
         "precedence_accuracy": correct / n,
         "naive_baseline_accuracy": naive / n,
@@ -234,10 +244,13 @@ def report(outcomes: list[PrecedenceOutcome], usage: Usage, model: str = HAIKU) 
 def main() -> int:
     model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
     only_slice = sys.argv[2] if len(sys.argv) > 2 else None
-    result = run(model, only_slice)
+    temperature = float(sys.argv[3]) if len(sys.argv) > 3 else None
+    result = run(model, only_slice, temperature)
     slug = model.replace('/', '_')
     suffix = f"_{only_slice}" if only_slice else ""
-    path = Path(RUNS_DIR) / f"precedence_{PROMPT_VERSION}_{slug}{suffix}.json"
+    path = (Path(RUNS_DIR)
+            / f"precedence_{PROMPT_VERSION}_{slug}{suffix}"
+              f"{temperature_slug(temperature)}.json")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2))
     print(f"saved {path}")

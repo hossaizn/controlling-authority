@@ -1211,8 +1211,8 @@
     "origin": "DL-41 sampling review"
   },
   {
-    "label": "T5 run file slug ignores temperature, so arms overwrite each other",
-    "file": "eval/run_triage.py",
+    "label": "T5 run-file slug ignores temperature, so the two arms overwrite each other",
+    "file": "agent/models.py",
     "old": "    if temperature is None:\n        return \"\"\n    return \"_t\"",
     "new": "    if True:\n        return \"\"\n    return \"_t\"",
     "origin": "DL-41 sampling review"
