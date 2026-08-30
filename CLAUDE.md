@@ -94,7 +94,7 @@ Retrieval by slice: adversarial 1.000, control 1.000, superseded 1.000,
 straightforward 0.941, **conflict 0.722**. The conflict gap is by design and is
 what Phase 6 exists to close.
 
-## Blocked, as of 2026-08-26
+## Blocked, as of 2026-08-30
 
 **The Anthropic account is out of API credits.** Calls return
 `invalid_request_error: credit balance is too low`. Note the Console's "Usage
@@ -105,19 +105,57 @@ Consequences: cached decisions still serve, so the retrieval gate and any run
 whose prompts are unchanged still work. Anything that changed a prompt or a
 candidate set needs credits to reproduce.
 
-**DL-24's open-weights arm is now the unblocking move, not just the interesting
-one.** `agent/models.py` speaks Anthropic and any OpenAI-compatible endpoint;
-set `OPEN_MODEL_API_KEY`, `OPEN_MODEL_ID` and `OPEN_MODEL_BASE_URL`, then:
+**Free-tier runs are the unblocking move.** `agent/models.py` speaks Anthropic
+and any OpenAI-compatible endpoint, so a provider swap is environment variables
+rather than code:
 
 ```bash
-uv run python -m eval.run_triage      "$OPEN_MODEL_ID"
-uv run python -m eval.run_precedence  "$OPEN_MODEL_ID"
+uv run python -m eval.run_triage      "$OPEN_MODEL_ID"        # optional: temperature
+uv run python -m eval.run_precedence  "$OPEN_MODEL_ID" ""     # optional: slice, temperature
 uv run python -m eval.run_end_to_end  "$OPEN_MODEL_ID"
 ```
 
 The provider must honour `tool_choice`. Forced structured output is the contract
 every node depends on, and a provider that answers in prose fails loudly rather
 than being parsed.
+
+**Two providers are configured, and they are good at different things.**
+
+| | Groq `gpt-oss-120b` | Gemini `gemini-3.6-flash` |
+|---|---|---|
+| per-request ceiling | 8,000 tokens | clears 8,748, not binding |
+| `resolve` prompts that fit | 77% | all |
+| latency per `resolve` call | ~60s under pacing | ~120s with reasoning room |
+| `triage` arms | both run, DL-41 | unrun |
+
+**Groq cannot measure precedence at any budget.** 23% of `resolve` prompts
+exceed its per-request ceiling and the ones that fail are systematically the
+evidence-heaviest, so scoring the remainder flatters the model rather than
+measuring it. `conflict-006` and `conflict-009` also fail with `BadRequestError`
+regardless of throttling, which is a model property and not a rate limit.
+
+**Gemini clears the ceiling and costs wall-clock instead.** A `resolve` call
+takes roughly two minutes once `OPEN_MODEL_REASONING_TOKENS` is raised enough to
+avoid `finish_reason=length`, so a paired precedence experiment is about four
+hours. Free in dollars, not free in time. Set:
+
+```bash
+OPEN_MODEL_API_KEY="$GEMINI_API_KEY"
+OPEN_MODEL_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
+OPEN_MODEL_ID="gemini-3.6-flash"
+OPEN_MODEL_TPM=250000
+OPEN_MODEL_MAX_REQUEST_TOKENS=100000
+OPEN_MODEL_REASONING_TOKENS=16384
+```
+
+**Model lineups move faster than this file.** `gemini-2.5-flash` is already
+retired for new keys. Query `GET {base_url}/models` before assuming an id
+exists, and send a User-Agent: Cloudflare answers a bare urllib request with a
+403 that looks like a rejected credential.
+
+**Do not add a provider by appending to `.env`.** dotenv keeps the last
+occurrence of a key, so an appended block with empty values silently blanks a
+working configuration. `tests/test_project_setup.py` now fails on duplicates.
 
 ## Non-negotiables
 

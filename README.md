@@ -84,11 +84,11 @@ Every technique below is one this project actually uses. The ones it does not us
 
 **Per-slice regression gates.** An overall number that holds steady hides a slice that collapsed. See [`eval/regression.py`](eval/regression.py).
 
-**Mutation testing as the primary review technique.** [`eval/mutation.py`](eval/mutation.py) breaks the source on purpose, 161 ways, and checks whether the suite notices. Every review that ran it found real defects, including eval scorers that could all be hardcoded to `True` with the whole suite green. A stale mutation counts as an error, not a skip: `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target moved reports "caught" while never having been applied.
+**Mutation testing as the primary review technique.** [`eval/mutation.py`](eval/mutation.py) breaks the source on purpose, 174 ways, and checks whether the suite notices. Every review that ran it found real defects, including eval scorers that could all be hardcoded to `True` with the whole suite green. A stale mutation counts as an error, not a skip: `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target moved reports "caught" while never having been applied.
 
 ```bash
-uv run pytest                    # 597 tests
-uv run python -m eval.mutation   # 161 mutations, all currently caught
+uv run pytest                    # 623 tests
+uv run python -m eval.mutation   # 174 mutations, all currently caught
 ```
 
 ### Running it in production terms
@@ -157,11 +157,25 @@ A failed check degrades the answer to a referral rather than shipping it. That c
 
 ### Sampling parameters
 
-**None are set.** No temperature, no top-p, no top-k, no frequency or presence penalty. Every call runs at the provider default.
+**Temperature is settable and ships unset.** That is now a measured choice rather than the gap DL-41 first recorded it as. No top-p, top-k, frequency or presence penalty.
 
-For `triage` and `resolve` the standard choice is temperature 0, and this project should be making it. Forced tool calls with a constrained schema absorb some of the variance, and the disk cache is why runs reproduce, but **that reproducibility is caching, not determinism**. A cache miss re-runs at default sampling.
+For `triage` the standard choice is temperature 0, and DL-41 pre-registered a prediction that setting it would move routing by less than 2 points. Both arms then ran on `openai/gpt-oss-120b` at $0.00, paired scenario by scenario:
 
-Not fixed retroactively, because every published number was measured at the default and changing it silently would make the numbers describe a system that no longer exists. DL-41 has the fix, the second defect underneath it, and a pre-registered prediction about how much it will move.
+| | provider default | temperature 0 |
+|---|---|---|
+| macro accuracy | 0.8178 | **0.8440** |
+| micro accuracy | 0.8913 | 0.8913 |
+| scenarios correct | 82 / 92 | 82 / 92 |
+
+**The prediction is refuted, and the improvement is not real.** Macro moved 2.62 points while not one additional question was answered correctly. Four scenarios were fixed and four were broken, and macro weights the four routes equally, so a scenario is worth 16.7 points in `escalate` (n=6) and 1.75 in `answer` (n=57). The fixes landed in the small routes.
+
+That is a caution about reading any macro delta here, including the 0.815 that clears this project's own 0.80 threshold.
+
+Temperature 0 also raised under-clarification from 0.200 to 0.333 while over-clarification did not move: the model answered ambiguous leave questions instead of asking one. So it was **not adopted**, and `DEFAULT_TEMPERATURE` stays `None`.
+
+Two things this does not claim. Haiku is unmeasured, so the case for temperature 0 on the shipped model stands untested. `resolve` and `verify` are unmeasured, because the precedence arm needs a provider whose per-request ceiling clears 8,000 tokens (DL-42).
+
+The disk cache is why runs reproduce, and **that reproducibility is caching, not determinism**. Sampling is now part of the cache key, encoded so that an unset call hashes exactly as it did before, which is why adding it invalidated none of the 1,127 cached decisions.
 
 ### Data drift
 
