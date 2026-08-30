@@ -1833,6 +1833,12 @@ Reopened, not answered. The honest test is the one DL-16 implies: build a rerank
 
 ## DL-41: No sampling parameters are set, and fixing that now would invalidate every number here
 
+> **Superseded in part by the addendum below.** The second clause is wrong.
+> Adding sampling to the cache key invalidated nothing, because *unset* is
+> encoded as absence rather than as a value. The heading is left as written
+> because a log that edits its own mistaken predictions out of existence is
+> a sales document.
+
 **Status:** open, and deliberately not fixed today. Found by an audit against a list of standard techniques, not by a review.
 
 Every model call in this project runs at the provider default temperature. `agent/models.py` sets `model`, `max_tokens`, `tools` and `tool_choice`, and nothing else. No `temperature`, no `top_p`, no `top_k`, no frequency or presence penalty, on either the Anthropic path or the OpenAI-compatible one.
@@ -1887,10 +1893,29 @@ Nine scenarios changed. Four fixed, four broken, one churned wrong-to-differentl
 | escalate | 6 | 0.667 | **0.833** | 4 → 5 |
 | refuse | 14 | 0.857 | **0.929** | 12 → 13 |
 
-**Macro weights every route equally, so a scenario is worth 16.7 points in
-`escalate` and 1.75 points in `answer`.** The fixes landed in the small routes
-and the breaks landed in a larger one. The model did not get better; the changes
-landed where the metric is most sensitive.
+**Macro averages the four routes equally, so one scenario is worth `(1/n)/4`
+macro points and the small routes dominate.** The whole delta decomposes into
+four scenarios landing in three routes of different sizes:
+
+| route | n | one scenario | change | contribution |
+|---|---|---|---|---|
+| escalate | 6 | 4.17 | +1 | **+4.17** |
+| refuse | 14 | 1.79 | +1 | **+1.79** |
+| clarify | 15 | 1.67 | -2 | **-3.33** |
+| answer | 57 | 0.44 | 0 | 0.00 |
+| | | | | **+2.62** |
+
+A scenario in `escalate` is worth **9.5 times** one in `answer`. The model did
+not get better; the changes landed where the metric is most sensitive.
+
+**An earlier version of this entry said 16.7 and 1.75.** Those are *per-route*
+accuracy points, not macro points, and macro divides each by four. The ratio was
+right and the magnitudes were 4x too large, which made the sentence
+self-refuting: no single scenario is worth 16.7 macro points when the entire
+delta being explained is 2.62. Caught by a review that recomputed the
+decomposition instead of reading the prose, which is DL-19's rule about verifying
+against the artifact rather than against a plausibility check, applied to this
+log's own arithmetic.
 
 DL-22 chose macro deliberately, and that choice stands: the routes with the
 fewest scenarios are the ones micro-averaging lets you get away with failing.
@@ -1979,7 +2004,8 @@ lie**, which is worse than the current state where it merely under-serves.
 ### What fixing it looks like
 
 1. Include the reservation in `_cache_key`, encoded as absence at the historical
-   default so the 1,008 Haiku and 92 Groq entries stay reachable. Same technique
+   default so all 1,127 stay reachable: 1,008 Haiku, 116 Groq and 3 qwen at
+   the time DL-41 was written. Same technique
    that made DL-41's fix cost nothing.
 2. Then honour `max_tokens` in `_openai`.
 3. Purge the Gemini entries written under mixed budgets. They sit at keys that

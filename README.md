@@ -167,13 +167,23 @@ For `triage` the standard choice is temperature 0, and DL-41 pre-registered a pr
 | micro accuracy | 0.8913 | 0.8913 |
 | scenarios correct | 82 / 92 | 82 / 92 |
 
-**The prediction is refuted, and the improvement is not real.** Macro moved 2.62 points while not one additional question was answered correctly. Four scenarios were fixed and four were broken, and macro weights the four routes equally, so a scenario is worth 16.7 points in `escalate` (n=6) and 1.75 in `answer` (n=57). The fixes landed in the small routes.
+**The prediction is refuted, and the improvement is not real.** Macro moved 2.62 points while not one additional question was answered correctly. Four scenarios were fixed and four were broken, and macro averages the four routes equally, so one scenario is worth `(1/n)/4` macro points and routes with few scenarios dominate:
+
+| route | n | one scenario, in macro points | change | contribution |
+|---|---|---|---|---|
+| escalate | 6 | 4.17 | +1 | **+4.17** |
+| refuse | 14 | 1.79 | +1 | **+1.79** |
+| clarify | 15 | 1.67 | -2 | **-3.33** |
+| answer | 57 | 0.44 | 0 | 0.00 |
+| | | | | **+2.62** |
+
+The whole delta is four scenarios landing in three routes of different sizes. A scenario in `escalate` is worth **9.5 times** one in `answer`.
 
 That is a caution about reading any macro delta here, including the 0.815 that clears this project's own 0.80 threshold.
 
 Temperature 0 also raised under-clarification from 0.200 to 0.333 while over-clarification did not move: the model answered ambiguous leave questions instead of asking one. So it was **not adopted**, and `DEFAULT_TEMPERATURE` stays `None`.
 
-Two things this does not claim. Haiku is unmeasured, so the case for temperature 0 on the shipped model stands untested. `resolve` and `verify` are unmeasured, because the precedence arm needs a provider whose per-request ceiling clears 8,000 tokens (DL-42).
+Two things this does not claim. Haiku is unmeasured, so the case for temperature 0 on the shipped model stands untested. `resolve` and `verify` are unmeasured, because the precedence arm needs a provider whose per-request ceiling clears 8,000 tokens. 23% of `resolve` prompts exceed Groq's, and the ones that fail are systematically the evidence-heaviest, so scoring the rest flatters the model rather than measuring it (DL-24, DL-42).
 
 The disk cache is why runs reproduce, and **that reproducibility is caching, not determinism**. Sampling is now part of the cache key, encoded so that an unset call hashes exactly as it did before, which is why adding it invalidated none of the 1,127 cached decisions.
 
