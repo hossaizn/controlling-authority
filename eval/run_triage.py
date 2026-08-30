@@ -18,7 +18,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from agent.models import HAIKU, StructuredCaller, Usage
+from agent.models import HAIKU, StructuredCaller, Usage, temperature_slug
 from agent.nodes.triage import PROMPT_VERSION, make_triage
 from agent.state import initial_state
 from eval.run_routes import format_report, score
@@ -31,10 +31,14 @@ RUNS_DIR = Path(__file__).resolve().parent / "runs"
 UPGRADE_THRESHOLD = 0.80
 
 
-def run(model: str = HAIKU) -> dict:
+def run(model: str = HAIKU, temperature: float | None = None) -> dict:
+    """`temperature=None` sends no sampling parameter, which is how every number
+    in `eval/decision_log.md` was produced. Pass a value to run DL-41's other arm."""
     scenarios = load_all()
     usage = Usage()
-    triage = make_triage(StructuredCaller(usage=usage), model=model)
+    triage = make_triage(
+        StructuredCaller(usage=usage), model=model, temperature=temperature
+    )
 
     predictions: dict[str, dict] = {}
     for i, s in enumerate(scenarios, 1):
@@ -69,6 +73,7 @@ def run(model: str = HAIKU) -> dict:
 
     return {
         "model": model,
+        "temperature": temperature,
         "prompt_version": PROMPT_VERSION,
         "run_at": datetime.now().isoformat(timespec="seconds"),
         "macro_accuracy": report.macro_accuracy,
@@ -91,14 +96,15 @@ def run(model: str = HAIKU) -> dict:
 
 def main() -> int:
     model = sys.argv[1] if len(sys.argv) > 1 else HAIKU
-    report = run(model)
+    temperature = float(sys.argv[2]) if len(sys.argv) > 2 else None
+    report = run(model, temperature)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     # Model ids contain slashes ("openai/gpt-oss-120b"), which turn a filename
     # into a nonexistent subdirectory. The run completed and printed its
     # results; only the save failed, with an exit code that read as a dead
     # experiment. run_precedence and run_end_to_end already slugify.
     slug = model.replace("/", "_")
-    path = RUNS_DIR / f"triage_{slug}_{PROMPT_VERSION}.json"
+    path = RUNS_DIR / f"triage_{slug}_{PROMPT_VERSION}{temperature_slug(temperature)}.json"
     path.write_text(json.dumps(report, indent=2, default=str))
     print(f"\nsaved {path}")
     return 0

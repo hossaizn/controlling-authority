@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 
 from agent.citations import mentions, resolves_to_retrieved
-from agent.models import HAIKU, StructuredCaller
+from agent.models import DEFAULT_TEMPERATURE, HAIKU, StructuredCaller
 from agent.nodes.compose import DISCLAIMER
 from agent.state import AgentState, TraceEvent, VerificationResult
 from ingest.settings import optional
@@ -249,7 +249,11 @@ def _resolution_evidence(resolution) -> str:
     return "\n".join(lines)
 
 
-def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODEL):
+def make_verify(
+    caller: StructuredCaller | None = None,
+    model: str = VERIFY_MODEL,
+    temperature: float | None = DEFAULT_TEMPERATURE,
+):
     caller = caller or StructuredCaller()
 
     def verify(state: AgentState) -> dict:
@@ -357,6 +361,7 @@ def make_verify(caller: StructuredCaller | None = None, model: str = VERIFY_MODE
                 ),
                 tool=ENTAILMENT_TOOL,
                 model=model,
+                temperature=temperature,
             )
             supported = bool(result.get("every_claim_supported"))
             checks["claims_follow_from_the_sources"] = supported

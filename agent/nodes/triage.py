@@ -28,7 +28,7 @@ retrieval is invisible in an end-to-end score.
 
 from __future__ import annotations
 
-from agent.models import HAIKU, StructuredCaller
+from agent.models import DEFAULT_TEMPERATURE, HAIKU, StructuredCaller
 from agent.state import AgentState, TraceEvent
 from domain import missing_facts
 
@@ -191,7 +191,11 @@ def _user_message(state: AgentState) -> str:
     )
 
 
-def make_triage(caller: StructuredCaller | None = None, model: str = HAIKU):
+def make_triage(
+    caller: StructuredCaller | None = None,
+    model: str = HAIKU,
+    temperature: float | None = DEFAULT_TEMPERATURE,
+):
     """Build the node. The caller is injected so a test can pin a response and
     the graph can be exercised without a credential."""
     caller = caller or StructuredCaller()
@@ -202,6 +206,7 @@ def make_triage(caller: StructuredCaller | None = None, model: str = HAIKU):
             user=_user_message(state),
             tool=TRIAGE_TOOL,
             model=model,
+            temperature=temperature,
         )
 
         route = result["route"]

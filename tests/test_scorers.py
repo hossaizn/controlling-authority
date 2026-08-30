@@ -259,3 +259,28 @@ def test_a_forbidden_citation_alone_makes_it_not_fully_correct() -> None:
     )
     assert r.required_present
     assert not r.fully_correct
+
+
+# --- DL-41: run files must not collide across sampling arms ------------------
+
+
+def test_an_unset_temperature_keeps_the_existing_run_filename() -> None:
+    """The control arm's file is cited by DL-22 and DL-24. Adding a temperature
+    suffix unconditionally would rename it and break both references while the
+    run still passed."""
+    from eval.run_triage import temperature_slug
+
+    assert temperature_slug(None) == ""
+
+
+def test_each_temperature_gets_its_own_run_file() -> None:
+    """Two arms writing one path is a paired comparison with one arm in it.
+
+    The second run would overwrite the first and the delta would read as zero,
+    which is DL-41's own registered prediction arriving by accident.
+    """
+    from eval.run_triage import temperature_slug
+
+    slugs = [temperature_slug(t) for t in (None, 0.0, 0.7, 1.0)]
+    assert len(set(slugs)) == 4
+    assert all("/" not in s and "." not in s for s in slugs)

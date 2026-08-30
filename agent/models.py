@@ -61,6 +61,31 @@ def track_usage():
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-4-5"
 
+# **Ships as None, meaning: send no sampling parameter, exactly as before.**
+#
+# DL-41's argument for temperature 0 on `triage`, `resolve` and `verify` is
+# sound and is not adopted here, because adopting it would make every published
+# score describe a configuration that no longer exists. Same shape as DL-38's
+# `DEFAULT_PASSAGE_CAP`: the mechanism ships off, the experiment sets it
+# explicitly, and the default moves only once a measurement says it should.
+DEFAULT_TEMPERATURE: float | None = None
+
+
+def temperature_slug(temperature: float | None) -> str:
+    """Filename fragment naming a sampling arm. Unset produces the empty string.
+
+    Lives beside `_cache_key` because both answer one question: how a sampling
+    configuration is identified. Both encode *unset* as absence, so an unset run
+    keeps the exact filename and the exact cache key it had before sampling was
+    configurable, and no published artifact moves.
+
+    Without this the second arm overwrites the first and the delta reads as
+    zero, which is DL-41's own registered prediction arriving by accident.
+    """
+    if temperature is None:
+        return ""
+    return "_t" + f"{temperature:g}".replace(".", "p").replace("-", "neg")
+
 
 def open_model() -> str:
     """The open-weights model id, chosen by environment rather than by code.
@@ -146,7 +171,25 @@ _BUDGETS = {
 # throughput without buying anything: observed triage outputs were 294 and 814
 # tokens including reasoning. 1,024 leaves room to think and still cuts the
 # per-request reservation substantially.
-REASONING_HEADROOM = 1024
+#
+# **Configurable, because 1,024 is Groq's constraint and not a property of
+# reasoning.** Gemini 3.6-flash thinks past it and returns `finish_reason=length`
+# with no tool call at all, on a provider whose per-request ceiling is nowhere
+# near binding. Tuning a number to one free tier and then treating it as the
+# shape of the problem is how the per-request ceiling stayed invisible until 23%
+# of resolve prompts failed.
+#
+# The default is unchanged, so every cached decision and every published number
+# stands. A provider with room sets `OPEN_MODEL_REASONING_TOKENS` and gets it.
+#
+# **`max_tokens` is accepted by `_openai` and never used**, so `resolve` asks for
+# 2,048 and silently receives this instead. That is a real defect and it is not
+# being fixed in this commit: the budget feeds the provider's reservation, the
+# reservation is not part of `_cache_key`, and changing it would leave fresh runs
+# sharing cache entries with runs made under a different configuration. That is
+# DL-41's defect exactly, one field over. Recorded in DL-42 rather than patched
+# quietly mid-experiment.
+REASONING_HEADROOM = int(optional("OPEN_MODEL_REASONING_TOKENS", "1024"))
 # Just inside the bucket, so our token estimate disagreeing with theirs by a
 # few percent cannot turn a legal request into a 413.
 # **Two different limits, two variables.** These were both derived from
@@ -206,12 +249,43 @@ class Usage:
         )
 
 
-def _cache_key(model: str, system: str, user: str, tool: dict) -> str:
-    payload = json.dumps(
-        {"model": model, "system": system, "user": user, "tool": tool},
-        sort_keys=True,
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()[:32]
+def _cache_key(
+    model: str,
+    system: str,
+    user: str,
+    tool: dict,
+    temperature: float | None = None,
+) -> str:
+    """Content hash of everything that determines the response.
+
+    **Sampling parameters are part of the key, and are omitted when unset.**
+
+    DL-41 recorded two things: the key did not include sampling, so a later
+    change to temperature would silently serve results generated at the old one;
+    and fixing it looked like it had to orphan all 1,127 cached entries, 1,008 of
+    which are the Haiku arm that every published number rests on. `spec_for` says
+    re-running the control arm is the one thing a comparison cannot afford.
+
+    Both are satisfied by encoding *unset* as absence rather than as a value. A
+    call with no temperature serialises to exactly the payload this function
+    produced before sampling existed, so every legacy entry still hits. A call at
+    any explicit temperature hashes a payload with a `sampling` block and lands
+    on a different key. Unset and 0.0 are two keys, never one, so nothing mixes.
+
+    **`is not None`, not truthiness.** `if temperature:` reads 0.0 as unset, which
+    is the exact value DL-41 wants for `triage`, `resolve` and `verify`. That
+    would serve every temperature-0 call from a default-temperature entry and
+    report the experiment as a null result. Pinned by a test.
+    """
+    payload: dict[str, Any] = {
+        "model": model,
+        "system": system,
+        "user": user,
+        "tool": tool,
+    }
+    if temperature is not None:
+        payload["sampling"] = {"temperature": temperature}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
 
 
 def as_openai_tool(tool: dict[str, Any]) -> dict[str, Any]:
@@ -315,8 +389,17 @@ class StructuredCaller:
         tool: dict[str, Any],
         model: str = HAIKU,
         max_tokens: int = 1024,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
-        key = _cache_key(model, system, user, tool)
+        """`temperature=None` sends no sampling parameter at all.
+
+        Not a default of 0 dressed up as None. The provider default is whatever
+        the provider says it is, and every number in `eval/decision_log.md` was
+        measured under it. Defaulting to 0 here would change the shipped
+        configuration as a side effect of making it configurable, which is the
+        thing DL-41 refused to do in one commit.
+        """
+        key = _cache_key(model, system, user, tool, temperature)
         path = CACHE_DIR / f"{key}.json"
 
         if self.use_cache and path.exists():
@@ -335,9 +418,13 @@ class StructuredCaller:
 
         if spec.api == "anthropic":
             _BUDGETS["anthropic"].acquire(estimate_tokens([system, user]))
-            result, tokens = self._anthropic(client, system, user, tool, model, max_tokens)
+            result, tokens = self._anthropic(
+                client, system, user, tool, model, max_tokens, temperature
+            )
         else:
-            result, tokens = self._openai(client, system, user, tool, model, max_tokens)
+            result, tokens = self._openai(
+                client, system, user, tool, model, max_tokens, temperature
+            )
 
         self.usage.add(model, *tokens)
         scoped = _REQUEST_USAGE.get()
@@ -351,11 +438,24 @@ class StructuredCaller:
 
         if self.use_cache:
             path.write_text(
-                json.dumps({"model": model, "key": key, "result": result}, indent=2)
+                json.dumps(
+                    {
+                        "model": model,
+                        "key": key,
+                        # Recorded so an entry on disk states the configuration
+                        # that produced it. The key already separates them; this
+                        # makes a cache directory auditable without rehashing it.
+                        "temperature": temperature,
+                        "result": result,
+                    },
+                    indent=2,
+                )
             )
         return result
 
-    def _anthropic(self, client, system, user, tool, model, max_tokens):
+    def _anthropic(
+        self, client, system, user, tool, model, max_tokens, temperature=None
+    ):
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
@@ -365,6 +465,10 @@ class StructuredCaller:
             # Forced. Without this the model may answer in prose and the caller
             # has to handle two shapes, which is how a parser starts guessing.
             tool_choice={"type": "tool", "name": tool["name"]},
+            # Omitted rather than passed as None. Sending `temperature=None`
+            # explicitly is not the same request as sending nothing, and the
+            # cached Haiku arm was produced by a request that sent nothing.
+            **({} if temperature is None else {"temperature": temperature}),
         )
         blocks = [b for b in response.content if b.type == "tool_use"]
         if not blocks:
@@ -377,7 +481,7 @@ class StructuredCaller:
             response.usage.output_tokens,
         )
 
-    def _openai(self, client, system, user, tool, model, max_tokens):
+    def _openai(self, client, system, user, tool, model, max_tokens, temperature=None):
         # **Reasoning tokens are billed against `max_tokens` and are emitted
         # before the tool call.** `gpt-oss-120b` spent most of a 1024 budget
         # thinking, then produced a tool call one closing brace short, and the
@@ -424,13 +528,33 @@ class StructuredCaller:
             # Same invariant as the Anthropic path. A provider that ignores this
             # and answers in prose fails loudly below rather than being parsed.
             tool_choice={"type": "function", "function": {"name": tool["name"]}},
+            **({} if temperature is None else {"temperature": temperature}),
         )
         message = response.choices[0].message
         calls = message.tool_calls or []
+        finish_reason = response.choices[0].finish_reason
         if not calls:
+            # **Two different failures, and conflating them sends you to the
+            # wrong fix.** `length` means the model was still thinking when the
+            # output budget ran out; it honoured `tool_choice` and never got to
+            # emit the call. Blaming the tool contract there reads as "this
+            # provider is unusable" and the response is to drop the provider,
+            # when the actual response is to raise the budget by one variable.
+            #
+            # Gemini 3.6-flash hit this on `resolve` prompts and the original
+            # message accused it of ignoring forced tool calls, which it had not.
+            if finish_reason == "length":
+                raise RuntimeError(
+                    f"{model} ran out of output budget before emitting a tool "
+                    f"call: reserved {budget} tokens for a {prompt_tokens}-token "
+                    f"prompt under a {REQUEST_TOKEN_CEILING} per-request ceiling. "
+                    "Reasoning tokens are charged against this budget and are "
+                    "emitted before the call, so a thinking model needs more of "
+                    "it. Raise OPEN_MODEL_REASONING_TOKENS."
+                )
             raise RuntimeError(
                 f"{model} returned no tool call despite tool_choice being forced; "
-                f"finish_reason={response.choices[0].finish_reason}. "
+                f"finish_reason={finish_reason}. "
                 "A provider that cannot honour tool_choice is not usable here."
             )
         result = parse_arguments(calls[0].function.arguments, model)

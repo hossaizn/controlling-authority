@@ -40,6 +40,45 @@ def test_env_is_gitignored() -> None:
     assert re.search(r"^\.env$", ignored, re.M), ".env must be gitignored"
 
 
+def test_the_local_env_has_no_duplicate_keys() -> None:
+    """**A duplicated key in `.env` is silent, and it does not fail where it happens.**
+
+    dotenv keeps the last occurrence. An appended block adding a second provider
+    left `OPEN_MODEL_ID=` and `OPEN_MODEL_BASE_URL=` empty, which blanked a
+    working Groq configuration, and a Gemini key sat under `OPEN_MODEL_API_KEY`.
+    The run then authenticated to Groq with a Google credential and returned
+    `Invalid API Key`, which reads as a revoked key rather than as a config
+    error two files away.
+
+    CLAUDE.md has said ".env is edited in place, never appended" since the first
+    time this happened. Writing the rule down did not stop it happening again,
+    which is DL-26: fixing an instance of a bug is not fixing the bug. This is
+    the check that does.
+
+    Skipped rather than failed when `.env` is absent, because it is gitignored
+    and a clean clone legitimately has none. A test that fails on checkout gets
+    deleted, and then it guards nothing.
+    """
+    import collections
+
+    import pytest
+
+    env = ROOT / ".env"
+    if not env.exists():
+        pytest.skip(".env is gitignored and absent; nothing local to check")
+
+    counts = collections.Counter(
+        line.split("=", 1)[0].strip()
+        for line in env.read_text().splitlines()
+        if "=" in line and not line.strip().startswith("#")
+    )
+    duplicated = {k: n for k, n in counts.items() if n > 1}
+    assert not duplicated, (
+        f"duplicate keys in .env: {duplicated}. dotenv keeps the LAST one, so an "
+        "earlier working value is silently discarded. Edit in place; never append."
+    )
+
+
 def test_env_example_is_not_gitignored() -> None:
     """The negation must survive, or contributors get no template at all."""
     ignored = (ROOT / ".gitignore").read_text()

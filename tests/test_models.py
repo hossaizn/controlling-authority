@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -30,6 +31,69 @@ TOOL = {
         "required": ["route"],
     },
 }
+
+
+# --- fake providers ---------------------------------------------------------
+#
+# `client_for` is replaced rather than the SDK, so no credential is read and no
+# socket is opened. Each helper returns the list of kwargs the caller handed the
+# provider, which is the only thing these tests assert on: what went over the
+# wire, not what came back.
+
+
+def models_caller():
+    from agent.models import StructuredCaller as _Caller
+
+    return _Caller()
+
+
+def _install(monkeypatch, tmp_path, client) -> None:
+    from agent import models
+
+    monkeypatch.setattr(models, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(models.StructuredCaller, "client_for", lambda self, spec: client)
+
+
+def _capture_anthropic(monkeypatch, tmp_path) -> list[dict]:
+    sent: list[dict] = []
+
+    class _Messages:
+        def create(self, **kwargs):
+            sent.append(kwargs)
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(type="tool_use", input={"route": "answer"})
+                ],
+                usage=SimpleNamespace(input_tokens=10, output_tokens=2),
+                stop_reason="tool_use",
+            )
+
+    _install(monkeypatch, tmp_path, SimpleNamespace(messages=_Messages()))
+    return sent
+
+
+def _capture_openai(monkeypatch, tmp_path) -> list[dict]:
+    sent: list[dict] = []
+
+    class _Completions:
+        def create(self, **kwargs):
+            sent.append(kwargs)
+            call = SimpleNamespace(
+                function=SimpleNamespace(arguments='{"route": "answer"}')
+            )
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(tool_calls=[call]),
+                        finish_reason="tool_calls",
+                    )
+                ],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2),
+            )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=_Completions()))
+    _install(monkeypatch, tmp_path, client)
+    return sent
 
 
 # --- the cache must survive the adapter -------------------------------------
@@ -61,6 +125,92 @@ def test_two_models_never_share_a_cache_entry() -> None:
 def test_editing_the_tool_invalidates_the_key() -> None:
     changed = {**TOOL, "input_schema": {"type": "object", "properties": {}}}
     assert _cache_key(HAIKU, "s", "u", TOOL) != _cache_key(HAIKU, "s", "u", changed)
+
+
+# --- sampling parameters in the key (DL-41) ---------------------------------
+
+
+def test_an_unset_temperature_reproduces_the_pre_sampling_key() -> None:
+    """**The reason 1,008 cached Haiku decisions did not have to be re-bought.**
+
+    DL-41 assumed adding sampling to the key orphans every entry, and priced the
+    fix at a full cold re-run this account cannot pay for. Encoding *unset* as
+    absence rather than as a value keeps the legacy payload byte-identical.
+
+    Pinned against an independently computed hash, not against the function, so
+    a change to the payload shape fails here rather than silently invalidating a
+    cache directory nobody can refill.
+    """
+    payload = json.dumps(
+        {"model": HAIKU, "system": "sys", "user": "usr", "tool": TOOL}, sort_keys=True
+    )
+    expected = hashlib.sha256(payload.encode()).hexdigest()[:32]
+    assert _cache_key(HAIKU, "sys", "usr", TOOL, None) == expected
+    assert _cache_key(HAIKU, "sys", "usr", TOOL) == expected
+
+
+def test_temperature_zero_is_a_different_key_from_unset() -> None:
+    """**The falsiness trap, and it is not hypothetical.**
+
+    `if temperature:` reads 0.0 as unset. Zero is the exact value DL-41 wants for
+    `triage`, `resolve` and `verify`, so that one-character mistake would serve
+    every temperature-0 call out of a default-temperature entry and report the
+    experiment as a null result: no calls made, no deltas, prediction "confirmed".
+
+    A pre-registered prediction graded against its own control arm is worse than
+    no experiment, which is why this is pinned rather than left to review.
+    """
+    assert _cache_key(HAIKU, "s", "u", TOOL, 0.0) != _cache_key(HAIKU, "s", "u", TOOL)
+    assert _cache_key(HAIKU, "s", "u", TOOL, 0) != _cache_key(HAIKU, "s", "u", TOOL)
+
+
+def test_two_temperatures_never_share_a_cache_entry() -> None:
+    keys = {_cache_key(HAIKU, "s", "u", TOOL, t) for t in (0.0, 0.3, 1.0)}
+    assert len(keys) == 3
+
+
+def test_temperature_is_omitted_from_the_request_when_unset(monkeypatch, tmp_path):
+    """Sending `temperature=None` is not the same request as sending nothing.
+
+    The cached Haiku arm was produced by a request that carried no sampling
+    field, and a provider is free to treat an explicit null differently from an
+    absent key. The control arm has to stay reproducible byte for byte.
+    """
+    sent = _capture_anthropic(monkeypatch, tmp_path)
+    models_caller().call(system="s", user="u", tool=TOOL, model=HAIKU)
+    assert "temperature" not in sent[0]
+
+
+def test_temperature_reaches_the_anthropic_request_when_set(monkeypatch, tmp_path):
+    sent = _capture_anthropic(monkeypatch, tmp_path)
+    models_caller().call(system="s", user="u", tool=TOOL, model=HAIKU, temperature=0.0)
+    assert sent[0]["temperature"] == 0.0
+
+
+def test_temperature_reaches_the_openai_request_when_set(monkeypatch, tmp_path):
+    """Both providers, because DL-41's free arms run on the OpenAI-compatible
+    path and a parameter threaded to one API only would look like a null result
+    on exactly the runs that are affordable."""
+    sent = _capture_openai(monkeypatch, tmp_path)
+    models_caller().call(
+        system="s", user="u", tool=TOOL, model="openai/gpt-oss-120b", temperature=0.0
+    )
+    assert sent[0]["temperature"] == 0.0
+
+
+def test_the_openai_request_omits_temperature_when_unset(monkeypatch, tmp_path):
+    sent = _capture_openai(monkeypatch, tmp_path)
+    models_caller().call(system="s", user="u", tool=TOOL, model="openai/gpt-oss-120b")
+    assert "temperature" not in sent[0]
+
+
+def test_the_cache_entry_records_the_temperature_it_was_made_at(monkeypatch, tmp_path):
+    """So a cache directory states its own configuration. The key already
+    separates the arms; this makes them auditable without rehashing 1,127 files."""
+    _capture_anthropic(monkeypatch, tmp_path)
+    models_caller().call(system="s", user="u", tool=TOOL, model=HAIKU, temperature=0.0)
+    written = json.loads(next(tmp_path.glob("*.json")).read_text())
+    assert written["temperature"] == 0.0
 
 
 # --- provider dispatch ------------------------------------------------------
@@ -287,3 +437,64 @@ def test_usage_outside_a_tracked_block_is_not_collected() -> None:
     from agent.models import _REQUEST_USAGE
 
     assert _REQUEST_USAGE.get() is None
+
+
+# --- output budget, and the two failures it produces (DL-42) -----------------
+
+
+def _no_tool_call(monkeypatch, tmp_path, finish_reason):
+    class _Completions:
+        def create(self, **kwargs):
+            return SimpleNamespace(
+                choices=[SimpleNamespace(
+                    message=SimpleNamespace(tool_calls=[]),
+                    finish_reason=finish_reason)],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2),
+            )
+
+    _install(monkeypatch, tmp_path,
+             SimpleNamespace(chat=SimpleNamespace(completions=_Completions())))
+
+
+def test_running_out_of_output_budget_is_not_reported_as_a_tool_choice_failure(
+    monkeypatch, tmp_path
+):
+    """**Conflating these two sends you to the wrong fix.**
+
+    `finish_reason=length` means the model honoured `tool_choice` and was still
+    thinking when the budget ran out. The old message accused the provider of
+    ignoring forced tool calls, and the response to that is to drop the
+    provider. The actual response is to raise one number.
+
+    Gemini 3.6-flash hit this on every `resolve` prompt, and the misdiagnosis
+    cost a run before the finish reason was read.
+    """
+    _no_tool_call(monkeypatch, tmp_path, "length")
+    with pytest.raises(RuntimeError, match="ran out of output budget"):
+        models_caller().call(system="s", user="u", tool=TOOL, model="gemini-3.6-flash")
+
+
+def test_the_budget_error_names_the_variable_that_fixes_it(monkeypatch, tmp_path):
+    """An error that describes a problem without naming its lever gets read as
+    fatal. This one has to say which knob to turn."""
+    _no_tool_call(monkeypatch, tmp_path, "length")
+    with pytest.raises(RuntimeError, match="OPEN_MODEL_REASONING_TOKENS"):
+        models_caller().call(system="s", user="u", tool=TOOL, model="gemini-3.6-flash")
+
+
+def test_a_genuine_tool_choice_failure_still_says_so(monkeypatch, tmp_path):
+    """The invariant this project will not give up. A provider that answers in
+    prose fails loudly rather than being parsed, and that message must survive
+    the new branch above it."""
+    _no_tool_call(monkeypatch, tmp_path, "stop")
+    with pytest.raises(RuntimeError, match="cannot honour tool_choice"):
+        models_caller().call(system="s", user="u", tool=TOOL, model="some-model")
+
+
+def test_the_reasoning_budget_defaults_to_the_groq_value() -> None:
+    """1,024 is Groq's constraint, not a property of reasoning. It stays the
+    default so every cached decision and published number stands; a provider
+    with room raises it by environment rather than by code."""
+    from agent.models import REASONING_HEADROOM
+
+    assert REASONING_HEADROOM == 1024

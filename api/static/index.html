@@ -423,7 +423,7 @@
       <dt>tokens</dt><dd>10 passages retrieved, not 30. Verification sees 1,000 tokens of targeted evidence, not 6,700</dd>
       <dt>guardrails</dt><dd>forced tool calls, citations checked against what was retrieved, spend caps, and the answer key kept out of the corpus</dd>
       <dt>hallucination</dt><dd>four of five groundedness checks are code, not a second model grading the first</dd>
-      <dt>sampling</dt><dd>temperature and top-p are unset, which is a gap rather than a choice. DL-41</dd>
+      <dt>sampling</dt><dd>temperature is settable and left unset on purpose. Setting it to 0 was tested on 92 scenarios and answered one more question correctly than the default: none. It also made the model likelier to guess at an ambiguous question instead of asking. DL-41</dd>
       <dt>drift</dt><dd>records carry the prompt and corpus versions they ran under and are marked stale when those move</dd>
       <dt>knowledge graph</dt><dd>not used. Three layers with a precedence order is a rule set, not a graph</dd>
     </dl>
