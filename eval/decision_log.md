@@ -8,7 +8,18 @@ Entries are `DL-n`. Handbook defect identifiers are `D-n` and live in `corpus/ha
 
 ## DL-1: Which embedding model for a regulatory corpus?
 
-**Status:** open, resolves in Phase 5
+**Status:** **decided in DL-18, reconfirmed in DL-20.** `voyage-law-2` adopted.
+
+> **This status line said "open, resolves in Phase 5" until 2026-08-30**, and
+> `**Result.** *pending*` sat at the bottom, long after Phase 5 closed the
+> question. The README links here for the embedding decision, so a reader
+> following that link found an entry reporting no result.
+>
+> Found by counting open items rather than by a review. It is the same defect as
+> DL-41's heading and DL-24's status line: **a status written before the work and
+> never revisited.** Fixing one instance is not fixing the bug (DL-26), and this
+> class had three members. The prediction below stands exactly as written, since
+> the point of writing it in advance is defeated by editing it afterwards.
 
 **Hypothesis.** A legal-domain embedding model beats a general-purpose one on retrieval recall for statutory text, because the corpus is dense with terms of art (`FMLA`, `825.200`, `serious health condition`) that carry precise meaning.
 
@@ -16,7 +27,18 @@ Entries are `DL-n`. Handbook defect identifiers are `D-n` and live in `corpus/ha
 
 **Why it is not decided up front.** It is a plausible hypothesis, not a known fact. Both models get embedded and measured before either is adopted.
 
-**Result.** *pending*
+**Result.** **The hypothesis holds. `voyage-law-2` is adopted.** Closed in DL-18 against the original corpus, and reconfirmed in DL-20 against the corrected one after DL-19 found five ground-truth errors.
+
+| | recall@10 | recall@3 |
+|---|---|---|
+| structure-aware chunking | +1.8 pts | +12.3 pts |
+| fixed-size chunking | +3.5 pts | +8.8 pts |
+
+The margin on recall@10 is small and the margin on **recall@3 is large**, which is the shape the hypothesis did not predict. Both models find the right document about equally often. The legal model is much better at putting it near the top.
+
+That is what domain specialisation buys in a corpus where every chunk is employment law: "relevant to the question" is nearly free, and the hard part is ranking plausible against correct. DL-20's re-run made the advantage clearer rather than weaker, which is the direction a real effect moves when the data gets cleaner.
+
+The comparison stayed clean because both arms are the same generation at the same 1024 dimensions from one provider. Comparing against OpenAI, as this entry originally planned, would have confounded domain specialisation with vendor.
 
 ---
 
@@ -901,7 +923,21 @@ Reporting 0.877 as the result of three rounds of tuning would be dishonest. **Th
 
 ## DL-24: Pre-registered comparison against an open-weights model
 
-**Status:** open, written 2026-08-26 before any open-model result exists. Resolves after Phase 7.
+**Status:** **partly resolved.** Routing answered and at parity. Precedence unmeasured, and the reason is infrastructure rather than model. See the Result and Deviations sections below.
+
+> **This line said "open, written 2026-08-26 before any open-model result exists"
+> until 2026-08-30**, while the body already carried a result, an infrastructure
+> finding and a recorded list of deviations. The header contradicted its own entry.
+>
+> Third instance of the same defect, alongside DL-1 and DL-41: **a status written
+> before the work and never revisited.** All three were found by counting open
+> items, not by any review, which is the tell that the review passes were reading
+> bodies and skipping headers.
+>
+> **DL-42's ceiling problem is this entry's precedence blocker, still unsolved.**
+> Gemini 3.6-flash does clear the 8,000-token ceiling, so the run is now possible
+> at roughly two minutes per `resolve` call. Free in dollars, four hours in
+> wall-clock, and still unrun.
 
 Written now, while the answer is unknown, for the same reason as DL-1 and DL-14. A comparison designed after seeing which side won is not a comparison.
 
@@ -1963,8 +1999,10 @@ shipped configuration, and this arm argues mildly against it.
 
 ## DL-42: the output reservation is a configuration input, and it is not in the cache key
 
-**Status:** open. Found by pointing the code at a provider whose constraints
-differ from the one it was tuned against.
+**Status:** **resolved the same day it was opened.** Both halves fixed, the
+prediction held, and every published number reproduced at zero cost. Found by
+pointing the code at a provider whose constraints differ from the one it was
+tuned against.
 
 DL-41 was about sampling missing from `_cache_key`. This is the same defect one
 field over, and it was sitting next to it the whole time.
@@ -2015,3 +2053,77 @@ lie**, which is worse than the current state where it merely under-serves.
 because every Anthropic run already used it and the Groq arms all ran at
 prompts where `min(1024, available)` was 1024 anyway. If a Groq number moves,
 the reservation was binding somewhere it was not expected to be.
+
+### Result: the prediction held, and the fix cost nothing
+
+**The reservation is now `min(max(max_tokens, REASONING_HEADROOM), available)`.**
+The headroom became a *floor* on the budget rather than the budget itself, which
+is the choice that made this free. `triage`, `compose` and `verify` all ask for
+the default 1,024, which is also the headroom, so `max()` returns exactly what
+the old `min()` returned and their keys do not move. Only `resolve` changes,
+from a silently truncated 1,024 to the 2,048 it has requested since it was
+written, and no published number rests on a Groq `resolve` run because DL-24
+could never complete one.
+
+Adding the two instead, `max_tokens + REASONING_HEADROOM`, was the obvious
+reading and would have orphaned all 208 Groq entries including both arms of
+DL-41's comparison.
+
+Verified by re-running all three published arms rather than by argument:
+
+| arm | calls | cached | macro | published |
+|---|---|---|---|---|
+| Haiku control | 0 | 92 | 0.8154 | 0.815 |
+| Groq default temperature | 0 | 92 | 0.8178 | 0.8178 |
+| Groq temperature 0 | 0 | 92 | 0.8440 | 0.8440 |
+
+Zero calls, $0.00, three exact reproductions. **The prediction is confirmed.**
+
+### What the mutation pass caught that the tests did not
+
+Six mutations were written for this change and **three survived**, two on the
+first targeted pass and a third only on the full 180-mutation sweep. All three
+are variants of one hole: a test that exercises the default path cannot
+distinguish two implementations that agree on the default.
+
+**`if reservation:` instead of `is not None`.** DL-41's falsiness trap, on the
+other field, reintroduced within hours of the entry warning about it. A zero
+budget is degenerate, not absent, and would have been served a legacy entry. The
+tests used 2,048 and 4,096 and never zero.
+
+**`legacy_reservation` derived from `REASONING_HEADROOM` instead of a frozen
+constant.** Identical while the default is unchanged, so no test that leaves the
+environment alone can tell them apart. It breaks the moment a provider needs
+more room: raising `OPEN_MODEL_REASONING_TOKENS` for Gemini would move the
+historical baseline, and calls that genuinely match the old reservation would
+start hashing to new keys, orphaning the cache the encoding exists to protect.
+
+`legacy_reservation` describes history, not configuration. That distinction was
+implicit in the code and is now pinned by a test that sets the variable to
+16,384 and asserts the answer is still 1,024.
+
+**The third survivor is the one worth reading.** It replaced the
+`budget != legacy_reservation(available)` check with an unconditional
+`reservation = budget`, so every OpenAI call would carry a reservation in its
+key and orphan all 208 Groq entries, DL-41's two published arms among them. The
+entire suite stayed green.
+
+The test written to prevent exactly that compared `openai_reservation` against
+`legacy_reservation` and found them equal. **That checks the two functions, not
+the code that decides whether to consult them**, and the guarantee lives in the
+decision rather than in the agreement. It is DL-26's finding arriving again:
+asserting a relationship is not asserting the behaviour, and DL-10 said the same
+thing about pinning values rather than comparisons.
+
+It is now tested the only way that means anything: write an entry at the
+pre-DL-42 key, call through `call`, and demand a cache hit. Plus the converse,
+that a `resolve`-sized call must *miss* that entry, so a fix cannot pass by
+preserving too much.
+
+### Still open, and it is not a code question
+
+**Step 3 of the plan above is not done.** The Gemini entries written under two
+budgets during this session sit at keys that do not describe them. Under the new
+scheme they are indistinguishable from legitimate legacy entries, so the fix
+cannot repair them retroactively; they have to be deleted. That is a data
+deletion and it is not mine to make unilaterally.

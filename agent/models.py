@@ -204,6 +204,40 @@ REQUEST_TOKEN_CEILING = int(
 # room to answer and the run should fail loudly rather than emit truncated JSON.
 MIN_OUTPUT_TOKENS = 700
 
+# What shipped before DL-42, kept as a constant rather than a memory. The old
+# reservation ignored the caller entirely, which is the defect; reproducing it
+# exactly is what lets the fix keep every cached decision reachable.
+LEGACY_REASONING_HEADROOM = 1024
+
+
+def legacy_reservation(available: int) -> int:
+    """The pre-DL-42 output reservation: `max_tokens` discarded."""
+    return min(LEGACY_REASONING_HEADROOM, available)
+
+
+def openai_reservation(system: str, user: str, max_tokens: int) -> tuple[int, int, int]:
+    """Returns `(budget, prompt_tokens, available)` for an OpenAI-compatible call.
+
+    **`REASONING_HEADROOM` is a floor on the budget, not an allowance added to
+    it.** The caller's `max_tokens` sizes the answer; the headroom guarantees
+    room to think when the caller asks for less than thinking needs. So the
+    reservation is whichever is larger, capped by what fits under the ceiling.
+
+    That choice is what makes DL-42's fix free. `triage`, `compose` and `verify`
+    all ask for the default 1,024, which is also the headroom, so their
+    reservation is unchanged and every one of their cached decisions still hits.
+    Only `resolve` moves, from a silently truncated 1,024 to the 2,048 it has
+    been asking for since it was written, and no published number rests on a
+    Groq `resolve` run because DL-24 could never complete one.
+
+    Adding the two instead (`max_tokens + headroom`) would have been defensible
+    and would have orphaned all 208 Groq entries including DL-41's two arms.
+    """
+    prompt_tokens = estimate_tokens([system, user])
+    available = REQUEST_TOKEN_CEILING - prompt_tokens
+    budget = min(max(max_tokens, REASONING_HEADROOM), available)
+    return budget, prompt_tokens, available
+
 
 @dataclass
 class Usage:
@@ -255,6 +289,7 @@ def _cache_key(
     user: str,
     tool: dict,
     temperature: float | None = None,
+    reservation: int | None = None,
 ) -> str:
     """Content hash of everything that determines the response.
 
@@ -285,6 +320,11 @@ def _cache_key(
     }
     if temperature is not None:
         payload["sampling"] = {"temperature": temperature}
+    # DL-42. Same encoding, same reason: absent means "the reservation this code
+    # would have computed before the fix", so every entry made under the old
+    # behaviour still hits and only calls that genuinely changed get a new key.
+    if reservation is not None:
+        payload["reservation"] = reservation
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
 
 
@@ -399,7 +439,22 @@ class StructuredCaller:
         configuration as a side effect of making it configurable, which is the
         thing DL-41 refused to do in one commit.
         """
-        key = _cache_key(model, system, user, tool, temperature)
+        spec = spec_for(model)
+
+        # **The reservation is computed before the cache is consulted, because it
+        # is part of the key.** DL-42: it changes what the model returns, so two
+        # runs at different budgets must not share an entry. Encoded as absence
+        # whenever it matches the pre-DL-42 value, which is why `triage`,
+        # `compose` and `verify` keep every cached decision they had.
+        reservation: int | None = None
+        openai_budget: tuple[int, int, int] | None = None
+        if spec.api == "openai":
+            openai_budget = openai_reservation(system, user, max_tokens)
+            budget, _, available = openai_budget
+            if budget != legacy_reservation(available):
+                reservation = budget
+
+        key = _cache_key(model, system, user, tool, temperature, reservation)
         path = CACHE_DIR / f"{key}.json"
 
         if self.use_cache and path.exists():
@@ -413,7 +468,6 @@ class StructuredCaller:
             self.last_call = None
             return json.loads(path.read_text())["result"]
 
-        spec = spec_for(model)
         client = self.client_for(spec)
 
         if spec.api == "anthropic":
@@ -422,8 +476,11 @@ class StructuredCaller:
                 client, system, user, tool, model, max_tokens, temperature
             )
         else:
+            # Reused rather than recomputed, so the budget that was hashed into
+            # the key is provably the budget that gets reserved. Computing it
+            # twice would let the two drift under any future edit.
             result, tokens = self._openai(
-                client, system, user, tool, model, max_tokens, temperature
+                client, system, user, tool, model, temperature, openai_budget
             )
 
         self.usage.add(model, *tokens)
@@ -481,8 +538,8 @@ class StructuredCaller:
             response.usage.output_tokens,
         )
 
-    def _openai(self, client, system, user, tool, model, max_tokens, temperature=None):
-        # **Reasoning tokens are billed against `max_tokens` and are emitted
+    def _openai(self, client, system, user, tool, model, temperature=None, budgeted=None):
+        # **Reasoning tokens are billed against the reservation and are emitted
         # before the tool call.** `gpt-oss-120b` spent most of a 1024 budget
         # thinking, then produced a tool call one closing brace short, and the
         # provider rejected it server-side with `tool_use_failed` before this
@@ -492,13 +549,11 @@ class StructuredCaller:
         # reasoning effort would make the open model cheaper and faster at
         # exactly the judgment DL-24 exists to measure, which would bias the
         # comparison in favour of the conclusion that it cannot do it.
-        prompt_tokens = estimate_tokens([system, user])
-        available = REQUEST_TOKEN_CEILING - prompt_tokens
-        # Against the real ceiling, not the discounted one. The 5% margin
-        # exists to absorb tokeniser disagreement on the RESERVATION, and
-        # applying it to the floor check as well rejected prompts of
-        # 6,901 to 7,300 tokens that the provider accepts.
-        budget = min(REASONING_HEADROOM, available)
+        #
+        # **The reservation arrives from `call`, already hashed into the cache
+        # key (DL-42).** It used to be computed here and nowhere else, which is
+        # how it became a configuration input that no key described.
+        budget, prompt_tokens, available = budgeted
         headroom_at_full = (
             int(optional("OPEN_MODEL_MAX_REQUEST_TOKENS", optional("OPEN_MODEL_TPM", "8000")))
             - prompt_tokens

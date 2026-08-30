@@ -84,11 +84,11 @@ Every technique below is one this project actually uses. The ones it does not us
 
 **Per-slice regression gates.** An overall number that holds steady hides a slice that collapsed. See [`eval/regression.py`](eval/regression.py).
 
-**Mutation testing as the primary review technique.** [`eval/mutation.py`](eval/mutation.py) breaks the source on purpose, 174 ways, and checks whether the suite notices. Every review that ran it found real defects, including eval scorers that could all be hardcoded to `True` with the whole suite green. A stale mutation counts as an error, not a skip: `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target moved reports "caught" while never having been applied.
+**Mutation testing as the primary review technique.** [`eval/mutation.py`](eval/mutation.py) breaks the source on purpose, 180 ways, and checks whether the suite notices. Every review that ran it found real defects, including eval scorers that could all be hardcoded to `True` with the whole suite green. A stale mutation counts as an error, not a skip: `str.replace()` returns the string unchanged when it finds nothing, so a mutation whose target moved reports "caught" while never having been applied.
 
 ```bash
-uv run pytest                    # 623 tests
-uv run python -m eval.mutation   # 174 mutations, all currently caught
+uv run pytest                    # 634 tests
+uv run python -m eval.mutation   # 180 mutations, all currently caught
 ```
 
 ### Running it in production terms

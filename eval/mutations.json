@@ -1216,5 +1216,47 @@
     "old": "    if temperature is None:\n        return \"\"\n    return \"_t\"",
     "new": "    if True:\n        return \"\"\n    return \"_t\"",
     "origin": "DL-41 sampling review"
+  },
+  {
+    "label": "R1 reservation dropped from the cache key",
+    "file": "agent/models.py",
+    "old": "    if reservation is not None:\n        payload[\"reservation\"] = reservation",
+    "new": "    if False:\n        payload[\"reservation\"] = reservation",
+    "origin": "DL-42 reservation review"
+  },
+  {
+    "label": "R2 reservation keyed by truthiness, so a 0 budget collides with unset",
+    "file": "agent/models.py",
+    "old": "    if reservation is not None:\n        payload[\"reservation\"] = reservation",
+    "new": "    if reservation:\n        payload[\"reservation\"] = reservation",
+    "origin": "DL-42 reservation review"
+  },
+  {
+    "label": "R3 max_tokens ignored again (the original DL-42 defect)",
+    "file": "agent/models.py",
+    "old": "    budget = min(max(max_tokens, REASONING_HEADROOM), available)",
+    "new": "    budget = min(REASONING_HEADROOM, available)",
+    "origin": "DL-42 reservation review"
+  },
+  {
+    "label": "R4 reservation not capped by the per-request ceiling",
+    "file": "agent/models.py",
+    "old": "    budget = min(max(max_tokens, REASONING_HEADROOM), available)",
+    "new": "    budget = max(max_tokens, REASONING_HEADROOM)",
+    "origin": "DL-42 reservation review"
+  },
+  {
+    "label": "R5 every call gets a new key, orphaning the whole cache",
+    "file": "agent/models.py",
+    "old": "            if budget != legacy_reservation(available):\n                reservation = budget",
+    "new": "            reservation = budget",
+    "origin": "DL-42 reservation review"
+  },
+  {
+    "label": "R6 legacy reservation reports the new value, so nothing ever differs",
+    "file": "agent/models.py",
+    "old": "    return min(LEGACY_REASONING_HEADROOM, available)",
+    "new": "    return min(REASONING_HEADROOM, available)",
+    "origin": "DL-42 reservation review"
   }
 ]

@@ -52,6 +52,12 @@ def _install(monkeypatch, tmp_path, client) -> None:
 
     monkeypatch.setattr(models, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(models.StructuredCaller, "client_for", lambda self, spec: client)
+    # **Neutralise the pacer.** `_BUDGETS` is module state shared across tests,
+    # so reservations accumulate and a later test blocks on a rolling window it
+    # did not fill. That turned this file from 0.5s into 61s, which is how a
+    # fast suite quietly stops being run.
+    for budget in models._BUDGETS.values():
+        monkeypatch.setattr(budget, "acquire", lambda tokens: 0.0)
 
 
 def _capture_anthropic(monkeypatch, tmp_path) -> list[dict]:
@@ -498,3 +504,193 @@ def test_the_reasoning_budget_defaults_to_the_groq_value() -> None:
     from agent.models import REASONING_HEADROOM
 
     assert REASONING_HEADROOM == 1024
+
+
+# --- DL-42: the reservation is part of the key -------------------------------
+
+
+def test_an_unset_reservation_reproduces_the_pre_dl42_key() -> None:
+    """The same absence encoding that made DL-41 free, reused.
+
+    A call whose reservation matches what the old code would have computed
+    hashes exactly as it did before, so every cached decision stays reachable.
+    Pinned against an independently computed hash rather than against the
+    function, so a change to the payload shape fails here.
+    """
+    payload = json.dumps(
+        {"model": HAIKU, "system": "sys", "user": "usr", "tool": TOOL}, sort_keys=True
+    )
+    expected = hashlib.sha256(payload.encode()).hexdigest()[:32]
+    assert _cache_key(HAIKU, "sys", "usr", TOOL, None, None) == expected
+
+
+def test_a_changed_reservation_is_a_different_key() -> None:
+    """**The defect DL-42 names.** The reservation changes what the model
+    returns. Two runs at different budgets sharing one entry means a later run
+    serves a decision made under a configuration it is not using."""
+    base = _cache_key(HAIKU, "s", "u", TOOL)
+    assert _cache_key(HAIKU, "s", "u", TOOL, None, 2048) != base
+    assert _cache_key(HAIKU, "s", "u", TOOL, None, 2048) != _cache_key(
+        HAIKU, "s", "u", TOOL, None, 4096
+    )
+
+
+def test_sampling_and_reservation_are_independent_in_the_key() -> None:
+    """Four configurations, four keys. Folding them together would let a
+    temperature change mask a budget change."""
+    keys = {
+        _cache_key(HAIKU, "s", "u", TOOL, t, r)
+        for t in (None, 0.0)
+        for r in (None, 2048)
+    }
+    assert len(keys) == 4
+
+
+def test_the_default_asking_nodes_keep_their_reservation() -> None:
+    """**Why DL-42's fix cost nothing.**
+
+    `triage`, `compose` and `verify` all ask for the default 1,024, which is
+    also `REASONING_HEADROOM`, so `max(max_tokens, headroom)` returns exactly
+    what the old `min(headroom, available)` returned. Their cached decisions,
+    including both arms of DL-41's published comparison, still hit.
+    """
+    from agent.models import legacy_reservation, openai_reservation
+
+    budget, _, available = openai_reservation("s" * 300, "u" * 8000, 1024)
+    assert budget == legacy_reservation(available)
+
+
+def test_resolve_finally_gets_the_budget_it_has_always_asked_for() -> None:
+    """`_openai` accepted `max_tokens` and discarded it, so `resolve` asked for
+    2,048 and silently received 1,024. That is the half of DL-42 that was a
+    plain bug rather than a cache-correctness question."""
+    from agent.models import legacy_reservation, openai_reservation
+
+    budget, _, available = openai_reservation("s" * 300, "u" * 8000, 2048)
+    assert budget == 2048
+    assert budget != legacy_reservation(available)
+
+
+def test_the_reservation_is_capped_by_what_fits_under_the_ceiling() -> None:
+    """A caller asking for more than the ceiling allows must not produce an
+    illegal request. The cap is the whole reason the ceiling variable exists."""
+    from agent.models import REQUEST_TOKEN_CEILING, openai_reservation
+
+    budget, prompt_tokens, available = openai_reservation("s", "u" * 24000, 8192)
+    assert budget == available
+    assert prompt_tokens + budget <= REQUEST_TOKEN_CEILING
+
+
+def test_the_request_reserves_exactly_what_was_hashed(monkeypatch, tmp_path) -> None:
+    """**The budget hashed into the key must be the budget reserved.**
+
+    It used to be computed inside `_openai` and nowhere else. Computing it in
+    two places would let the key and the request drift apart under any future
+    edit, which is a cache that lies while every test still passes.
+    """
+    from agent.models import openai_reservation
+
+    sent = _capture_openai(monkeypatch, tmp_path)
+    system, user = "s" * 300, "u" * 8000
+    expected, _, _ = openai_reservation(system, user, 2048)
+
+    models_caller().call(
+        system=system, user=user, tool=TOOL,
+        model="openai/gpt-oss-120b", max_tokens=2048,
+    )
+    assert sent[0]["max_tokens"] == expected
+
+
+def test_a_zero_reservation_is_not_the_same_key_as_unset() -> None:
+    """The DL-41 falsiness trap again, on the other field.
+
+    `if reservation:` reads 0 as unset. A zero budget is a degenerate call, not
+    an absent one, and hashing it as absent would serve it a legacy entry. The
+    same one-character mistake was caught on `temperature` and would have been
+    reintroduced here.
+    """
+    assert _cache_key(HAIKU, "s", "u", TOOL, None, 0) != _cache_key(
+        HAIKU, "s", "u", TOOL, None, None
+    )
+
+
+def test_the_legacy_reservation_is_frozen_and_ignores_the_configured_headroom(
+    monkeypatch,
+) -> None:
+    """**`legacy_reservation` describes history, not configuration.**
+
+    It has to answer "what would the old code have reserved", and the old code
+    hardcoded 1,024. Deriving it from `REASONING_HEADROOM` instead looks correct
+    and is identical while the default is unchanged, so a test that never sets
+    the variable cannot tell them apart.
+
+    It breaks the moment a provider needs more room. Raising
+    `OPEN_MODEL_REASONING_TOKENS` for Gemini would move the baseline, and calls
+    that genuinely match the historical reservation would start hashing to new
+    keys, orphaning the cache the encoding exists to protect.
+    """
+    from agent import models
+
+    monkeypatch.setattr(models, "REASONING_HEADROOM", 16384)
+    assert models.legacy_reservation(50_000) == 1024
+    assert models.legacy_reservation(500) == 500
+
+
+def test_a_default_asking_openai_call_still_hits_its_pre_dl42_entry(
+    monkeypatch, tmp_path
+) -> None:
+    """**The guarantee DL-42's fix rests on, tested end to end through `call`.**
+
+    Found by mutation R5, which replaced the `budget != legacy_reservation(...)`
+    check with an unconditional `reservation = budget`. Every OpenAI call would
+    then carry a reservation in its key and orphan all 208 Groq entries,
+    including both arms of DL-41's published comparison, and the whole suite
+    stayed green.
+
+    The existing test compared `openai_reservation` against `legacy_reservation`
+    and agreed. That checks the two functions, not the code that decides whether
+    to consult them, which is where the guarantee actually lives. Same shape as
+    DL-26's finding: asserting a relationship is not asserting the behaviour.
+
+    So this writes an entry at the pre-DL-42 key and demands a cache hit.
+    """
+    _capture_openai(monkeypatch, tmp_path)
+    system, user = "s" * 300, "u" * 8000
+
+    legacy_key = _cache_key("openai/gpt-oss-120b", system, user, TOOL)
+    (tmp_path / f"{legacy_key}.json").write_text(
+        json.dumps({"result": {"route": "answer"}})
+    )
+
+    caller = models_caller()
+    result = caller.call(
+        system=system, user=user, tool=TOOL, model="openai/gpt-oss-120b"
+    )
+    assert result == {"route": "answer"}
+    assert caller.usage.cached == 1
+    assert caller.usage.calls == 0
+
+
+def test_a_resolve_sized_openai_call_must_not_hit_the_pre_dl42_entry(
+    monkeypatch, tmp_path
+) -> None:
+    """The other half. `resolve` genuinely changed, from a truncated 1,024 to
+    the 2,048 it asked for, so serving it the old entry would be the cache lying
+    about which configuration produced the answer. A fix that preserved
+    everything by preserving too much would pass the test above and fail here."""
+    sent = _capture_openai(monkeypatch, tmp_path)
+    system, user = "s" * 300, "u" * 8000
+
+    legacy_key = _cache_key("openai/gpt-oss-120b", system, user, TOOL)
+    (tmp_path / f"{legacy_key}.json").write_text(
+        json.dumps({"result": {"route": "stale"}})
+    )
+
+    caller = models_caller()
+    result = caller.call(
+        system=system, user=user, tool=TOOL,
+        model="openai/gpt-oss-120b", max_tokens=2048,
+    )
+    assert result == {"route": "answer"}, "served a decision made at a different budget"
+    assert caller.usage.calls == 1
+    assert sent[0]["max_tokens"] == 2048

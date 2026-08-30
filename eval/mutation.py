@@ -37,6 +37,19 @@ The recovery is `git checkout -- <file>`, and the reason it is merely annoying
 rather than dangerous is the baseline check below: the next run refuses to
 start against a red suite instead of reporting 146 false "caught" verdicts.
 Run this in the background rather than under a timeout.
+
+**Nothing else may touch the repo while this runs.** One source file is
+deliberately broken at any instant, so a concurrent `pytest`, `git commit` or
+build sees it. That happened: a suite run alongside a sweep reported two
+precedence failures that were this harness working correctly, and the output is
+indistinguishable from a real regression. `git status` is equally misleading,
+which makes committing mid-sweep a way to ship a mutation.
+
+**A full sweep is about 15 minutes**, measured at 12 mutations a minute. Each is
+a separate `pytest` process, and since a caught mutation exits early on the
+first failure, most of the 5 seconds per mutation is interpreter startup and
+collection rather than testing. Parallelising would need a worktree per worker,
+because the mutation is a file edit rather than an in-process patch.
 """
 
 from __future__ import annotations
